@@ -11,7 +11,6 @@ use ffi_log2::log_param;
 use log::info;
 use rust_cli::hams_logger_init_ffi;
 
-
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
@@ -39,21 +38,15 @@ enum Commands {
         list: bool,
     },
     /// Validate the configuration
-    Validate {
-
-    },
+    Validate {},
     /// Start the service
-    Start {
-
-    }
+    Start {},
 }
-
 
 pub fn main() {
     //! Initialise the shared library
     let log_level = Env::default().default_filter_or("info");
     env_logger::Builder::from_env(log_level).init();
-
 
     let cli = Cli::parse();
 
@@ -80,18 +73,16 @@ pub fn main() {
                 println!("Not printing testing lists...");
             }
         }
-        Some(Commands::Validate {  }) => {
+        Some(Commands::Validate {}) => {
             println!("Validating");
             todo!("Implement validate functions")
         }
-        Some(Commands::Start {  }) => {
+        Some(Commands::Start {}) => {
             info!("Start");
             hams_logger_init_ffi(log_param());
         }
-        None => {},
+        None => {}
     }
-
-
 
     // let matches = App::new("k8s uService")
     //     .version("0.1.0")
@@ -178,7 +169,6 @@ pub fn main() {
 
     //         uservice_start_ffi(uservice).expect("uservice init completes");
     //         info!("uservice completed and exited");
-
 
     //         // uservice_stop_ffi(uservice).expect("")  // NOT needed as already stopped
     //         pservice_free_ffi(uservice, "apple").expect("pservice freed");

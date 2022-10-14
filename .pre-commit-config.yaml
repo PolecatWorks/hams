@@ -14,12 +14,13 @@ repos:
         args: ['--branch', 'main']
 -   repo: https://github.com/Yelp/detect-secrets
     rev: v1.4.0
+    # detect-secrets scan > .secrets.baseline
     hooks:
     -   id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
         exclude: package.lock.json
 -   repo: https://github.com/doublify/pre-commit-rust
-    rev: master
+    rev: v1.0
     hooks:
     -   id: fmt
     -   id: cargo-check
