@@ -1,0 +1,34 @@
+[package]
+name = "hams"
+# Health And Monitoring System
+version = "0.1.0"
+edition = "2021"
+authors = ["Ben Greene <BenJGreene@gmail.com>"]
+
+[dependencies]
+log = { version = "0.4.17", features = ["release_max_level_info"] }
+ffi-log2 = { path = "ffi-log2" }
+
+
+[build-dependencies]
+cbindgen = '*'
+
+[profile.release]
+lto = true
+codegen-units = 1
+# strip = true # Automatically strip symbols from the binary. (ONLY available in nightly)
+
+
+[workspace]
+members = ["rust_cli"]
+# exclude = ["rust_cli"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[lib]
+crate-type = [ "cdylib", "lib" ]
+
+
+[dev-dependencies]
+aquamarine = "0.1.12"
