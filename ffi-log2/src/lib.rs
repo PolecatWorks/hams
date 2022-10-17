@@ -1,4 +1,5 @@
 #![warn(missing_docs)]
+// Examples from here: https://github.com/rust-lang/log/issues/421
 
 //! Work out what needs to be configured inside the DLL to enable the log forwarding.
 //! Create a ffi function that enables the logging in the DLL to be configured (safely).
@@ -180,7 +181,7 @@ impl ExternCRecord {
 }
 
 /** LogParam is LogParam is a struct that transports the necessary objects to enable the configuration of the DLL logger.
- * This structure must be FFI-safe. It must be constructured into FFI safe structures from the original structures on teh sending side and reconstruced into the log structures on teh consume size of log functions.
+ * This structure must be FFI-safe. It must be constructured into FFI safe structures from the original structures on the sending side and reconstruced into the log structures on the consume size of log functions.
  */
 #[repr(C)]
 pub struct LogParam {
@@ -196,18 +197,18 @@ pub struct LogParam {
 
 struct DLog;
 
-static mut PARAM: Option<LogParam> = None;
+static mut LOGPARAM: Option<LogParam> = None;
 
 /** init the DLL logging by passing in the references to the implemntation of the logging
  */
 pub fn logger_init(param: LogParam) {
     let level = param.level;
     unsafe {
-        if PARAM.is_some() {
+        if LOGPARAM.is_some() {
             eprint!("log should only init once");
             return;
         }
-        PARAM.replace(param);
+        LOGPARAM.replace(param);
     }
     if let Err(err) = log::set_logger(&LOGGER).map(|_| log::set_max_level(level)) {
         eprint!("set logger failed:{}", err);
@@ -215,7 +216,7 @@ pub fn logger_init(param: LogParam) {
 }
 
 fn param() -> &'static LogParam {
-    unsafe { PARAM.as_ref() }.unwrap()
+    unsafe { LOGPARAM.as_ref() }.unwrap()
 }
 
 /** Log implementation is the definition of the Interfaces used by the log library
