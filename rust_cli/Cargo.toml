@@ -11,6 +11,7 @@ env_logger = "0.9.1"
 log = { version = "0.4.17", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
 hams = { path = ".." }
+libc = "0.2.135"
 
 [dev-dependencies]
 aquamarine = "0.1.12"

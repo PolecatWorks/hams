@@ -8,8 +8,10 @@ use clap::{Parser, Subcommand};
 use env_logger::Env;
 
 use ffi_log2::log_param;
+mod ffi;
+
+use crate::ffi::{hams_free_ffi, hams_init_ffi, hams_logger_init_ffi};
 use log::info;
-use rust_cli::hams_logger_init_ffi;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -79,7 +81,15 @@ pub fn main() {
         }
         Some(Commands::Start {}) => {
             info!("Start");
-            hams_logger_init_ffi(log_param());
+            hams_logger_init_ffi(log_param()).unwrap();
+
+            let hams = hams_init_ffi("hello").unwrap();
+
+            info!("I have a HaMS");
+
+            info!("Releasing my HaMS");
+            hams_free_ffi(hams).unwrap();
+            info!("HaMS has been released");
         }
         None => {}
     }

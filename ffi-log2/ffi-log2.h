@@ -83,7 +83,7 @@ typedef struct ExternCRecord {
 } ExternCRecord;
 
 /**
- * LogParam is LogParam is a struct that transports the necessary objects to enable the configuration of the DLL logger.  * This structure must be FFI-safe. It must be constructured into FFI safe structures from the original structures on teh sending side and reconstruced into the log structures on teh consume size of log functions.
+ * LogParam is LogParam is a struct that transports the necessary objects to enable the configuration of the DLL logger.  * This structure must be FFI-safe. It must be constructured into FFI safe structures from the original structures on the sending side and reconstruced into the log structures on the consume size of log functions.
  */
 typedef struct LogParam {
   /**

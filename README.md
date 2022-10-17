@@ -15,11 +15,13 @@ Typical usages are:
 List of topics that need work
 
 * [ ] Build core library as shared object
+* [ ] Logging over FFI
 * [ ] Validate CAPI calls to protect against stupid CAPI errors (null, etc)
+* [ ] Wrap CAPI interface with rust interface and use of Result<>
 * [ ] Rust cli program to demonstrate usage
-* [ ] Helm sample chart referring to APIs
+* [ ] Helm sample chart using APIs
 * [ ] Python bindings
 * [ ] NodeJS bindings
 * [ ] Java/Kotlin bindings
 * [ ] C/C++ bindings
-* [ ] Optional support for prometheus
+* [ ] Support for prometheus
