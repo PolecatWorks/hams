@@ -20,7 +20,7 @@ fn main() {
         ..Default::default()
     };
     cbindgen::generate_with_config(&crate_dir, config)
-        .unwrap()
+        .expect("Unable to generate bindings")
         .write_to_file(&output_file);
 }
 

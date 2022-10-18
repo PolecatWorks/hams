@@ -6,10 +6,10 @@ edition = "2021"
 authors = ["Ben Greene <BenJGreene@gmail.com>"]
 
 [dependencies]
-log = { version = "0.4.17", features = ["release_max_level_info"] }
+log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "ffi-log2" }
-ffi_helpers = "0.3.0"
-libc = "0.2.135"
+ffi_helpers = "~0.3"
+libc = "~0.2"
 
 
 [build-dependencies]
