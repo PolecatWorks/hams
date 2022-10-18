@@ -57,6 +57,9 @@ style-check:
 lint:
 	@cargo clippy
 
+coverage:
+	@cargo tarpaulin --ignore-tests --out Lcov
+
 benchmark:
 	@cargo criterion
 	@open target/criterion/reports/index.html
