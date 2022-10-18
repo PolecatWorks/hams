@@ -13,7 +13,8 @@ libc = "~0.2"
 
 
 [build-dependencies]
-cbindgen = '*'
+cbindgen = "~0.24"
+
 
 [profile.release]
 lto = true

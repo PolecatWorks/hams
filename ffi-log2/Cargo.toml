@@ -10,4 +10,4 @@ edition = "2021"
 log = "~0.4"
 
 [build-dependencies]
-cbindgen = '*'
+cbindgen = "~0.24"
