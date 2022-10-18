@@ -15,11 +15,7 @@ fn main() {
         .display()
         .to_string();
 
-    let config = Config {
-        // namespace: Some(String::from("ffi")),
-        ..Default::default()
-    };
-    cbindgen::generate_with_config(&crate_dir, config)
+    cbindgen::generate(&crate_dir)
         .expect("Unable to generate bindings")
         .write_to_file(&output_file);
 }
