@@ -52,11 +52,13 @@ where
  * Deregister the shared library
  */
 pub fn hams_free_ffi(library: *mut Hams) -> Result<(), HamsError> {
-    // change return type to be Result so taht we can capture error
-    unsafe {
-        hams_free(library);
+    // change return type to be Result so that we can capture error
+    let retval = unsafe { hams_free(library) };
+    if retval != 0 {
+        Err(HamsError::Message("Failed to freem hams".to_string()))
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 #[cfg(test)]
@@ -68,7 +70,7 @@ mod tests {
 
     #[test]
     fn logger_init() {
-        hams_logger_init_ffi(log_param());
+        hams_logger_init_ffi(log_param()).unwrap();
     }
 
     #[test]
