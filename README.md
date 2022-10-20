@@ -14,8 +14,8 @@ Typical usages are:
 
 List of topics that need work
 
-* [ ] Build core library as shared object
-* [ ] Logging over FFI
+* [*] Build core library as shared object
+* [*] Logging over FFI
 * [ ] Validate CAPI calls to protect against stupid CAPI errors (null, etc)
 * [ ] Wrap CAPI interface with rust interface and use of Result<>
 * [ ] Rust cli program to demonstrate usage
