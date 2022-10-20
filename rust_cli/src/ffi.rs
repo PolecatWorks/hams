@@ -24,7 +24,7 @@ extern "C" {
 
 // Initialise logging
 pub fn hams_logger_init_ffi(param: LogParam) -> Result<(), HamsError> {
-    if unsafe { hams_logger_init(param) } != 0 {
+    if unsafe { hams_logger_init(param) } == 0 {
         return Err(HamsError::Message("Logging did not register".to_string()));
     }
     Ok(())
