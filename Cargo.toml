@@ -35,4 +35,4 @@ crate-type = [ "cdylib", "lib" ]
 
 [dev-dependencies]
 aquamarine = "~0.1"
-tarpaulin = "~0.1"
+cargo-tarpaulin = "~0.22"

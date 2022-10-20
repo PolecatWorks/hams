@@ -1,4 +1,5 @@
 use self::hams::Hams;
+use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use log::info;
 use std::{process, ptr};
@@ -13,14 +14,18 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// Initialise the FFI based logging for this crate
 #[no_mangle]
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
-    logger_init(param);
-    info!(
-        "Logging registered for {}:{} (PID: {})",
-        NAME,
-        VERSION,
-        process::id()
-    );
-    0
+    // ffi_helpers::null_pointer_check!(param);
+
+    catch_panic!(
+        logger_init(param);
+        info!(
+            "Logging registered for {}:{} (PID: {})",
+            NAME,
+            VERSION,
+            process::id()
+        );
+        Ok(1)
+    )
 }
 
 /** Initialise the HaMS

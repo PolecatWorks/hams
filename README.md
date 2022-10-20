@@ -25,3 +25,9 @@ List of topics that need work
 * [ ] Java/Kotlin bindings
 * [ ] C/C++ bindings
 * [ ] Support for prometheus
+
+
+# Useful Reference
+List of useful sites to review
+* https://rust-unofficial.github.io/patterns/intro.html
+*
