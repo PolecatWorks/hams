@@ -59,6 +59,18 @@ pub extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
     )
 }
 
+/// Start the HaMS service
+#[no_mangle]
+pub extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let hams = unsafe {&mut *ptr};
+        info!("start my ham {}", hams.name);
+        Ok(1)
+    )
+}
+
 #[cfg(test)]
 mod tests {
 

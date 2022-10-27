@@ -1,38 +1,17 @@
-[package]
-name = "hams"
-# Health And Monitoring System
-version = "0.1.0"
-edition = "2021"
-authors = ["Ben Greene <BenJGreene@gmail.com>"]
+# [package]
+# name = "hamsworkspace"
+# # Health And Monitoring System
+# version = "0.1.0"
+# edition = "2021"
+# authors = ["Ben Greene <BenJGreene@gmail.com>"]
 
-[dependencies]
-log = { version = "~0.4", features = ["release_max_level_info"] }
-ffi-log2 = { path = "ffi-log2" }
-ffi_helpers = "~0.3"
-libc = "~0.2"
-
-
-[build-dependencies]
-cbindgen = "~0.24"
-
-
-[profile.release]
-lto = true
-codegen-units = 1
-# strip = true # Automatically strip symbols from the binary. (ONLY available in nightly)
 
 
 [workspace]
-members = ["rust_cli"]
+members = [
+    "rust_cli",
+    "hams",
+]
 # exclude = ["rust_cli"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-
-[lib]
-crate-type = [ "cdylib", "lib" ]
-
-
-[dev-dependencies]
-aquamarine = "~0.1"
-cargo-tarpaulin = "~0.22"
