@@ -240,11 +240,19 @@ impl Log for DLog {
 
 static LOGGER: DLog = DLog;
 
+/// Create a CAPI function for the enabled function. This is used by the Dylib Log
+///
+/// This function is used in the main to create a CAPI function that can be transported
+/// via LogParam to the SO logger initialisation funtions.
 extern "C" fn enabled(meta: ExternCMetadata) -> bool {
     let metadata = unsafe { meta.as_metadata() };
     log::logger().enabled(&metadata)
 }
 
+/// Create a CAPI function for the log function. This is used by the Dylib Log
+///
+/// This function is used in the main to create a CAPI function that can be transported
+/// via LogParam to the SO logger initialisation funtions.
 extern "C" fn log(ext_record: &ExternCRecord) {
     let mut record_builder = unsafe { ext_record.as_record_builder() };
 
@@ -256,6 +264,10 @@ extern "C" fn log(ext_record: &ExternCRecord) {
     }
 }
 
+/// Create a CAPI function for the flush function. This is used by the Dylib Log
+///
+/// This function is used in the main to create a CAPI function that can be transported
+/// via LogParam to the SO logger initialisation funtions.
 extern "C" fn flush() {
     log::logger().flush()
 }

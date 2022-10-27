@@ -30,4 +30,10 @@ List of topics that need work
 # Useful Reference
 List of useful sites to review
 * https://rust-unofficial.github.io/patterns/intro.html
+* https://medium.com/dwelo-r-d/wrapping-unsafe-c-libraries-in-rust-d75aeb283c65
 *
+
+# Check Link Dependencies
+Check the link dependencies for a given binary ie dylib on osx or .so on linux
+
+    otool -L <binary>

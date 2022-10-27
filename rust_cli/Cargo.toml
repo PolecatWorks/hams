@@ -10,8 +10,10 @@ clap = { version = "~4.0", features = ["derive"] }
 env_logger = "~0.9"
 log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
-hams = { path = ".." }
+hams = { path = "../hams" }
 libc = "~0.2"
+ffi_helpers = "~0.3"
+
 
 [dev-dependencies]
 aquamarine = "0.1.12"
