@@ -58,11 +58,90 @@ impl RustStr {
     }
 }
 
+#[repr(usize)]
+#[derive(Copy, Debug, Hash)]
+pub enum ExternCLevel {
+    /// The "error" level.
+    ///
+    /// Designates very serious errors.
+    // This way these line up with the discriminants for LevelFilter below
+    // This works because Rust treats field-less enums the same way as C does:
+    // https://doc.rust-lang.org/reference/items/enumerations.html#custom-discriminant-values-for-field-less-enumerations
+    Error = 1,
+    /// The "warn" level.
+    ///
+    /// Designates hazardous situations.
+    Warn,
+    /// The "info" level.
+    ///
+    /// Designates useful information.
+    Info,
+    /// The "debug" level.
+    ///
+    /// Designates lower priority information.
+    Debug,
+    /// The "trace" level.
+    ///
+    /// Designates very low priority, often extremely verbose, information.
+    Trace,
+}
+
+impl From<Level> for ExternCLevel {
+    fn from(myvalue: Level) -> Self {
+        ExternCLevel::Info
+    }
+}
+impl Into<Level> for ExternCLevel {
+    fn into(self) -> Level {
+        Level::Info
+    }
+}
+impl Clone for ExternCLevel {
+    #[inline]
+    fn clone(&self) -> ExternCLevel {
+        *self
+    }
+}
+
+#[repr(usize)]
+#[derive(Copy, Debug, Hash)]
+pub enum ExternCLevelFilter {
+    /// A level lower than all log levels.
+    Off,
+    /// Corresponds to the `Error` log level.
+    Error,
+    /// Corresponds to the `Warn` log level.
+    Warn,
+    /// Corresponds to the `Info` log level.
+    Info,
+    /// Corresponds to the `Debug` log level.
+    Debug,
+    /// Corresponds to the `Trace` log level.
+    Trace,
+}
+
+impl From<LevelFilter> for ExternCLevelFilter {
+    fn from(myvalue: LevelFilter) -> Self {
+        ExternCLevelFilter::Info
+    }
+}
+impl Into<LevelFilter> for ExternCLevelFilter {
+    fn into(self) -> LevelFilter {
+        LevelFilter::Info
+    }
+}
+impl Clone for ExternCLevelFilter {
+    #[inline]
+    fn clone(&self) -> ExternCLevelFilter {
+        *self
+    }
+}
+
 /// FFI-safe Metadata
 #[repr(C)]
 pub struct ExternCMetadata {
     /// Log verbosity
-    pub level: Level,
+    pub level: ExternCLevel,
     /// Log target
     pub target: RustStr,
 }
@@ -74,18 +153,22 @@ impl ExternCMetadata {
     pub unsafe fn as_metadata(&self) -> Metadata {
         let level = self.level;
         let target = self.target.to_str();
-        Metadata::builder().level(level).target(target).build()
+        Metadata::builder()
+            .level(level.into())
+            .target(target)
+            .build()
     }
 }
 
 impl<'a> From<&Metadata<'a>> for ExternCMetadata {
     fn from(m: &Metadata<'a>) -> Self {
         Self {
-            level: m.level(),
+            level: m.level().into(),
             target: m.target().into(),
         }
     }
 }
+
 /// FFI-safe owned Rust String.
 #[repr(C)]
 pub struct RustString {
@@ -192,7 +275,7 @@ pub struct LogParam {
     /// flush the logs
     pub flush: extern "C" fn(),
     /// value for the log level
-    pub level: LevelFilter,
+    pub level: ExternCLevelFilter,
 }
 
 struct DLog;
@@ -210,7 +293,7 @@ pub fn logger_init(param: LogParam) {
         }
         LOGPARAM.replace(param);
     }
-    if let Err(err) = log::set_logger(&LOGGER).map(|_| log::set_max_level(level)) {
+    if let Err(err) = log::set_logger(&LOGGER).map(|_| log::set_max_level(level.into())) {
         eprint!("set logger failed:{}", err);
     }
 }
@@ -279,6 +362,6 @@ pub fn log_param() -> LogParam {
         enabled,
         log,
         flush,
-        level: log::max_level(),
+        level: log::max_level().into(),
     }
 }
