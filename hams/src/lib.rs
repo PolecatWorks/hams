@@ -43,12 +43,6 @@ pub extern "C" fn hams_init<'a>(name: *const libc::c_char) -> *mut Hams {
     )
 }
 
-#[no_mangle]
-pub extern "C" fn hello_world() -> i32 {
-    println!("OOOO");
-    0
-}
-
 /// Free the HaMS
 #[no_mangle]
 pub extern "C" fn hams_free(ptr: *mut Hams) -> i32 {

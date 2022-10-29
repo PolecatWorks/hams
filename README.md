@@ -23,7 +23,8 @@ List of topics that need work
 * [ ] Python bindings
 * [ ] NodeJS bindings
 * [ ] Java/Kotlin bindings
-* [ ] C/C++ bindings
+* [*] C/C++ bindings
+  * [*] Show usage of C logging from Rust SO
 * [ ] Support for prometheus
 
 
