@@ -37,3 +37,7 @@ List of useful sites to review
 Check the link dependencies for a given binary ie dylib on osx or .so on linux
 
     otool -L <binary>
+
+# Autotools
+
+Build rust and other libraries and system install with autotools.
