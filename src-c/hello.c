@@ -7,7 +7,9 @@ bool c_log_enabled(ExternCMetadata logdata) {
 }
 
 void c_log_log(const struct ExternCRecord* logdata) {
-    printf("C Log: %.*s\n", (int)logdata->message.len, logdata->message.ptr);
+    printf("C Log(%.*s): %.*s\n",
+        (int)logdata->module_path.len,logdata->module_path.ptr,
+        (int)logdata->message.len, logdata->message.ptr);
 }
 
 void c_log_flush() {
@@ -29,11 +31,24 @@ int main(void)
     hams_logger_init(c_log);
 
 
-    void* hams = hams_init("hello");
+    Hams *hams = hams_init("hello");
+    if (!hams) {
+        printf("FAILED to init");
+        return 1;
+    }
 
-    hams_start(hams);
+    int start_reply = hams_start(hams);
+    if (!start_reply) {
+         printf("FAILED to start");
+        return 2;
+    }
 
-    hams_free(hams);
+    int free_reply = hams_free(hams);
+    if (!free_reply) {
+         printf("FAILED to free");
+        return 3;
+    }
 
     printf("DONE\n");
+    return 0;
 }

@@ -88,11 +88,13 @@ pub enum ExternCLevel {
 
 impl From<Level> for ExternCLevel {
     fn from(myvalue: Level) -> Self {
+        // TODO: Make correct transorm of enums
         ExternCLevel::Info
     }
 }
 impl Into<Level> for ExternCLevel {
     fn into(self) -> Level {
+        // TODO: Make correct transorm of enums
         Level::Info
     }
 }
@@ -123,11 +125,13 @@ pub enum ExternCLevelFilter {
 impl From<LevelFilter> for ExternCLevelFilter {
     fn from(myvalue: LevelFilter) -> Self {
         ExternCLevelFilter::Info
+        // TODO: Make correct transorm of enums
     }
 }
 impl Into<LevelFilter> for ExternCLevelFilter {
     fn into(self) -> LevelFilter {
         LevelFilter::Info
+        // TODO: Make correct transorm of enums
     }
 }
 impl Clone for ExternCLevelFilter {
