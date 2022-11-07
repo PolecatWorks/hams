@@ -2,6 +2,7 @@
 *.profraw
 lcov.info
 *.o
+*.dylib
 missing
 aclocal.m4
 compile
