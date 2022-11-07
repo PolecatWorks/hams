@@ -1,6 +1,6 @@
 RELEASE ?=
 
-SUBDIRS = src-c src-ts
+SUBDIRS = sample-c sample-ts
 
 CARGO_TARGET = $(if $(RELEASE), target/release, target/debug)
 CARGO_BUILD_FLAGS = $(if $(RELEASE), --release,)

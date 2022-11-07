@@ -14,17 +14,17 @@ Typical usages are:
 
 List of topics that need work
 
-* [*] Build core library as shared object
-* [*] Logging over FFI
-* [*] Validate CAPI calls to protect against stupid CAPI errors (null, etc)
-* [*] Wrap CAPI interface with rust interface and use of Result<>
-* [*] Rust cli program to demonstrate usage
+* [x] Build core library as shared object
+* [x] Logging over FFI
+* [x] Validate CAPI calls to protect against stupid CAPI errors (null, etc)
+* [x] Wrap CAPI interface with rust interface and use of Result<>
+* [x] Rust cli program to demonstrate usage
 * [ ] Helm sample chart using APIs
 * [ ] Python bindings
 * [ ] NodeJS bindings
 * [ ] Java/Kotlin bindings
-* [*] C/C++ bindings
-  * [*] Show usage of C logging from Rust SO
+* [x] C/C++ bindings
+  * [x] Show usage of C logging from Rust SO
 * [ ] Support for prometheus
 
 
