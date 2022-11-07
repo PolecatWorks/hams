@@ -27,17 +27,45 @@ export const handler = (argv: Arguments<Options>): void => {
     process.stdout.write(upper ? greeting.toUpperCase() : greeting);
 
 
-    var cmetadata = 'void';
-    var cmetadataPtr = ref.refType(cmetadata);
-    var externCRecord = 'void';
-    var externCRecordPtr = ref.refType(externCRecord);
+    // var cmetadata = 'void';
+    // var cmetadataPtr = ref.refType(cmetadata);
+
+
+    // var RustString = 'void';
+    const RustString = StructType({
+        ptr: ref.types.CString,
+        cap: ref.types.uint64,
+        len: ref.types.uint64,
+    });
+
+    const RustStr = StructType({
+        ptr: ref.types.CString,
+        len: ref.types.uint64,
+    });
+
+    // var RustStringPtr = ref.refType(RustString);
+
+    var ExternCMetadata = StructType({
+        level: ref.types.int64,
+        target: RustStr,
+    });
+    // var ExternCMetadataPtr = ref.refType(ExternCMetadata);
+
+    const ExternCRecord = StructType({
+        metadata: ExternCMetadata,
+        message: RustString,
+        module_path: RustStr,
+        file: RustStr,
+        line: ref.types.int64
+    });
+
+    var ExternCRecordPtr = ref.refType(ExternCRecord);
 
     const LogParam = StructType({
-        enabled:  ffi.Function('bool', [cmetadataPtr]),
-        log: ffi.Function('void', [externCRecordPtr]),
+        enabled:  ffi.Function('bool', [ExternCMetadata]),
+        log: ffi.Function('void', [ExternCRecordPtr]),
         flush: ffi.Function('void', []),
         level: ref.types.uint,
-        // level: ref.refType(ref.types.uint),
     });
 
 
@@ -99,16 +127,19 @@ export const handler = (argv: Arguments<Options>): void => {
 
 
 
-    var c_log_enabled = ffi.Callback('bool', [cmetadataPtr],
+    var c_log_enabled = ffi.Callback('bool', [ExternCMetadata],
         function(cmetadata) {
             return true;
         }
     );
-    var c_log_log = ffi.Callback('void', [externCRecordPtr],
-        function(cmetadata) {
-            console.log("Logging using c_log_log via nodejs");
-            const loc = "here";
-            const message = "this message";
+    var c_log_log = ffi.Callback('void', [ExternCRecordPtr],
+        function(recordptr: any) {
+            const record: typeof ExternCRecord = recordptr.deref();
+            // console.log("RECORD", record);
+            // console.log("line", record.line);
+            // console.log("Logging using c_log_log via nodejs");
+            const loc = record.module_path.ptr;
+            const message = record.message.ptr;
             console.log(`Node Log(${loc}): ${message}`);
         }
     );

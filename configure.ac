@@ -1,7 +1,9 @@
 #
 # Minimal configure.ac to get started
 # inspired by https://ljones.dev/blog/gsoc-2/
-
+# and also https://aravindavk.in/blog/autoconf-for-rust-projects/
+# and https://www.figuiere.net/hub/blog/?2016/10/07/862-rust-and-automake
+#  BUT these make assumptions on structure of cargo.toml rather than actually reading it
 AC_PREREQ([2.71])
 
 AC_INIT([hams],[0.1])

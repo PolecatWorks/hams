@@ -20,6 +20,12 @@ void c_log_flush() {
 // extern void hello_world(); // declare the Rust function
 int main(void)
 {
+    printf("sizeof(ExternCRecord) = %lu\n", sizeof(ExternCRecord));
+    printf("sizeof(ExternCRecord*) = %lu\n", sizeof(ExternCRecord*));
+    printf("sizeof(RustStr) = %lu\n", sizeof(RustStr));
+    printf("sizeof(RustString) = %lu\n", sizeof(RustString));
+    printf("sizeof(ExternCMetadata) = %lu\n", sizeof(ExternCMetadata));
+
     struct LogParam c_log = {
         c_log_enabled,
         c_log_log,
@@ -30,6 +36,7 @@ int main(void)
 
     hams_logger_init(c_log);
 
+    hello_world();
 
     Hams *hams = hams_init("hello");
     if (!hams) {
