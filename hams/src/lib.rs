@@ -1,6 +1,7 @@
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
+use libc::c_int;
 use log::info;
 use std::ffi::CStr;
 use std::process;
@@ -10,6 +11,19 @@ pub mod error;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+#[no_mangle]
+pub extern "C" fn hello_world() {
+    println!("HOWDY");
+    println!("Hello I am {}:{}", NAME, VERSION);
+}
+
+#[no_mangle]
+pub extern "C" fn hello_node() -> c_int {
+    println!("HOWDY");
+    println!("Hello I am {}:{}", NAME, VERSION);
+    7
+}
 
 /// Initialise the FFI based logging for this crate
 #[no_mangle]
