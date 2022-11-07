@@ -17,3 +17,7 @@ $(top_build_prefix)$(CARGO_TARGET)/libhams.dylib:
 
 # $(CARGO_TARGET)/libhams.dylib:
 # 	$(CARGO) build $(CARGO_BUILD_FLAGS)
+
+check-local: hello_c
+	@./hello_c
+	echo Hello

@@ -13,6 +13,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@types/ref-struct-di": "^1.1.7",
     "@types/ffi-napi": "^4.0.6",
     "@types/node": "^18.11.8",
     "@types/yargs": "^17.0.13",

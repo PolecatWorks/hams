@@ -1,37 +1,20 @@
 import type { Arguments, CommandBuilder } from 'yargs';
 
-// import {ffi} from 'ffi-napi';
-
 import ffi from 'ffi-napi';
 import ref from 'ref-napi';
 var StructType = require('ref-struct-di')(ref);
 
 type Options = {
-    name: string;
-    upper: boolean | undefined;
 };
 
-export const command: string = 'start <name>';
-export const desc: string = 'Start <name> with Hello';
+export const command: string = 'start';
+export const desc: string = 'Start hams based service';
 
 export const builder: CommandBuilder<Options, Options> = (yargs) =>
-    yargs
-        .options({
-            upper: { type: 'boolean' },
-        })
-        .positional('name', { type: 'string', demandOption: true });
+    yargs;
 
 export const handler = (argv: Arguments<Options>): void => {
-    const { name, upper } = argv;
-    const greeting = `Hello, ${name}!`;
-    process.stdout.write(upper ? greeting.toUpperCase() : greeting);
 
-
-    // var cmetadata = 'void';
-    // var cmetadataPtr = ref.refType(cmetadata);
-
-
-    // var RustString = 'void';
     const RustString = StructType({
         ptr: ref.types.CString,
         cap: ref.types.uint64,
@@ -43,13 +26,10 @@ export const handler = (argv: Arguments<Options>): void => {
         len: ref.types.uint64,
     });
 
-    // var RustStringPtr = ref.refType(RustString);
-
     var ExternCMetadata = StructType({
         level: ref.types.int64,
         target: RustStr,
     });
-    // var ExternCMetadataPtr = ref.refType(ExternCMetadata);
 
     const ExternCRecord = StructType({
         metadata: ExternCMetadata,
@@ -102,19 +82,6 @@ export const handler = (argv: Arguments<Options>): void => {
     console.log("my funv reply is ", my_return);
 
 
-    // var time_t = ref.types.long;
-    // var suseconds_t = ref.types.long;
-
-    // // // define the "timeval" struct type
-    // var timeval = StructType({
-    //     tv_sec: time_t,
-    //     tv_usec: suseconds_t
-    // });
-
-    // var tv = new timeval({ tv_sec: 1, tv_usec: 2});
-
-    // console.log("XXX", tv.tv_sec);
-
     console.log("ABOUT to say hello");
     ffilib.hello_world();
     ffilib.hello_world();
@@ -135,9 +102,6 @@ export const handler = (argv: Arguments<Options>): void => {
     var c_log_log = ffi.Callback('void', [ExternCRecordPtr],
         function(recordptr: any) {
             const record: typeof ExternCRecord = recordptr.deref();
-            // console.log("RECORD", record);
-            // console.log("line", record.line);
-            // console.log("Logging using c_log_log via nodejs");
             const loc = record.module_path.ptr;
             const message = record.message.ptr;
             console.log(`Node Log(${loc}): ${message}`);
