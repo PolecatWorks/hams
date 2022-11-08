@@ -15,7 +15,7 @@ m4_ifdef([AM_SILENT_RULES], [
 
 AC_CANONICAL_HOST
 
-AC_CONFIG_HEADERS([src-c/config.h])
+AC_CONFIG_HEADERS([sample-c/config.h])
 
 AC_PROG_CC
 AM_PROG_CC_C_O
@@ -32,8 +32,9 @@ AC_CONFIG_MACRO_DIRS([m4])
 
 AC_CONFIG_FILES([
     Makefile
-    src-c/Makefile
-    src-ts/Makefile
+    sample-c/Makefile
+    sample-ts/Makefile
+    sample-rust/Makefile
 ])
 
 

@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use env_logger::Env;
 
 use ffi_log2::log_param;
-use rust_cli::{self, hams_logger_init, Hams};
+use sample_rust::{self, hams_logger_init, Hams};
 
 use log::info;
 
