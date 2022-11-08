@@ -1,17 +1,14 @@
 RELEASE ?=
 
-SUBDIRS = sample-c sample-ts
+SUBDIRS = sample-c sample-ts sample-rust
 
 CARGO_TARGET = $(if $(RELEASE), target/release, target/debug)
 CARGO_BUILD_FLAGS = $(if $(RELEASE), --release,)
 
 ACLOCAL_AMFLAGS = -I m4
 
-check-local: $(top_build_prefix)$(CARGO_TARGET)/rust_cli
-	@$(top_build_prefix)$(CARGO_TARGET)/rust_cli start
 
-
-$(CARGO_TARGET)/libhams.dylib $(top_build_prefix)$(CARGO_TARGET)/rust_cli:
+$(CARGO_TARGET)/libhams.dylib $(top_build_prefix)$(CARGO_TARGET)/sample-rust:
 	$(CARGO) build $(CARGO_BUILD_FLAGS)
 
 status:

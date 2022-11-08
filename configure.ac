@@ -34,6 +34,7 @@ AC_CONFIG_FILES([
     Makefile
     sample-c/Makefile
     sample-ts/Makefile
+    sample-rust/Makefile
 ])
 
 

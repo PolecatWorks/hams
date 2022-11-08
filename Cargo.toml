@@ -9,7 +9,7 @@
 
 [workspace]
 members = [
-    "rust_cli",
+    "sample-rust",
     "hams",
 ]
 # exclude = ["rust_cli"]
