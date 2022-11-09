@@ -35,6 +35,7 @@ AC_CONFIG_FILES([
     sample-c/Makefile
     sample-ts/Makefile
     sample-rust/Makefile
+    sample-kotlin/Makefile
 ])
 
 

@@ -21,8 +21,9 @@ List of topics that need work
 * [x] Rust cli program to demonstrate usage
 * [ ] Helm sample chart using APIs
 * [ ] Python bindings
-* [ ] NodeJS bindings
+* [x] NodeJS bindings
 * [ ] Java/Kotlin bindings
+  * [ ] Consideration for future: https://openjdk.org/projects/panama/
 * [x] C/C++ bindings
   * [x] Show usage of C logging from Rust SO
 * [ ] Support for prometheus
