@@ -21,7 +21,7 @@ clean-local:
 
 check-local: libhams.dylib
 check-local: target/target/my-maven-sample-app-1.0-SNAPSHOT-jar-with-dependencies.jar
-	@java -jar target/my-maven-sample-app-1.0-SNAPSHOT-jar-with-dependencies.jar
+	java --enable-native-access=ALL-UNNAMED  --add-modules jdk.incubator.foreign -jar target/my-maven-sample-app-1.0-SNAPSHOT-jar-with-dependencies.jar
 
 # https://medium.com/codex/getting-started-with-kotlin-and-maven-9482a65158a1
 init-maven:

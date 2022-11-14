@@ -8,10 +8,10 @@ fun main(args: Array<String>) {
     var myJava = MyJava()
     myJava.howdy()
 
-//     val ben = HamsJni()
-    // ben.testMe(3)
-//     val instance = Native.load("hams", CHams::class.java)
-//     instance.hello_world()
+    val ben = HamsJni()
+    ben.testMe(3)
+    val instance = Native.load("hams", CHams::class.java)
+    instance.hello_world()
 
     // val ben2 = INSTANCE.hello_node()
 
