@@ -14,13 +14,13 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[no_mangle]
 pub extern "C" fn hello_world() {
-    println!("HOWDY");
+    println!("HOWDY World");
     println!("Hello I am {}:{}", NAME, VERSION);
 }
 
 #[no_mangle]
 pub extern "C" fn hello_node() -> c_int {
-    println!("HOWDY");
+    println!("HOWDY Node");
     println!("Hello I am {}:{}", NAME, VERSION);
     7
 }

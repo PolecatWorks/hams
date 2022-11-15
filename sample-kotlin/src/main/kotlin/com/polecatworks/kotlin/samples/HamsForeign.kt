@@ -1,9 +1,7 @@
 
 package com.polecatworks.kotlin.samples
-import jdk.incubator.foreign.CLinker;
-import jdk.incubator.foreign.FunctionDescriptor
-import jdk.incubator.foreign.MemoryAddress
-import jdk.incubator.foreign.SymbolLookup
+
+import jdk.incubator.foreign.*
 import java.lang.invoke.MethodType
 
 
@@ -15,22 +13,23 @@ class HamsForeign constructor() {
         println("i am creating HamsForeign");
         System.loadLibrary("hams")
 
-//    CLinker.getInstance().
-//        var ab1 = CLinker.systemLookup().lookup("strlen").get()
-//        var ab3 = FunctionDescriptor.of(CLinker.C_LONG, CLinker.C_POINTER)!!
-//        var ab2 = MethodType.methodType(1L::class.java, MemoryAddress.class)
-//        var strlen =  CLinker.getInstance().downcallHandle(
-//                CLinker.systemLookup().lookup("strlen").get(),
-//                MethodType.methodType(1L::class.java, MemoryAddress.class),
-//                FunctionDescriptor.of(CLinker.C_LONG, CLinker.C_POINTER)!!
-//            )
 
-        // var lib_hello = CLinker.systemLookup().lookup("hello_world")
-        var myLoader = SymbolLookup.loaderLookup()
-       var lib_hello = myLoader.lookup("hello_world").get()
+        var hello_world = CLinker.getInstance().downcallHandle(
+            SymbolLookup.loaderLookup().lookup("hello_world").get(),
+            MethodType.methodType(Void::class.javaPrimitiveType),
+            FunctionDescriptor.ofVoid()
+        )
 
+        hello_world.invokeExact()
 
+        var hello_node = CLinker.getInstance().downcallHandle(
+            SymbolLookup.loaderLookup().lookup("hello_node").get(),
+            MethodType.methodType(Int::class.javaPrimitiveType),
+            FunctionDescriptor.of(CLinker.C_INT)
+        )
 
+        var mynode = hello_node.invokeExact() as Int
+        println("hello_node replied with ${mynode}")
 //
 //
 //
