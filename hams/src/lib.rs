@@ -25,6 +25,12 @@ pub extern "C" fn hello_node() -> c_int {
     7
 }
 
+#[no_mangle]
+pub extern "C" fn hello_callback(myCb: extern "C" fn()) {
+    println!("HOWDY callback");
+    myCb();
+}
+
 /// Initialise the FFI based logging for this crate
 #[no_mangle]
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
