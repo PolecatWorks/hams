@@ -97,6 +97,10 @@
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <compilerArgs>
+                        <!-- https://github.com/jesperancinha/good-story/blob/main/kotlin-good-story/pom.xml -->
+                        <arg>--enable-preview</arg>
+                    </compilerArgs>
                 </configuration>
                 <executions>
                     <execution>
