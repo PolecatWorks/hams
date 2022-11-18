@@ -8,7 +8,7 @@ import java.lang.invoke.MethodType
 
 // https://blog.arkey.fr/2021/09/04/a-practical-look-at-jep-412-in-jdk17-with-libsodium/
 // https://docs.oracle.com/en/java/javase/17/docs/api/jdk.incubator.foreign/jdk/incubator/foreign/package-summary.html
-
+// https://stackoverflow.com/questions/69321128/how-to-call-a-c-function-from-java-17-using-jep-412-foreign-function-memory-a
 
 internal object IntComparator {
     @JvmStatic
@@ -23,6 +23,7 @@ internal object HelloCallback {
   @JvmStatic
   fun helloCallback() {
     println("I am the Kotlin callback");
+    println("I have been run")
   }
 }
 
@@ -74,12 +75,13 @@ class HamsForeign constructor() {
 
         // Find the function that will receive the callback
 
-        // var hello_callback = CLinker.getInstance().downcallHandle(
-        //   SymbolLookup.loaderLookup().lookup("hello_callback").get(),
-        //   MethodType.methodType(),
-        //   FunctionDescriptor.of(CLinker.C_POINTER),
-        // )
+        var hello_callback = CLinker.getInstance().downcallHandle(
+          SymbolLookup.loaderLookup().lookup("hello_callback").get(),
+          MethodType.methodType(Void::class.javaPrimitiveType, MemoryAddress::class.java),
+          FunctionDescriptor.ofVoid(CLinker.C_POINTER),
+        )
 
+        hello_callback.invokeExact(helloCallbackNativeSymbol)
 
         // Create a call back
 
@@ -97,7 +99,7 @@ class HamsForeign constructor() {
             FunctionDescriptor.of(CLinker.C_INT, CLinker.C_POINTER, CLinker.C_POINTER),
             scope
         )
-        TODO("Pass this upcallStub to a function to implement a callback")
+        // TODO("Pass this upcallStub to a function to implement a callback")
 
 //    var strlen = CLinker.getInstance().downcallHandle(
 //
