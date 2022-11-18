@@ -1,6 +1,6 @@
 RELEASE ?=
 
-SUBDIRS = sample-c sample-ts sample-rust
+SUBDIRS = sample-c sample-ts sample-rust sample-kotlin
 
 CARGO_TARGET = $(if $(RELEASE), target/release, target/debug)
 CARGO_BUILD_FLAGS = $(if $(RELEASE), --release,)
