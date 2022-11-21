@@ -9,8 +9,8 @@ libhams.dylib: $(top_build_prefix)$(CARGO_TARGET)/libhams.dylib
 	cp $(top_build_prefix)$(CARGO_TARGET)/libhams.dylib ./
 
 
-# export JAVA_HOME = $(shell /usr/libexec/java_home -v 19.0.1)
-export JAVA_HOME = $(shell /usr/libexec/java_home -v 17.0.5)
+export JAVA_HOME = $(shell /usr/libexec/java_home -v 19.0.1)
+# export JAVA_HOME = $(shell /usr/libexec/java_home -v 17.0.5)
 
 target/target/my-maven-sample-app-1.0-SNAPSHOT-jar-with-dependencies.jar:
 	@mvn package

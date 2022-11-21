@@ -13,7 +13,7 @@
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <kotlin.version>1.7.20</kotlin.version>
+        <kotlin.version>1.8.0-Beta</kotlin.version>
 
         <kotlin.code.style>official</kotlin.code.style>
         <junit.version>4.13.1</junit.version>
@@ -24,7 +24,7 @@
     <dependencies>
         <dependency>
             <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-stdlib-jdk8</artifactId>
+            <artifactId>kotlin-stdlib</artifactId>
             <version>${kotlin.version}</version>
         </dependency>
 
@@ -84,7 +84,8 @@
                 </executions>
                 <configuration>
                     <args>
-                        <arg>-Xadd-modules=jdk.incubator.foreign</arg>
+                        <!-- <arg>-Xadd-modules=java.lang.foreign</arg> -->
+                        <arg>-Xjvm-enable-preview</arg>
                         <!-- <arg>-Xenable-preview</arg> NOT supported in kotlin-maven-plugin  -->
                     </args>
                 </configuration>

@@ -1,7 +1,7 @@
 
 package com.polecatworks.kotlin.samples
 
-import jdk.incubator.foreign.*
+import java.lang.foreign.*
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 import java.nio.ByteOrder
