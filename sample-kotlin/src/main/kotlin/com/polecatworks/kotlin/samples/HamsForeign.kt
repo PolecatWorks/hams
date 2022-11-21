@@ -4,6 +4,7 @@ package com.polecatworks.kotlin.samples
 import jdk.incubator.foreign.*
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
+import java.nio.ByteOrder
 
 
 // https://blog.arkey.fr/2021/09/04/a-practical-look-at-jep-412-in-jdk17-with-libsodium/
@@ -80,8 +81,54 @@ class HamsForeign constructor() {
           MethodType.methodType(Void::class.javaPrimitiveType, MemoryAddress::class.java),
           FunctionDescriptor.ofVoid(CLinker.C_POINTER),
         )
-
+        // Try out the basic callback
         hello_callback.invokeExact(helloCallbackNativeSymbol)
+
+//        const uint8_t *ptr;
+//        uintptr_t len;
+        var RustStr = MemoryLayout.structLayout(
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("ptr"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("len"),
+        ).withName("RustStr")
+
+        var RustString = MemoryLayout.structLayout(
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("ptr"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("cap"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("len"),
+        ).withName("RustString")
+
+        var LogParam = MemoryLayout.structLayout(
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("enabled"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("log"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("flush"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("level"),
+        ).withName("LogParam")
+
+        var ExternCMetadata = MemoryLayout.structLayout(
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("level"),
+            RustStr.withName("target"),
+        ).withName("ExternCMetadata")
+
+
+        var ExternCRecord = MemoryLayout.structLayout(
+            ExternCMetadata.withName("metadata"),
+            RustString.withName("message"),
+            RustStr.withName("module_path"),
+            RustStr.withName("file"),
+            MemoryLayout.valueLayout(64, ByteOrder.nativeOrder()).withName("line"),
+        ).withName("ExternCRecord")
+
+
+
+
+        println("RustStr is ${RustStr.bitSize()}")
+        println("RustString is ${RustString.bitSize()}")
+        println("LogParam is ${LogParam.bitSize()}")
+        println("ExternCMetadata is ${ExternCMetadata.bitSize()}, ${ExternCMetadata.toString()}")
+        println("ExternCRecord is ${ExternCRecord.bitSize()}, ${ExternCRecord.toString()}")
+
+
+
 
         // Create a call back
 
