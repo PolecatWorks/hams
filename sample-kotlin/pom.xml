@@ -17,7 +17,7 @@
 
         <kotlin.code.style>official</kotlin.code.style>
         <junit.version>4.13.1</junit.version>
-        <java.version>17</java.version>
+        <java.version>19</java.version>
         <main.class>com.polecatworks.kotlin.samples.HelloKt</main.class>
     </properties>
 
