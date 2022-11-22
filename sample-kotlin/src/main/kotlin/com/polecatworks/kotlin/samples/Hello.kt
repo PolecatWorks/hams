@@ -22,9 +22,9 @@ fun main(args: Array<String>) {
     // var myRustStr = RustStr(Pointer(1),NativeLong(2L))
     // println("RustStr = ${myRustStr.size()}")
 
-     var myHamsForeign = HamsForeign()
+    //  var myHamsForeign = HamsForeign()
 
-    myHamsForeign.checkMeOut()
+    // myHamsForeign.checkMeOut()
 
     // var myRustString = RustString(Pointer(1),NativeLong(2L), NativeLong(3))
     // println("RustString = ${myRustString.size()}")
