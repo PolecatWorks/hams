@@ -26,9 +26,9 @@ pub extern "C" fn hello_node() -> c_int {
 }
 
 #[no_mangle]
-pub extern "C" fn hello_callback(myCb: extern "C" fn()) {
+pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
     println!("HOWDY callback");
-    myCb();
+    my_cb();
 }
 
 /// Initialise the FFI based logging for this crate

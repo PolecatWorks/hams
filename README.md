@@ -23,7 +23,7 @@ List of topics that need work
 * [ ] Python bindings
 * [x] NodeJS bindings
 * [ ] Java/Kotlin bindings
-  * [ ] Consideration for future: https://openjdk.org/projects/panama/
+  * [x] Consideration for future: https://openjdk.org/projects/panama/ and https://github.com/openjdk/jextract
 * [x] C/C++ bindings
   * [x] Show usage of C logging from Rust SO
 * [ ] Support for prometheus

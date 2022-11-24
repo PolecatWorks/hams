@@ -1,6 +1,7 @@
 package com.polecatworks.kotlin.samples
 import com.sun.jna.*
 import MyJava
+import com.polecatworks.hams.hams_h
 
 fun main(args: Array<String>) {
     println("Hello, World")
@@ -13,6 +14,11 @@ fun main(args: Array<String>) {
     val instance = Native.load("hams", CHams::class.java)
     instance.hello_world()
 
+    println("Calling hams_h directly from kotlin")
+
+    hams_h.hello_world()
+
+    // hams_h.hello_callback()
     // val ben2 = INSTANCE.hello_node()
 
     // println("node is $ben2")
@@ -22,9 +28,9 @@ fun main(args: Array<String>) {
     // var myRustStr = RustStr(Pointer(1),NativeLong(2L))
     // println("RustStr = ${myRustStr.size()}")
 
-    //  var myHamsForeign = HamsForeign()
+     var myHamsForeign = HamsForeign()
 
-    // myHamsForeign.checkMeOut()
+    myHamsForeign.checkMeOut()
 
     // var myRustString = RustString(Pointer(1),NativeLong(2L), NativeLong(3))
     // println("RustString = ${myRustString.size()}")

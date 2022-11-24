@@ -4,8 +4,8 @@ CARGO_BUILD_FLAGS =$(if $(RELEASE),--release,)
 
 JEXTRACT_EXEC = jextract-19/bin/jextract
 
-java_ffi_log2 = src/main/java/com/polecatworks/ffi_log2/ffi_log2_h.class
-java_hams = src/main/java/com/polecatworks/hams/hams.class
+java_ffi_log2 = src/main/java/com/polecatworks/ffi_log2/ffi_log2_h.java
+java_hams = src/main/java/com/polecatworks/hams/hams_h.java
 
 
 $(JEXTRACT_EXEC):

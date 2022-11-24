@@ -5,18 +5,25 @@ import java.lang.foreign.*
 import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 import java.nio.ByteOrder
+import com.polecatworks.hams.hams_h
 
 
 // https://blog.arkey.fr/2021/09/04/a-practical-look-at-jep-412-in-jdk17-with-libsodium/
 // https://docs.oracle.com/en/java/javase/17/docs/api/jdk.incubator.foreign/jdk/incubator/foreign/package-summary.html
 // https://stackoverflow.com/questions/69321128/how-to-call-a-c-function-from-java-17-using-jep-412-foreign-function-memory-a
 
+// internal object IntComparator {
+//     @JvmStatic
+//     fun intCompare(addr1: MemoryAddress, addr2: MemoryAddress): Int {
+//         println("I am going to compare two addresses")
+//         return MemoryAccess.getIntAtOffset(MemorySegment.globalNativeSegment(), addr1.toRawLongValue()) -
+//                 MemoryAccess.getIntAtOffset(MemorySegment.globalNativeSegment(), addr2.toRawLongValue())
+//     }
+// }
 internal object IntComparator {
     @JvmStatic
     fun intCompare(addr1: MemoryAddress, addr2: MemoryAddress): Int {
-        println("I am going to compare two addresses")
-        return MemoryAccess.getIntAtOffset(MemorySegment.globalNativeSegment(), addr1.toRawLongValue()) -
-                MemoryAccess.getIntAtOffset(MemorySegment.globalNativeSegment(), addr2.toRawLongValue())
+        return addr1.get(ValueLayout.JAVA_INT, 0) - addr2.get(ValueLayout.JAVA_INT, 0);
     }
 }
 
@@ -35,51 +42,63 @@ class HamsForeign constructor() {
     init {
         println("i am creating HamsForeign");
         System.loadLibrary("hams")
+        var linker = Linker.nativeLinker()
+        var loaderLookup = SymbolLookup.loaderLookup()
 
 
-        var hello_world = CLinker.getInstance().downcallHandle(
-            SymbolLookup.loaderLookup().lookup("hello_world").get(),
-            MethodType.methodType(Void::class.javaPrimitiveType),
-            FunctionDescriptor.ofVoid()
+
+
+        var hello_world = linker.downcallHandle(
+          loaderLookup.lookup("hello_world").get(),
+          FunctionDescriptor.ofVoid()
         )
 
-        hello_world.invokeExact()
+        hello_world.invoke()
+        println("JUST did a handmade hello_world")
 
-        var hello_node = CLinker.getInstance().downcallHandle(
-            SymbolLookup.loaderLookup().lookup("hello_node").get(),
-            MethodType.methodType(Int::class.javaPrimitiveType),
-            FunctionDescriptor.of(CLinker.C_INT)
+
+        var hello_node = linker.downcallHandle(
+            loaderLookup.lookup("hello_node").get(),
+            FunctionDescriptor.of(ValueLayout.JAVA_LONG)
         )
 
-        var mynode = hello_node.invokeExact() as Int
+        var mynode = hello_node.invoke() as Long
         println("hello_node replied with ${mynode}")
 
 
+        val intCompareDescriptor = FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS)
+        val intCompareHandle = MethodHandles.lookup().findStatic(
+          IntComparator::class.java,
+          "intCompare",
+          Linker.upcallType(intCompareDescriptor)
+        )
 
+        // Start to create a Java Call back function to log
 
-
-        // Start tp create a Java Call back function to log
-
+        val helloCallbackDescriptor = FunctionDescriptor.ofVoid()
         val helloCallbackHandle = MethodHandles.lookup().findStatic(
           HelloCallback::class.java,
           "helloCallback",
-          MethodType.methodType(Void::class.javaPrimitiveType),
+          Linker.upcallType(helloCallbackDescriptor)
         )
 
-        var scope = ResourceScope.newImplicitScope()
+        var session = MemorySession.openImplicit()
 
-        val helloCallbackNativeSymbol = CLinker.getInstance().upcallStub(
-          helloCallbackHandle,
-          FunctionDescriptor.ofVoid(),
-          scope,
+        val helloCallbackNativeSymbol = linker.upcallStub(
+          helloCallbackHandle, helloCallbackDescriptor, session
         )
 
+
+        hams_h.hello_callback(helloCallbackNativeSymbol)
+
+
+      /*
         // Find the function that will receive the callback
 
-        var hello_callback = CLinker.getInstance().downcallHandle(
+        var hello_callback = Linker.getInstance().downcallHandle(
           SymbolLookup.loaderLookup().lookup("hello_callback").get(),
           MethodType.methodType(Void::class.javaPrimitiveType, MemoryAddress::class.java),
-          FunctionDescriptor.ofVoid(CLinker.C_POINTER),
+          FunctionDescriptor.ofVoid(Linker.C_POINTER),
         )
         // Try out the basic callback
         hello_callback.invokeExact(helloCallbackNativeSymbol)
@@ -141,22 +160,23 @@ class HamsForeign constructor() {
         )
 
 
-        val comparFunc = CLinker.getInstance().upcallStub(
+        val comparFunc = Linker.getInstance().upcallStub(
             intCompareHandle,
-            FunctionDescriptor.of(CLinker.C_INT, CLinker.C_POINTER, CLinker.C_POINTER),
+            FunctionDescriptor.of(Linker.C_INT, Linker.C_POINTER, Linker.C_POINTER),
             scope
         )
         // TODO("Pass this upcallStub to a function to implement a callback")
+   */
 
-//    var strlen = CLinker.getInstance().downcallHandle(
+//    var strlen = Linker.getInstance().downcallHandle(
 //
-//        CLinker.systemLookup().lookup("strlen").get(),
+//        Linker.systemLookup().lookup("strlen").get(),
 //        MethodType.methodType(long.class, MemoryAddress.class),
-//        FunctionDescriptor.of(CLinker.C_LONG, CLinker.C_POINTER)
+//        FunctionDescriptor.of(Linker.C_LONG, Linker.C_POINTER)
 //    );
 //
 //    try (var scope = ResourceScope.newConfinedScope()) {
-//        var cString = CLinker.toCString("Hello", scope);
+//        var cString = Linker.toCString("Hello", scope);
 //        long len = (long)strlen.invokeExact(cString.address()); // 5
 //    }
   }
