@@ -38,8 +38,8 @@ $(java_hams): $(JEXTRACT_EXEC)
 
 clean-local:
 	@mvn clean
-	rm -rf src/main/java/polecatworks/ffi_log2
-	rm -rf src/main/java/polecatworks/hams
+	rm -rf src/main/java/com/polecatworks/ffi_log2
+	rm -rf src/main/java/com/polecatworks/hams
 
 check-local: libhams.dylib
 check-local: target/target/my-maven-sample-app-1.0-SNAPSHOT-jar-with-dependencies.jar
