@@ -6,7 +6,7 @@ import java.lang.invoke.MethodHandles
 import java.lang.invoke.MethodType
 import java.nio.ByteOrder
 import com.polecatworks.hams.hams_h
-
+import com.polecatworks.hams.LogParam
 
 // https://blog.arkey.fr/2021/09/04/a-practical-look-at-jep-412-in-jdk17-with-libsodium/
 // https://docs.oracle.com/en/java/javase/17/docs/api/jdk.incubator.foreign/jdk/incubator/foreign/package-summary.html
@@ -88,8 +88,51 @@ class HamsForeign constructor() {
           helloCallbackHandle, helloCallbackDescriptor, session
         )
 
-
+        println("About to make callback [${helloCallbackNativeSymbol} ]")
         hams_h.hello_callback(helloCallbackNativeSymbol)
+
+        // create enabled as an instance of the LogParam.enabled class then provide that as a reference into the allocate object of LogParam
+
+        var myLogParam = LogParam.allocate(session)
+        println("LogParam is ${LogParam.sizeof()} bytes")
+
+
+        class MyEnabled : LogParam.enabled {
+          override fun apply(myMemory: MemorySegment): Boolean {
+            println("i am the enabled func")
+            return true
+          }
+        }
+
+        var myEnabled = LogParam.enabled.allocate(MyEnabled(), session)
+        LogParam.`enabled$set`(myLogParam, myEnabled.address())
+
+        class MyLog: LogParam.log {
+
+          override fun apply(myMemory: MemoryAddress) {
+            println("i am the log func")
+          }
+        }
+
+        // var myLog = LogParam.log.allocate(MyLog(), session)
+        // LogParam.`log$set`(myLogParam, myLog.address())
+
+        class MyFlush: LogParam.flush {
+          override fun apply() {
+            println("i am the flush func")
+          }
+        }
+
+        var myFlush = LogParam.flush.allocate(MyFlush(), session)
+        LogParam.`flush$set`(myLogParam, myFlush.address())
+
+
+        LogParam.`level$set`(myLogParam, hams_h.ExternCLevelFilter_Info().toLong())
+
+        println("About to register LogParam [${myEnabled.address()} ]")
+
+        hams_h.hams_logger_init(myLogParam)
+
 
 
       /*
