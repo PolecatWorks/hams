@@ -7,6 +7,7 @@ import java.lang.invoke.MethodType
 import java.nio.ByteOrder
 import com.polecatworks.hams.hams_h
 import com.polecatworks.hams.LogParam
+import com.polecatworks.hams.`hello_callback$my_cb`
 
 // https://blog.arkey.fr/2021/09/04/a-practical-look-at-jep-412-in-jdk17-with-libsodium/
 // https://docs.oracle.com/en/java/javase/17/docs/api/jdk.incubator.foreign/jdk/incubator/foreign/package-summary.html
@@ -90,6 +91,20 @@ class HamsForeign constructor() {
 
         println("About to make callback [${helloCallbackNativeSymbol} ]")
         hams_h.hello_callback(helloCallbackNativeSymbol)
+
+        // Now attempt create the same callback using the jextract output
+
+        var myCallback = `hello_callback$my_cb`.allocate(
+           {
+            println("I GOT ME a simpler callback")
+          },
+          session
+        )
+
+        hams_h.hello_callback(myCallback)
+
+
+
 
         // create enabled as an instance of the LogParam.enabled class then provide that as a reference into the allocate object of LogParam
 
