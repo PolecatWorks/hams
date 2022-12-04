@@ -74,7 +74,8 @@ class HamsForeign constructor() {
           Linker.upcallType(intCompareDescriptor)
         )
 
-        // Start to create a Java Call back function to log
+        // --------------------------------------------------------------
+        // Handcraft  to create a Java Call back function to log
 
         val helloCallbackDescriptor = FunctionDescriptor.ofVoid()
         val helloCallbackHandle = MethodHandles.lookup().findStatic(
@@ -92,7 +93,8 @@ class HamsForeign constructor() {
         println("About to make callback [${helloCallbackNativeSymbol} ]")
         hams_h.hello_callback(helloCallbackNativeSymbol)
 
-        // Now attempt create the same callback using the jextract output
+        // --------------------------------------------------------------
+        // Create the same callback using the jextract output
 
         var myCallback = `hello_callback$my_cb`.allocate(
            {
@@ -106,47 +108,65 @@ class HamsForeign constructor() {
 
 
 
+        // --------------------------------------------------------------
         // create enabled as an instance of the LogParam.enabled class then provide that as a reference into the allocate object of LogParam
 
-        var myLogParam = LogParam.allocate(session)
+        var myLogParamMS = LogParam.allocate(session)
         println("LogParam is ${LogParam.sizeof()} bytes")
 
+        var myEnabledMS = LogParam.enabled.allocate({myMemory: MemorySegment ->
+          println("i am the enabled func");
+          true
+        }, session)
 
-        class MyEnabled : LogParam.enabled {
-          override fun apply(myMemory: MemorySegment): Boolean {
-            println("i am the enabled func")
-            return true
-          }
-        }
+        var myLogMS = LogParam.log.allocate({myMemory: MemoryAddress ->
+          println("i am the log func");
+        }, session)
+        LogParam.`log$set`(myLogParamMS, myLogMS.address())
 
-        var myEnabled = LogParam.enabled.allocate(MyEnabled(), session)
-        LogParam.`enabled$set`(myLogParam, myEnabled.address())
+        var myFlushMS = LogParam.flush.allocate({
+          println("i am the flush func")
+        }, session)
 
-        class MyLog: LogParam.log {
+        LogParam.`flush$set`(myLogParamMS, myFlushMS.address())
+        LogParam.`enabled$set`(myLogParamMS, myEnabledMS.address())
 
-          override fun apply(myMemory: MemoryAddress) {
-            println("i am the log func")
-          }
-        }
+
+
+        // class MyEnabled : LogParam.enabled {
+        //   override fun apply(myMemory: MemorySegment): Boolean {
+        //     println("i am the enabled func")
+        //     return true
+        //   }
+        // }
+
+        // var myEnabled = LogParam.enabled.allocate(MyEnabled(), session)
+        // LogParam.`enabled$set`(myLogParam, myEnabled.address())
+
+        // class MyLog: LogParam.log {
+        //   override fun apply(myMemory: MemoryAddress) {
+        //     println("i am the log func")
+        //   }
+        // }
 
         // var myLog = LogParam.log.allocate(MyLog(), session)
         // LogParam.`log$set`(myLogParam, myLog.address())
 
-        class MyFlush: LogParam.flush {
-          override fun apply() {
-            println("i am the flush func")
-          }
-        }
+        // class MyFlush: LogParam.flush {
+        //   override fun apply() {
+        //     println("i am the flush func")
+        //   }
+        // }
 
-        var myFlush = LogParam.flush.allocate(MyFlush(), session)
-        LogParam.`flush$set`(myLogParam, myFlush.address())
+        // var myFlush = LogParam.flush.allocate(MyFlush(), session)
+        // LogParam.`flush$set`(myLogParam, myFlush.address())
 
 
-        LogParam.`level$set`(myLogParam, hams_h.ExternCLevelFilter_Info().toLong())
+        LogParam.`level$set`(myLogParamMS, hams_h.ExternCLevelFilter_Info().toLong())
 
-        println("About to register LogParam [${myEnabled.address()} ]")
+        // println("About to register LogParam [${myEnabled.address()} ]")
 
-        hams_h.hams_logger_init(myLogParam)
+        hams_h.hams_logger_init(myLogParamMS)
 
 
 
