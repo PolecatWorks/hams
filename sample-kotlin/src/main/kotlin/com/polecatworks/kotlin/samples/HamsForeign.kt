@@ -118,6 +118,7 @@ class HamsForeign constructor() {
           println("i am the enabled func");
           true
         }, session)
+        LogParam.`enabled$set`(myLogParamMS, myEnabledMS.address())
 
         var myLogMS = LogParam.log.allocate({myMemory: MemoryAddress ->
           println("i am the log func");
@@ -127,9 +128,7 @@ class HamsForeign constructor() {
         var myFlushMS = LogParam.flush.allocate({
           println("i am the flush func")
         }, session)
-
         LogParam.`flush$set`(myLogParamMS, myFlushMS.address())
-        LogParam.`enabled$set`(myLogParamMS, myEnabledMS.address())
 
 
 
