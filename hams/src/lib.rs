@@ -35,11 +35,8 @@ pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
 #[no_mangle]
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
     // ffi_helpers::null_pointer_check!(param);
-    println!("Trying to init logger");
     catch_panic!(
-        println!("almost there");
         logger_init(param);
-        println!("inited");
         info!(
             "Logging registered for {}:{} (PID: {})",
             NAME,

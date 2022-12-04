@@ -299,8 +299,6 @@ static mut LOGPARAM: Option<LogParam> = None;
  */
 pub fn logger_init(param: LogParam) {
     let level = param.level;
-    println!("done the level");
-    print!("{:?}", param);
     unsafe {
         if LOGPARAM.is_some() {
             eprint!("log should only init once");
