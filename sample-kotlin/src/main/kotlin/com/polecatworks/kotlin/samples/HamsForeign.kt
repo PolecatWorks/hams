@@ -8,6 +8,8 @@ import java.nio.ByteOrder
 import com.polecatworks.hams.hams_h
 import com.polecatworks.hams.LogParam
 import com.polecatworks.hams.`hello_callback$my_cb`
+import com.polecatworks.hams.ExternCRecord
+import com.polecatworks.hams.RustString
 
 // https://blog.arkey.fr/2021/09/04/a-practical-look-at-jep-412-in-jdk17-with-libsodium/
 // https://docs.oracle.com/en/java/javase/17/docs/api/jdk.incubator.foreign/jdk/incubator/foreign/package-summary.html
@@ -121,6 +123,26 @@ class HamsForeign constructor() {
         LogParam.`enabled$set`(myLogParamMS, myEnabledMS.address())
 
         var myLogMS = LogParam.log.allocate({myMemory: MemoryAddress ->
+          // transform myMemory into the log object ExternCRecord*
+
+          var myExternCRecordMS = ExternCRecord.ofAddress(myMemory, session);
+
+          var myMessageMS = ExternCRecord.`message$slice`(myExternCRecordMS);
+
+          var myMessageLen = RustString.`len$get`(myMessageMS);
+
+          println("Message length is ${myMessageLen}");
+
+
+          var myString = RustString.`ptr$get`(myMessageMS).getUtf8String(0)
+
+          println(RustString.`ptr$get`(myMessageMS).getUtf8String(0))
+          println("MY MESSAGE = ${myString}")
+
+
+
+
+
           println("i am the log func");
         }, session)
         LogParam.`log$set`(myLogParamMS, myLogMS.address())
