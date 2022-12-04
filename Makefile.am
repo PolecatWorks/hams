@@ -55,3 +55,6 @@ cargo-coverage:
 cargo-criterion:
 	@cargo criterion
 	@open target/criterion/report/index.html
+
+git-mergedbranch-delete:
+	@git branch --merged | egrep -v "(^\*|master|main|dev)" | xargs git branch -d
