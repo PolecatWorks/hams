@@ -14,22 +14,27 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[no_mangle]
 pub extern "C" fn hello_world() {
-    println!("HOWDY");
+    println!("HOWDY World");
     println!("Hello I am {}:{}", NAME, VERSION);
 }
 
 #[no_mangle]
 pub extern "C" fn hello_node() -> c_int {
-    println!("HOWDY");
+    println!("HOWDY Node");
     println!("Hello I am {}:{}", NAME, VERSION);
     7
+}
+
+#[no_mangle]
+pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
+    println!("HOWDY callback");
+    my_cb();
 }
 
 /// Initialise the FFI based logging for this crate
 #[no_mangle]
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
     // ffi_helpers::null_pointer_check!(param);
-
     catch_panic!(
         logger_init(param);
         info!(

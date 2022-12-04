@@ -6,7 +6,7 @@
 //! Createa function in the main that allows creating of the object that is used to configure the DLL funciton.
 
 use log::{Level, LevelFilter, Log, Metadata, Record, RecordBuilder};
-use std::mem::ManuallyDrop;
+use std::{fmt, mem::ManuallyDrop};
 
 /// FFI-safe borrowed Rust &str. Can represents `Option<&str>` by setting ptr to null.
 #[repr(C)]
@@ -280,6 +280,15 @@ pub struct LogParam {
     pub flush: extern "C" fn(),
     /// value for the log level
     pub level: ExternCLevelFilter,
+}
+
+impl fmt::Debug for LogParam {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "LogParam [{:p} {:p}]", self.enabled, self.flush)
+        // f.debug_struct("LogParam")
+        //  .field("enabled", &self.enabled)
+        //  .finish()
+    }
 }
 
 struct DLog;
