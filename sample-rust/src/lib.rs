@@ -48,6 +48,15 @@ impl<'a> Hams<'a> {
             Ok(())
         }
     }
+
+    pub fn stop(&self) -> Result<(), HamsError> {
+        let retval = unsafe { ffi::hams_stop(self.c) };
+        if retval == 0 {
+            Err(HamsError::Message("Failed to start HaMS".to_string()))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 impl<'a> Drop for Hams<'a> {

@@ -18,4 +18,6 @@ extern "C" {
     pub fn hams_free(hams: *mut Hams) -> i32;
     /// Start HaMS
     pub fn hams_start(ptr: *mut Hams) -> i32;
+    /// Start HaMS
+    pub fn hams_stop(ptr: *mut Hams) -> i32;
 }

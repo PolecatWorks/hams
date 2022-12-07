@@ -31,6 +31,26 @@ pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
     my_cb();
 }
 
+#[cfg_attr(doc, aquamarine::aquamarine)]
+///
+/// Register logging for uservice
+/// ```mermaid
+/// sequenceDiagram
+///     participant Main
+///     participant UService
+///     participant Sample01
+///
+///     rect rgba(50,50,255,0.1)
+///     note right of Main: Main register library and SoService
+///
+///     Main->>+UService: so_library_register
+///     UService->>-Main: (SoLibrary)
+///
+///     Main->>+UService: so_service_register_ffi(SoLibrary)
+///     UService->>-Main: (SoService)
+///     end
+/// ```
+///
 /// Initialise the FFI based logging for this crate
 #[no_mangle]
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
@@ -86,6 +106,20 @@ pub extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
     catch_panic!(
         let hams = unsafe {&mut *ptr};
         info!("start my ham {}", hams.name);
+        hams.start().expect("Hams started");
+        Ok(1)
+    )
+}
+
+/// Start the HaMS service
+#[no_mangle]
+pub extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let hams = unsafe {&mut *ptr};
+        info!("stop my ham {}", hams.name);
+        hams.stop().expect("Hams stopped");
         Ok(1)
     )
 }

@@ -10,6 +10,7 @@ log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
 ffi_helpers = "~0.3"
 libc = "~0.2"
+aquamarine = { version =  "~0.1" }
 
 
 [build-dependencies]
@@ -26,7 +27,6 @@ codegen-units = 1
 
 [lib]
 crate-type = [ "cdylib" ]
-
 
 [dev-dependencies]
 aquamarine = "~0.1"

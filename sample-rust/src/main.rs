@@ -2,7 +2,7 @@
 
 //! A minimal microservice built as an exec (caller) and a sharedobject. This allows the library to have exposed APIs that can be called from other languages
 
-use std::path::PathBuf;
+use std::{path::PathBuf, thread::sleep, time::Duration};
 
 use clap::{Parser, Subcommand};
 use env_logger::Env;
@@ -86,6 +86,12 @@ pub fn main() {
 
             info!("I have a HaMS");
             hams.start().expect("HaMS started successfully");
+
+            let sleep_time = 10;
+            info!("Sleeping for {} secs", sleep_time);
+            sleep(Duration::from_secs(sleep_time));
+
+            hams.stop().expect("HaMS stopped successfully");
 
             info!("HaMS will be released... by Drop");
         }

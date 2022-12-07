@@ -15,14 +15,17 @@ Typical usages are:
 List of topics that need work
 
 * [x] Build core library as shared object
-* [x] Logging over FFI
+  * [x] Logging over FFI
+  * [ ] Alive http check
+  * [ ] Ready http check
 * [x] Validate CAPI calls to protect against stupid CAPI errors (null, etc)
 * [x] Wrap CAPI interface with rust interface and use of Result<>
-* [x] Rust cli program to demonstrate usage
 * [ ] Helm sample chart using APIs
-* [ ] Python bindings
+* [x] Rust bindings
+  * [x] Rust cli program to demonstrate usage
+* [x] Python bindings
 * [x] NodeJS bindings
-* [ ] Java/Kotlin bindings
+* [x] Java/Kotlin bindings
   * [x] Consideration for future: https://openjdk.org/projects/panama/ and https://github.com/openjdk/jextract
 * [x] C/C++ bindings
   * [x] Show usage of C logging from Rust SO
