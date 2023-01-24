@@ -1,6 +1,6 @@
 use ffi_log2::LogParam;
 use log::info;
-use std::{fmt::Display, marker::PhantomData, ptr};
+use std::{fmt::Display, marker::PhantomData};
 
 use crate::error::HamsError;
 mod error;
@@ -31,7 +31,7 @@ impl<'a> Hams<'a> {
 
         // if reply from function is null then reply with error
         let hams = unsafe { ffi::hams_init(c_name.as_ptr()) };
-        if hams == ptr::null_mut() {
+        if hams.is_null() {
             return Err(HamsError::Message("Null reply from registering".to_owned()));
         }
         Ok(Hams {

@@ -67,11 +67,11 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
     )
 }
 
-/** Initialise the HaMS
- *
- */
+/// # Safety
+///
+/// Initialise the hams object giving it a name on construction
 #[no_mangle]
-pub extern "C" fn hams_init(name: *const libc::c_char) -> *mut Hams {
+pub unsafe extern "C" fn hams_init(name: *const libc::c_char) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
     catch_panic!(
@@ -82,9 +82,11 @@ pub extern "C" fn hams_init(name: *const libc::c_char) -> *mut Hams {
     )
 }
 
-/// Free the HaMS
+/// # Safety
+///
+/// Free the HaMS. The object must be created wtih the hams_init function
 #[no_mangle]
-pub extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
+pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
@@ -98,9 +100,11 @@ pub extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
     )
 }
 
-/// Start the HaMS service
+/// # Safety
+///
+/// Start the HaMS service. This requires a valid hams object constructed from hams_init
 #[no_mangle]
-pub extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
+pub unsafe extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
@@ -111,9 +115,11 @@ pub extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
     )
 }
 
-/// Start the HaMS service
+/// # Safety
+///
+/// Stop the HaMS service. This requires a valid hams object constructed from hams_init
 #[no_mangle]
-pub extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
+pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
