@@ -66,6 +66,7 @@ impl<'a> Drop for Hams<'a> {
         if retval == 0 {
             panic!("FAILED to freem HaMS");
         }
+
         info!("HaMS freed")
     }
 }
@@ -84,12 +85,12 @@ mod tests {
 
     #[test]
     fn init_free() {
-        let my_hams = hams_init_ffi("name").unwrap();
-
-        // assert_ne!(my_hams, ptr::null_mut());
+        let my_hams = Hams::new("name").unwrap();
 
         println!("initialised HaMS");
 
-        hams_free_ffi(my_hams).unwrap();
+        drop(my_hams);
+
+        println!("shoud have dropped by here");
     }
 }
