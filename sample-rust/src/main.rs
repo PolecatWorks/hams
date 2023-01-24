@@ -87,7 +87,7 @@ pub fn main() {
             info!("I have a HaMS");
             hams.start().expect("HaMS started successfully");
 
-            let sleep_time = 10;
+            let sleep_time = 5;
             info!("Sleeping for {} secs", sleep_time);
             sleep(Duration::from_secs(sleep_time));
 

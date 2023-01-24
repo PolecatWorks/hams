@@ -107,6 +107,7 @@ impl Clone for ExternCLevel {
 
 #[repr(usize)]
 #[derive(Copy, Debug, Hash)]
+/// Describe the filtering level to apply
 pub enum ExternCLevelFilter {
     /// A level lower than all log levels.
     Off,

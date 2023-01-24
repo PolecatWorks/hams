@@ -11,6 +11,9 @@ ffi-log2 = { path = "../ffi-log2" }
 ffi_helpers = "~0.3"
 libc = "~0.2"
 aquamarine = { version =  "~0.1" }
+tokio = { version = "~1.23", features = ["full"] }
+warp = "~0.3"
+futures = "~0.3"
 
 
 [build-dependencies]
