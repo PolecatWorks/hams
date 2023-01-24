@@ -71,7 +71,7 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
  *
  */
 #[no_mangle]
-pub extern "C" fn hams_init<'a>(name: *const libc::c_char) -> *mut Hams {
+pub extern "C" fn hams_init(name: *const libc::c_char) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
     catch_panic!(

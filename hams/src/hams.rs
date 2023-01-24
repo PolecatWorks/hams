@@ -120,12 +120,17 @@ impl<'a> Hams {
         Ok(())
     }
     async fn join(&self) {
-        let mut handles = self
-            .handles
-            .lock()
-            .expect("Could not lock mutex for handles");
-        info!("Waiting for services: {:?}", handles);
-        future::join_all(mem::take(&mut *handles)).await;
+        let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
+        future::join_all(handle_list).await;
+
+        // future::join_all(mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")))).await;
+
+        // let mut handles = self
+        //     .handles
+        //     .lock()
+        //     .expect("Could not lock mutex for handles");
+        // // info!("Waiting for services: {:?}", handles);
+        // future::join_all(mem::take(&mut *handles)).await;
         info!("Services completed");
     }
 

@@ -58,6 +58,7 @@ impl RustStr {
     }
 }
 
+/// Provide an enum class for describing the type of logging to use
 #[repr(usize)]
 #[derive(Copy, Debug, Hash)]
 pub enum ExternCLevel {
@@ -87,7 +88,7 @@ pub enum ExternCLevel {
 }
 
 impl From<Level> for ExternCLevel {
-    fn from(myvalue: Level) -> Self {
+    fn from(_myvalue: Level) -> Self {
         // TODO: Make correct transorm of enums
         ExternCLevel::Info
     }
@@ -124,7 +125,7 @@ pub enum ExternCLevelFilter {
 }
 
 impl From<LevelFilter> for ExternCLevelFilter {
-    fn from(myvalue: LevelFilter) -> Self {
+    fn from(_myvalue: LevelFilter) -> Self {
         ExternCLevelFilter::Info
         // TODO: Make correct transorm of enums
     }
