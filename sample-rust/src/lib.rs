@@ -74,6 +74,8 @@ impl<'a> Drop for Hams<'a> {
 #[cfg(test)]
 mod tests {
 
+    use std::{thread::sleep, time::Duration};
+
     use ffi_log2::log_param;
 
     use super::*;
@@ -92,5 +94,17 @@ mod tests {
         drop(my_hams);
 
         println!("shoud have dropped by here");
+    }
+
+    #[test]
+    fn start_stop() {
+        let my_hams = Hams::new("name").unwrap();
+        println!("initialised HaMS");
+
+        my_hams.start().expect("HaMS started successfully");
+
+        sleep(Duration::from_millis(200));
+
+        my_hams.stop().expect("HaMS stopped successfully");
     }
 }
