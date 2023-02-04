@@ -16,6 +16,8 @@ List of topics that need work
 
 * [x] Build core library as shared object
   * [x] Logging over FFI
+  * [ ] Web serving a health endopint
+  * [ ] Tests against webservice
   * [ ] Alive http check
   * [ ] Ready http check
 * [x] Validate CAPI calls to protect against stupid CAPI errors (null, etc)

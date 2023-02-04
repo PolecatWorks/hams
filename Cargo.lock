@@ -750,6 +750,7 @@ dependencies = [
  "futures",
  "libc",
  "log",
+ "serde",
  "tokio",
  "warp",
 ]

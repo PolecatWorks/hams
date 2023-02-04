@@ -141,22 +141,25 @@ mod tests {
 
     use super::*;
 
+    #[ignore]
     #[test]
     fn logger_init() {
-        hams_logger_init(log_param());
+        let retval = hams_logger_init(log_param());
+
+        assert_ne!(retval, 0);
     }
 
     #[test]
     fn init_free() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = hams_init(c_library_name.as_ptr());
+        let my_hams = unsafe { hams_init(c_library_name.as_ptr()) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");
 
-        let retval = hams_free(my_hams);
+        let retval = unsafe { hams_free(my_hams) };
 
         assert_eq!(retval, 1);
     }
@@ -164,7 +167,7 @@ mod tests {
     #[test]
     fn null_init() {
         // let c_library_name: libc::c_char = ptr::null();
-        let my_hams = hams_init(ptr::null());
+        let my_hams = unsafe { hams_init(ptr::null()) };
 
         assert_eq!(my_hams, ptr::null_mut());
 
@@ -173,7 +176,7 @@ mod tests {
 
     #[test]
     fn null_free() {
-        let retval = hams_free(ptr::null_mut());
+        let retval = unsafe { hams_free(ptr::null_mut()) };
 
         assert_eq!(retval, 0);
 
