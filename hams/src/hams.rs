@@ -234,8 +234,13 @@ impl<'a> Hams {
         &self,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
         let svc_name = self.name.clone();
-        let version = warp::path("version").map(|| "v1");
-        let name = warp::path("name").map(move || svc_name.clone());
+
+        let version = warp::path("version")
+            .and(self.with_hams())
+            .and_then(handlers::version_handler);
+        let name = warp::path("name")
+            .and(self.with_hams())
+            .and_then(handlers::name_handler);
         let alive = warp::path("alive")
             .and(self.with_hams())
             .and_then(handlers::alive_handler);
@@ -266,6 +271,31 @@ mod handlers {
         name: String,
         valid: bool,
         detail: Vec<HealthCheckResult>,
+    }
+
+    /// Reply structure for Name endpoint
+    #[derive(Serialize)]
+    struct NameReply {
+        name: String,
+    }
+
+    /// Handler for name endpoint
+    pub async fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+        let name_reply = NameReply { name: hams.name };
+        Ok(warp::reply::json(&name_reply))
+    }
+
+    /// Reply structure for Version endpoint
+    #[derive(Serialize)]
+    struct VersionReply {
+        version: String,
+    }
+    /// Handler for version endpoint
+    pub async fn version_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+        let version_reply = VersionReply {
+            version: hams.version,
+        };
+        Ok(warp::reply::json(&version_reply))
     }
 
     /// Handler for alive endpoint
@@ -364,14 +394,14 @@ mod tests {
                 "health/name",
                 TestReply {
                     status: StatusCode::OK,
-                    body: String::from("apple"),
+                    body: String::from({ "{\"name\":\"apple\"}" }),
                 },
             ),
             (
                 "health/version",
                 TestReply {
                     status: StatusCode::OK,
-                    body: String::from("v1"),
+                    body: String::from({ "{\"version\":\"v1\"}" }),
                 },
             ),
             (
