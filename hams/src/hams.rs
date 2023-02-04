@@ -223,36 +223,11 @@ impl<'a> Hams {
         self.channels.lock().unwrap().push(channel);
     }
 
-    fn with_name(
-        &self,
-    ) -> impl Filter<Extract = (String,), Error = std::convert::Infallible> + Clone {
-        let myname = self.name.clone();
-        warp::any().map(move || myname.clone())
-    }
-
-    // fn  with_so_services(
-    //     &self,
-    // ) -> impl Filter<Extract = (Arc<Mutex<HashMap<String, Box<SoService>>>>,), Error = std::convert::Infallible> + Clone
-    // {
-    //     let so_services = self.so_services.clone();
-    //     warp::any().map(move || so_services.clone())
-    // }
-
     fn with_hams(
         &self,
     ) -> impl Filter<Extract = (Hams,), Error = std::convert::Infallible> + Clone {
         let my_hams = self.clone();
         warp::any().map(move || my_hams.clone())
-    }
-
-    // pub fn new_service(&self, ) -> impl Filter<Extract = impl warp::Reply, Error=warp::Rejection> + Clone + 'a {
-    pub fn new_service(
-        &self,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        warp::path("version").and(self.with_hams()).map(|hams| {
-            info!("Looking at hams = {:?}", hams);
-            format!("ALOOH")
-        })
     }
 
     pub fn hams_service(
@@ -269,22 +244,6 @@ impl<'a> Hams {
             .and_then(handlers::ready_handler);
 
         warp::path("health").and(version.or(name).or(alive).or(ready))
-    }
-
-    pub fn service_x(
-        &self,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone + 'a {
-        warp::path(self.base_path.clone())
-            .and(warp::path(self.version.clone()))
-            .and(warp::get())
-            .and(self.with_name())
-            .and(warp::path::param())
-            // .and(self.with_so_services())
-            .map(|name, label: String| {
-                // let pservicecount=so_services.lock().unwrap().iter().count();
-                // let mytest = so_services.lock().unwrap().iter().map(|(s,_)| &**s).collect::<Vec<_>>().join("-");
-                format!("Hello {}, whose agent is {}", name, label)
-            })
     }
 }
 
