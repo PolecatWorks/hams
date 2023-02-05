@@ -8,6 +8,7 @@ use std::process;
 mod hams;
 // pub mod ffi;
 pub mod error;
+pub mod healthcheck;
 
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");

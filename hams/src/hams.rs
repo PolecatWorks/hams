@@ -11,6 +11,17 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use warp::Filter;
 
 use crate::error::HamsError;
+use crate::healthcheck::HealthCheckResult;
+
+use serde::Serialize;
+
+/// Return structure for alive and ready endpoints
+#[derive(Serialize)]
+struct HealthSystemResult {
+    name: String,
+    valid: bool,
+    detail: Vec<HealthCheckResult>,
+}
 
 /// A HaMS provides essential facilities to support a k8s microservice.
 /// health, liveness, startup, shutdown, monitoring, logging
@@ -18,18 +29,27 @@ use crate::error::HamsError;
 pub struct Hams {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
-    pub base_path: String,
+
     // pub rt: tokio::runtime::Runtime,
     channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
     handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
     // so_services: Arc<Mutex<HashMap<String, Box<SoService>>>>,
     // liveness: HealthCheck,
     // readyness: HealthCheck,
+
+    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
+
+    // alive: Arc<Mutex<Vec<String>,
+    // ready: Vec<String>,
     kill: Arc<Mutex<Option<Sender<()>>>>,
+
     /// Provide the version of the release of HaMS
     version: String,
+
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
+
+    /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
     // thread_tx: Mutex<Option<sync::mpsc::Sender<()>>>,
 }
@@ -50,7 +70,6 @@ impl<'a> Hams {
             kill: Arc::new(Mutex::new(None)),
             version: "v1".to_string(),
             port: 8079,
-            base_path: "health".to_string(),
         }
     }
 
@@ -218,6 +237,16 @@ impl<'a> Hams {
         tokio::task::spawn(server)
     }
 
+    fn checkReady(&self) -> HealthSystemResult {
+        // let results = self.ready.map() ;
+        HealthSystemResult {
+            name: "ready".to_owned(),
+            valid: true,
+            detail: vec![],
+        }
+    }
+
+    // TODO: maybe we dont need this anymore
     fn add_picosvc(&self, channel: Sender<()>, handle: tokio::task::JoinHandle<()>) {
         self.handles.lock().unwrap().push(handle);
         self.channels.lock().unwrap().push(channel);
@@ -233,8 +262,6 @@ impl<'a> Hams {
     pub fn hams_service(
         &self,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        let svc_name = self.name.clone();
-
         let version = warp::path("version")
             .and(self.with_hams())
             .and_then(handlers::version_handler);
@@ -254,24 +281,10 @@ impl<'a> Hams {
 
 /// Handlers for health system
 mod handlers {
-    use super::Hams;
     use serde::Serialize;
+
+    use super::{Hams, HealthSystemResult};
     use std::convert::Infallible;
-
-    /// Detail structure for ready and alive
-    #[derive(Serialize)]
-    struct HealthCheckResult {
-        name: String,
-        valid: bool,
-    }
-
-    /// Return structure for alive and ready endpoints
-    #[derive(Serialize)]
-    struct HealthSystemResult {
-        name: String,
-        valid: bool,
-        detail: Vec<HealthCheckResult>,
-    }
 
     /// Reply structure for Name endpoint
     #[derive(Serialize)]
@@ -394,14 +407,14 @@ mod tests {
                 "health/name",
                 TestReply {
                     status: StatusCode::OK,
-                    body: String::from({ "{\"name\":\"apple\"}" }),
+                    body: String::from("{\"name\":\"apple\"}"),
                 },
             ),
             (
                 "health/version",
                 TestReply {
                     status: StatusCode::OK,
-                    body: String::from({ "{\"version\":\"v1\"}" }),
+                    body: String::from("{\"version\":\"v1\"}"),
                 },
             ),
             (
