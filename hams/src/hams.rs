@@ -1,6 +1,7 @@
 use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
+use std::time::{Duration, Instant};
 
 use futures::future;
 use log::info;
@@ -11,7 +12,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use warp::Filter;
 
 use crate::error::HamsError;
-use crate::healthcheck::HealthCheckResult;
+use crate::healthcheck::{AliveCheck, HealthCheck, HealthCheckResult};
 
 use serde::Serialize;
 
@@ -38,9 +39,9 @@ pub struct Hams {
     // readyness: HealthCheck,
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
+    alive: Arc<Mutex<Vec<Arc<Mutex<dyn HealthCheck>>>>>,
+    ready: Arc<Mutex<Vec<Arc<Mutex<dyn HealthCheck>>>>>,
 
-    // alive: Arc<Mutex<Vec<String>,
-    // ready: Vec<String>,
     kill: Arc<Mutex<Option<Sender<()>>>>,
 
     /// Provide the version of the release of HaMS
@@ -70,6 +71,8 @@ impl<'a> Hams {
             kill: Arc::new(Mutex::new(None)),
             version: "v1".to_string(),
             port: 8079,
+            alive: Arc::new(Mutex::new(vec![])),
+            ready: Arc::new(Mutex::new(vec![])),
         }
     }
 
@@ -237,12 +240,39 @@ impl<'a> Hams {
         tokio::task::spawn(server)
     }
 
-    fn checkReady(&self) -> HealthSystemResult {
-        // let results = self.ready.map() ;
+    fn check_alive(&self) -> HealthSystemResult {
+        let my_now = Instant::now();
+
+        let detail = self
+            .alive
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|health| health.lock().unwrap().check(my_now))
+            .collect::<Vec<_>>();
+        let valid = detail.iter().all(|result| result.valid);
+        HealthSystemResult {
+            name: "alive".to_owned(),
+            valid,
+            detail,
+        }
+    }
+
+    fn check_ready(&self) -> HealthSystemResult {
+        let my_now = Instant::now();
+
+        let detail = self
+            .ready
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|health| health.lock().unwrap().check(my_now))
+            .collect::<Vec<_>>();
+        let valid = detail.iter().all(|result| result.valid);
         HealthSystemResult {
             name: "ready".to_owned(),
-            valid: true,
-            detail: vec![],
+            valid,
+            detail,
         }
     }
 
@@ -313,29 +343,29 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let our_ids = HealthSystemResult {
-            name: "alive".to_owned(),
-            valid: true,
-            detail: vec![],
-        };
+        let our_ids = hams.check_alive();
 
         Ok(warp::reply::with_status(
             warp::reply::json(&our_ids),
-            warp::http::StatusCode::OK,
+            if our_ids.valid {
+                warp::http::StatusCode::OK
+            } else {
+                warp::http::StatusCode::NOT_ACCEPTABLE
+            },
         ))
     }
 
     /// Handler for ready endpoint
     pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let our_ids = HealthSystemResult {
-            name: "ready".to_owned(),
-            valid: true,
-            detail: vec![],
-        };
+        let our_ids = hams.check_ready();
 
         Ok(warp::reply::with_status(
             warp::reply::json(&our_ids),
-            warp::http::StatusCode::OK,
+            if our_ids.valid {
+                warp::http::StatusCode::OK
+            } else {
+                warp::http::StatusCode::NOT_ACCEPTABLE
+            },
         ))
     }
 }

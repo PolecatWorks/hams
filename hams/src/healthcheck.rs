@@ -1,16 +1,17 @@
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
+use std::fmt::Debug;
 
 /// Detail structure for replies from ready and alive
 #[derive(Serialize, Debug, PartialEq)]
 pub struct HealthCheckResult {
-    name: String,
-    valid: bool,
+    pub name: String,
+    pub valid: bool,
 }
 
 /// Trait to define the health check functionality
-pub trait HealthCheck {
+pub trait HealthCheck: Debug + Send {
     fn get_name(&self) -> &str;
     fn check(&self, time: Instant) -> HealthCheckResult;
 }
