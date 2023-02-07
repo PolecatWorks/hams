@@ -1,7 +1,6 @@
-use std::convert::Infallible;
 use std::sync::{Arc, Mutex};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use futures::future;
 use log::info;
@@ -12,7 +11,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use warp::Filter;
 
 use crate::error::HamsError;
-use crate::healthcheck::{AliveCheck, HealthCheck, HealthCheckResult};
+use crate::healthcheck::{HealthCheck, HealthCheckResult};
 
 use serde::Serialize;
 
@@ -240,6 +239,17 @@ impl<'a> Hams {
         tokio::task::spawn(server)
     }
 
+    pub fn register_alive(&self, check: Arc<Mutex<dyn HealthCheck>>) {
+        self.alive.lock().unwrap().push(check);
+    }
+
+    pub fn deregister_alive(&self, check: Arc<Mutex<dyn HealthCheck>>) {
+        self.alive
+            .lock()
+            .unwrap()
+            .retain(|health| !Arc::ptr_eq(health, &check));
+    }
+
     fn check_alive(&self) -> HealthSystemResult {
         let my_now = Instant::now();
 
@@ -313,7 +323,7 @@ impl<'a> Hams {
 mod handlers {
     use serde::Serialize;
 
-    use super::{Hams, HealthSystemResult};
+    use super::Hams;
     use std::convert::Infallible;
 
     /// Reply structure for Name endpoint
@@ -389,6 +399,23 @@ mod tests {
         my_hams.stop().expect("Hams stopped");
 
         drop(my_hams);
+    }
+
+    #[test]
+    fn register_deregister() {
+        let mut my_hams = Hams::new("apple");
+
+        let my_alive = Arc::new(Mutex::new(AliveCheck::new(
+            "brown".to_string(),
+            Duration::from_secs(12),
+        )));
+        my_hams.register_alive(my_alive.clone());
+
+        assert_eq!(1, my_hams.alive.lock().unwrap().len());
+
+        my_hams.deregister_alive(my_alive);
+
+        assert_eq!(0, my_hams.alive.lock().unwrap().len());
     }
 
     /// Dispatch instructions to a tokio runtime using an async thread

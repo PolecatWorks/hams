@@ -10,12 +10,11 @@ log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
 ffi_helpers = "~0.3"
 libc = "~0.2"
-aquamarine = { version =  "~0.1" }
 tokio = { version = "~1.23", features = ["full"] }
 warp = "~0.3"
 futures = "~0.3"
 serde = { version = "~1.0", features = ['std', 'derive'] }
-criterion = "~0.3"
+aquamarine = { version =  "~0.1" }
 
 
 [build-dependencies]
@@ -34,7 +33,6 @@ codegen-units = 1
 crate-type = [ "cdylib" ]
 
 [dev-dependencies]
-aquamarine = "~0.1"
 cargo-tarpaulin = "~0.22"
 criterion = { version = "~0.3", features = ["html_reports"] }
 
