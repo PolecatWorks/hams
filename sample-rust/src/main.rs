@@ -11,6 +11,10 @@ use ffi_log2::log_param;
 use sample_rust::{self, hams_logger_init, Hams};
 
 use log::info;
+mod sample;
+mod sampleerror;
+
+use sample::Sample;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -87,9 +91,16 @@ pub fn main() {
             info!("I have a HaMS");
             hams.start().expect("HaMS started successfully");
 
-            let sleep_time = 5;
+            let mut sample_service = Sample::new("sample1");
+            sample_service
+                .start()
+                .expect("Service started successfully");
+
+            let sleep_time = 50;
             info!("Sleeping for {} secs", sleep_time);
             sleep(Duration::from_secs(sleep_time));
+
+            sample_service.stop();
 
             hams.stop().expect("HaMS stopped successfully");
 

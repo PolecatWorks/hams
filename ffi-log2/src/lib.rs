@@ -3,7 +3,7 @@
 //     and here: https://github.com/ratijas/rustc-issues/tree/dynlog-works
 //! Work out what needs to be configured inside the DLL to enable the log forwarding.
 //! Create a ffi function that enables the logging in the DLL to be configured (safely).
-//! Createa function in the main that allows creating of the object that is used to configure the DLL funciton.
+//! Creates function in the main that allows creating of the object that is used to configure the DLL funciton.
 
 use log::{Level, LevelFilter, Log, Metadata, Record, RecordBuilder};
 use std::{fmt, mem::ManuallyDrop};

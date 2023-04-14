@@ -1,12 +1,23 @@
-use std::time::{Duration, Instant};
+//! HealthChecks in Hams
+
+use std::time::Instant;
 
 use serde::Serialize;
 use std::fmt::Debug;
 
+use std::hash::{Hash, Hasher};
+
+#[derive(Debug, Serialize)]
+pub struct HealthSystemResult<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) valid: bool,
+    pub(crate) detail: Vec<HealthCheckResult<'a>>,
+}
+
 /// Detail structure for replies from ready and alive
 #[derive(Serialize, Debug, PartialEq)]
-pub struct HealthCheckResult {
-    pub name: String,
+pub struct HealthCheckResult<'a> {
+    pub name: &'a str,
     pub valid: bool,
 }
 
@@ -16,145 +27,159 @@ pub trait HealthCheck: Debug + Send {
     fn check(&self, time: Instant) -> HealthCheckResult;
 }
 
-/// Implement the alive check which will fail if the service has not been triggered within the margin
 #[derive(Debug)]
-pub struct AliveCheck {
-    name: String,
-    latest: Instant,
-    margin: Duration,
-}
+pub struct HealthCheckWrapper(pub Box<dyn HealthCheck>);
 
-/// Create an alive check that takes a margin and fails when the time has not been kept up to date within the margin
-impl AliveCheck {
-    pub fn new(name: String, margin: Duration) -> Self {
-        Self {
-            name,
-            latest: Instant::now(),
-            margin,
-        }
+impl HealthCheckWrapper {
+    pub fn get_name(&self) -> &str {
+        self.0.get_name()
     }
+    pub fn check(&self, time: Instant) -> HealthCheckResult {
+        self.0.check(time)
+    }
+}
+impl Eq for HealthCheckWrapper {}
 
-    /// Update the latest time record
-    pub fn kick(&mut self) {
-        self.latest = Instant::now();
+impl PartialEq for HealthCheckWrapper {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self.0.as_ref(), other.0.as_ref())
     }
 }
 
-impl HealthCheck for AliveCheck {
-    fn get_name(&self) -> &str {
-        self.name.as_str()
+impl Hash for HealthCheckWrapper {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        std::ptr::hash(self.0.as_ref(), state);
     }
+}
 
-    fn check(&self, time: Instant) -> HealthCheckResult {
-        HealthCheckResult {
-            name: self.name.clone(),
-            valid: self.latest + self.margin >= time,
-        }
+/// Comparison function for equality of two HealthChecks
+/// We can only use the methods available in the HealthCheck for
+/// implementation of equality so that limits us to name for comparison
+impl PartialEq<dyn HealthCheck> for dyn HealthCheck {
+    fn eq(&self, other: &dyn HealthCheck) -> bool {
+        println!("IM IN PartialEq");
+        println!("Comparing {} and {}", self.get_name(), other.get_name());
+        self.get_name() == other.get_name()
+    }
+}
+
+impl Hash for dyn HealthCheck {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.get_name().hash(state);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::{
         sync::{Arc, Mutex, RwLock},
-        thread::spawn,
+        thread::{self, spawn},
         time::{Duration, Instant},
     };
 
-    use crate::healthcheck::{AliveCheck, HealthCheck, HealthCheckResult};
-
-    /// Create the alive check and in another thread create reference the alive and allow it to be used for generating an alive response
-    #[test]
-    fn threading_mutex() {
-        let my_health_orig = Arc::new(Mutex::new(AliveCheck::new(
-            "apple".to_string(),
-            Duration::from_secs(10),
-        )));
-
-        let my_health = my_health_orig.clone();
-        my_health_orig.lock().unwrap().kick();
-        my_health.lock().unwrap().kick();
-
-        let jh = spawn(move || {
-            println!("from spawned");
-            my_health.lock().unwrap().kick();
-        });
-
-        my_health_orig.lock().unwrap().kick();
-
-        println!("in main thread");
-
-        jh.join().unwrap();
-
-        println!("Complete test after join");
+    #[derive(Debug, Clone)]
+    struct I {
+        name: String,
+        count: i64,
     }
 
-    /// Create the alive check and in another thread create reference the alive and allow it to be used for generating an alive response
-    #[test]
-    fn threading_rwlock() {
-        let my_health_orig = Arc::new(RwLock::new(AliveCheck::new(
-            "apple".to_string(),
-            Duration::from_secs(10),
-        )));
+    impl HealthCheck for I {
+        fn get_name(&self) -> &str {
+            println!("HealthCheck for I {}", self.name);
+            &self.name
+        }
 
-        let my_health = my_health_orig.clone();
-        let my_check_reply = my_health.read().unwrap().check(Instant::now());
-
-        my_health_orig.write().unwrap().kick();
-        my_health.write().unwrap().kick();
-
-        let jh = spawn(move || {
-            println!("from spawned");
-            my_health.write().unwrap().kick();
-        });
-
-        my_health_orig.write().unwrap().kick();
-
-        println!("in main thread");
-
-        jh.join().unwrap();
-
-        println!("Complete test after join");
+        fn check(&self, time: std::time::Instant) -> HealthCheckResult {
+            todo!()
+        }
     }
 
-    /// Test the API of alive to confirm check and kick
     #[test]
-    fn alive() {
-        println!("OK");
+    fn compare_hc_via_trait() {
+        let hc0 = I {
+            name: "Test0".to_owned(),
+            count: 0,
+        };
+        let hc1 = I {
+            name: "Test1".to_owned(),
+            count: 0,
+        };
 
-        let mut alive = AliveCheck::new("apple".to_string(), Duration::from_secs(10));
+        // assert_ne!(hc0, hc1);
 
-        let alive_ok = alive.check(alive.latest + Duration::from_secs(1));
-        assert_eq!(
-            HealthCheckResult {
-                name: "apple".to_string(),
-                valid: true
-            },
-            alive_ok
-        );
+        let hc2 = hc0.clone();
+        // assert_eq!(hc0, hc2);
 
-        let alive_margin = alive.check(alive.latest + Duration::from_secs(10));
-        assert_eq!(
-            HealthCheckResult {
-                name: "apple".to_string(),
-                valid: true
-            },
-            alive_margin
-        );
+        assert_eq!(&hc0 as &dyn HealthCheck, &hc2 as &dyn HealthCheck);
+        assert_ne!(&hc0 as &dyn HealthCheck, &hc1 as &dyn HealthCheck);
 
-        let alive_fail = alive.check(alive.latest + Duration::from_secs(11));
-        assert_eq!(
-            HealthCheckResult {
-                name: "apple".to_string(),
-                valid: false
-            },
-            alive_fail
-        );
+        let hclist: Vec<Box<dyn HealthCheck>> = vec![Box::new(hc0), Box::new(hc1), Box::new(hc2)];
 
-        let create_time = alive.latest;
+        let ben = *hclist[0] == *hclist[1];
 
-        alive.kick();
+        assert_eq!(*hclist[0], *hclist[2]);
+        assert_ne!(*hclist[0], *hclist[1]);
 
-        assert!(alive.latest > create_time);
+        let hc0_ref: *const dyn HealthCheck = hclist[0].as_ref();
+        let hc1_ref: *const dyn HealthCheck = hclist[1].as_ref();
+        let hc2_ref: *const dyn HealthCheck = hclist[2].as_ref();
+
+        assert_ne!(hc0_ref, hc1_ref);
+        assert_ne!(hc0_ref, hc2_ref);
     }
+
+    // Create the alive check and in another thread create reference the alive and allow it to be used for generating an alive response
+    // #[test]
+    // fn threading_mutex() {
+    //     let my_health_orig = Arc::new(Mutex::new(AliveCheckKicked::new(
+    //         "apple".to_string(),
+    //         Duration::from_secs(10),
+    //     )));
+
+    //     let my_health = my_health_orig.clone();
+    //     my_health_orig.lock().unwrap().kick();
+    //     my_health.lock().unwrap().kick();
+
+    //     let jh = spawn(move || {
+    //         println!("from spawned");
+    //         my_health.lock().unwrap().kick();
+    //     });
+
+    //     my_health_orig.lock().unwrap().kick();
+
+    //     println!("in main thread");
+
+    //     jh.join().unwrap();
+
+    //     println!("Complete test after join");
+    // }
+
+    // Create the alive check and in another thread create reference the alive and allow it to be used for generating an alive response
+    // #[test]
+    // fn threading_rwlock() {
+    //     let my_health_orig = Arc::new(RwLock::new(AliveCheckKicked::new(
+    //         "apple".to_string(),
+    //         Duration::from_secs(10),
+    //     )));
+
+    //     let my_health = my_health_orig.clone();
+    //     let my_check_reply = my_health.read().unwrap().check(Instant::now());
+
+    //     my_health_orig.write().unwrap().kick();
+    //     my_health.write().unwrap().kick();
+
+    //     let jh = spawn(move || {
+    //         println!("from spawned");
+    //         my_health.write().unwrap().kick();
+    //     });
+
+    //     my_health_orig.write().unwrap().kick();
+
+    //     println!("in main thread");
+
+    //     jh.join().unwrap();
+
+    //     println!("Complete test after join");
+    // }
 }

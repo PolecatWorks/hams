@@ -1,0 +1,41 @@
+{
+  "commands": [
+    {
+      "command": "commands.refresh",
+      "text": "$(sync)",
+      "tooltip": "Refresh commands",
+      "color": "#FFCC00"
+    },
+    {
+      "text": "$(chevron-right)",
+      "command": "workbench.action.showCommands",
+      "tooltip": "Show commands"
+    },
+    {
+      "text": "$(markdown)",
+      "command": "markdown.showPreviewToSide",
+      "tooltip": "Open markdown preview",
+      "filterFileRegex": ".*\\.md"
+    },
+    {
+      "text": "$(file)",
+      "command": "workbench.action.tasks.runTask",
+      "arguments": ["Cargo Doc"],
+      "tooltip": "make and show cargo doc"
+    }
+    // {
+    //   "text": "GoIsh",
+    //   "command": "workbench.action.tasks.runTask",
+    //   "arguments": ["Cargo Doc"],
+    //   "tooltip": "make doc"
+    // },
+    // {
+    //   "text": "Preview",
+    //   "command": "livePreview.start",
+
+    //   // "arguments": [],
+    //   "arguments": ["target/doc/help.html"],
+    //   "tooltip": "make doc"
+    // }
+  ]
+}

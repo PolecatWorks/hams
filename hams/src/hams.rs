@@ -8,6 +8,7 @@ use std::{mem, thread};
 use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::{Receiver, Sender};
+use warp::reply::Json;
 use warp::Filter;
 
 use crate::error::HamsError;
@@ -17,16 +18,16 @@ use serde::Serialize;
 
 /// Return structure for alive and ready endpoints
 #[derive(Serialize)]
-struct HealthSystemResult {
-    name: String,
+struct HealthSystemResult<'a> {
+    name: &'a str,
     valid: bool,
-    detail: Vec<HealthCheckResult>,
+    detail: Vec<HealthCheckResult<'a>>,
 }
 
 /// A HaMS provides essential facilities to support a k8s microservice.
 /// health, liveness, startup, shutdown, monitoring, logging
 #[derive(Debug, Clone)]
-pub struct Hams {
+pub struct Hams<'a> {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
 
@@ -38,8 +39,8 @@ pub struct Hams {
     // readyness: HealthCheck,
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<Vec<Arc<Mutex<dyn HealthCheck>>>>>,
-    ready: Arc<Mutex<Vec<Arc<Mutex<dyn HealthCheck>>>>>,
+    alive: Arc<Mutex<Vec<Box<dyn HealthCheck + 'a>>>>,
+    ready: Arc<Mutex<Vec<Box<dyn HealthCheck + 'a>>>>,
 
     kill: Arc<Mutex<Option<Sender<()>>>>,
 
@@ -54,7 +55,7 @@ pub struct Hams {
     // thread_tx: Mutex<Option<sync::mpsc::Sender<()>>>,
 }
 
-impl<'a> Hams {
+impl<'a> Hams<'a> {
     /// Returns a HaMS instance with the name given
     ///
     /// # Arguments
@@ -170,7 +171,7 @@ impl<'a> Hams {
         // and when spawning save the handle to allow us to wait on it finishing.
 
         let (channel_health, kill_recv_health) = mpsc::channel(1);
-        let health_listen = self.service_listen(kill_recv_health).await;
+        let health_listen = service_listen(self.clone(), kill_recv_health).await;
 
         self.add_picosvc(channel_health, health_listen);
 
@@ -222,68 +223,61 @@ impl<'a> Hams {
         }
     }
 
-    /// Start the port listening and exposing the servcie on it
-    pub async fn service_listen(&self, mut kill_recv: Receiver<()>) -> tokio::task::JoinHandle<()> {
-        let api = self.hams_service();
+    pub fn register_alive<T: HealthCheck + 'a>(&self, check: T) {
+        let boxed = Box::new(check);
 
-        let routes = api.with(warp::log("hams"));
-
-        let (_addr, server) = warp::serve(routes).bind_with_graceful_shutdown(
-            ([0, 0, 0, 0], self.port),
-            async move {
-                kill_recv.recv().await;
-            },
-        );
-
-        info!("Serving service ({}) on port {}", self.name, self.port);
-        tokio::task::spawn(server)
+        self.alive.lock().unwrap().push(boxed);
     }
 
-    pub fn register_alive(&self, check: Arc<Mutex<dyn HealthCheck>>) {
-        self.alive.lock().unwrap().push(check);
+    // pub fn register_alive(&self, check:  &dyn HealthCheck) {
+    //     self.alive.lock().unwrap().push(Box::new(check.clone()));
+    // }
+
+    pub fn deregister_alive(&self, check: Box<dyn HealthCheck>) {
+        self.alive.lock().unwrap().retain(|health| true); // health == check); //  TODO !Arc::ptr_eq(health, &check));
     }
 
-    pub fn deregister_alive(&self, check: Arc<Mutex<dyn HealthCheck>>) {
-        self.alive
-            .lock()
-            .unwrap()
-            .retain(|health| !Arc::ptr_eq(health, &check));
+    fn check_alive(&self) -> (bool, Json) {
+        // fn check_alive(&self) -> HealthSystemResult {
+        let my_now = Instant::now();
+        let my_lock = self.alive.lock().unwrap();
+
+        let detail = my_lock
+            .iter()
+            .map(|health| health.check(my_now))
+            .collect::<Vec<_>>();
+
+        let valid = detail.iter().all(|result| result.valid);
+
+        (
+            valid,
+            warp::reply::json(&HealthSystemResult {
+                name: "alive",
+                valid,
+                detail,
+            }),
+        )
     }
 
-    fn check_alive(&self) -> HealthSystemResult {
+    fn check_ready(&self) -> (bool, Json) {
         let my_now = Instant::now();
 
-        let detail = self
-            .alive
-            .lock()
-            .unwrap()
+        let my_lock = self.ready.lock().unwrap();
+
+        let detail = my_lock
             .iter()
-            .map(|health| health.lock().unwrap().check(my_now))
+            .map(|health| health.check(my_now))
             .collect::<Vec<_>>();
         let valid = detail.iter().all(|result| result.valid);
-        HealthSystemResult {
-            name: "alive".to_owned(),
-            valid,
-            detail,
-        }
-    }
 
-    fn check_ready(&self) -> HealthSystemResult {
-        let my_now = Instant::now();
-
-        let detail = self
-            .ready
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|health| health.lock().unwrap().check(my_now))
-            .collect::<Vec<_>>();
-        let valid = detail.iter().all(|result| result.valid);
-        HealthSystemResult {
-            name: "ready".to_owned(),
+        (
             valid,
-            detail,
-        }
+            warp::reply::json(&HealthSystemResult {
+                name: "alive",
+                valid,
+                detail,
+            }),
+        )
     }
 
     // TODO: maybe we dont need this anymore
@@ -291,32 +285,62 @@ impl<'a> Hams {
         self.handles.lock().unwrap().push(handle);
         self.channels.lock().unwrap().push(channel);
     }
+}
 
-    fn with_hams(
-        &self,
-    ) -> impl Filter<Extract = (Hams,), Error = std::convert::Infallible> + Clone {
-        let my_hams = self.clone();
-        warp::any().map(move || my_hams.clone())
-    }
+/// Start the port listening and exposing the service on it
+pub async fn service_listen<'a>(
+    hams: Hams,
+    mut kill_recv: Receiver<()>,
+) -> tokio::task::JoinHandle<()> {
+    let temp_hams = hams.clone();
 
-    pub fn hams_service(
-        &self,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        let version = warp::path("version")
-            .and(self.with_hams())
-            .and_then(handlers::version_handler);
-        let name = warp::path("name")
-            .and(self.with_hams())
-            .and_then(handlers::name_handler);
-        let alive = warp::path("alive")
-            .and(self.with_hams())
-            .and_then(handlers::alive_handler);
-        let ready = warp::path("ready")
-            .and(self.with_hams())
-            .and_then(handlers::ready_handler);
+    let api = hams_service(temp_hams);
 
-        warp::path("health").and(version.or(name).or(alive).or(ready))
-    }
+    let routes = api.with(warp::log("hams"));
+
+    let (_addr, server) =
+        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
+            kill_recv.recv().await;
+        });
+
+    info!("Serving service ({}) on port {}", hams.name, hams.port);
+    tokio::task::spawn(server)
+}
+
+pub fn hams_service(
+    hams: Hams,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone + '_ {
+    warp::path!("version")
+        .and(warp::get())
+        .and(with_hams(hams.clone()))
+        .and_then(handlers::version_handler)
+
+    // let myhams = with_hams(hams.clone());
+
+    // let version2 = warp::path("version")
+    //     .and(with_hams(hams.clone())).and_then(handlers::version_handler);
+
+    // let version = warp::path("version")
+    //     .and(with_hams(hams))
+    //     .and_then(handlers::version_handler);
+    // let name = warp::path("name")
+    //     .and(with_hams(hams.clone()))
+    //     .and_then(handlers::name_handler);
+    // let alive = warp::path("alive")
+    //     .and(with_hams(hams.clone()))
+    //     .and_then(handlers::alive_handler);
+    // let ready = warp::path("ready")
+    //     .and(with_hams(hams.clone()))
+    //     .and_then(handlers::ready_handler);
+
+    // warp::path("health").and(version)
+    // .or(name).or(alive).or(ready))
+}
+
+fn with_hams(
+    hams: Hams,
+) -> impl Filter<Extract = (Hams,), Error = std::convert::Infallible> + Clone {
+    warp::any().map(move || hams.clone())
 }
 
 /// Handlers for health system
@@ -333,7 +357,7 @@ mod handlers {
     }
 
     /// Handler for name endpoint
-    pub async fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         let name_reply = NameReply { name: hams.name };
         Ok(warp::reply::json(&name_reply))
     }
@@ -344,7 +368,7 @@ mod handlers {
         version: String,
     }
     /// Handler for version endpoint
-    pub async fn version_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn version_handler(hams: Hams<'_>) -> Result<impl warp::Reply, Infallible> {
         let version_reply = VersionReply {
             version: hams.version,
         };
@@ -352,12 +376,12 @@ mod handlers {
     }
 
     /// Handler for alive endpoint
-    pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let our_ids = hams.check_alive();
+    pub async fn alive_handler(hams: Hams<'_>) -> Result<impl warp::Reply, Infallible> {
+        let (valid, content) = hams.check_alive();
 
         Ok(warp::reply::with_status(
-            warp::reply::json(&our_ids),
-            if our_ids.valid {
+            content,
+            if valid {
                 warp::http::StatusCode::OK
             } else {
                 warp::http::StatusCode::NOT_ACCEPTABLE
@@ -366,12 +390,12 @@ mod handlers {
     }
 
     /// Handler for ready endpoint
-    pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let our_ids = hams.check_ready();
+    pub async fn ready_handler(hams: Hams<'_>) -> Result<impl warp::Reply, Infallible> {
+        let (valid, content) = hams.check_ready();
 
         Ok(warp::reply::with_status(
-            warp::reply::json(&our_ids),
-            if our_ids.valid {
+            content,
+            if valid {
                 warp::http::StatusCode::OK
             } else {
                 warp::http::StatusCode::NOT_ACCEPTABLE
@@ -382,10 +406,12 @@ mod handlers {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
+    use std::{collections::HashMap, time::Duration};
 
     use futures::Future;
     use warp::hyper::{body, Client, StatusCode};
+
+    use crate::healthcheck::AliveCheckKicked;
 
     use super::*;
 
@@ -405,10 +431,7 @@ mod tests {
     fn register_deregister() {
         let mut my_hams = Hams::new("apple");
 
-        let my_alive = Arc::new(Mutex::new(AliveCheck::new(
-            "brown".to_string(),
-            Duration::from_secs(12),
-        )));
+        let my_alive = AliveCheckKicked::new("brown", Duration::from_secs(12));
         my_hams.register_alive(my_alive.clone());
 
         assert_eq!(1, my_hams.alive.lock().unwrap().len());

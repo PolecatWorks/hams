@@ -1,16 +1,27 @@
-use self::hams::Hams;
+// mod hams;
+
+mod hams2;
+mod wuggle;
+
+// pub mod ffi;
+pub mod error;
+pub mod healthcheck;
+pub mod healthkicked;
+
+#[cfg(all(feature = "axum", feature = "warp"))]
+compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
+
+use self::hams2::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
 use std::process;
-mod hams;
-// pub mod ffi;
-pub mod error;
-pub mod healthcheck;
 
+/// Name of the Crate
 const NAME: &str = env!("CARGO_PKG_NAME");
+/// Version of the Crate
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[no_mangle]
@@ -72,7 +83,7 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 ///
 /// Initialise the hams object giving it a name on construction
 #[no_mangle]
-pub unsafe extern "C" fn hams_init(name: *const libc::c_char) -> *mut Hams {
+pub unsafe extern "C" fn hams_init<'a>(name: *const libc::c_char) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
     catch_panic!(

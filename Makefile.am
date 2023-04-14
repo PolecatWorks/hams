@@ -43,7 +43,7 @@ cargo-bloat:
 doc: cargo-doc
 
 cargo-doc:
-	@cargo doc --no-deps
+	@cargo doc --no-deps --document-private-items
 
 cargo-fmt:
 	@cargo fmt --all -- --check

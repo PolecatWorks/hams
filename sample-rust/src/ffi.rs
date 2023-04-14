@@ -10,14 +10,14 @@ pub struct Hams {
 
 #[link(name = "hams", kind = "dylib")]
 extern "C" {
-    /// Configure logging for UService
+    /// Configure logging for HaMS
     pub fn hams_logger_init(param: LogParam) -> i32;
-    /// Init a HaMS and return the reference to the UService object
+    /// Init a HaMS and return the reference to the HaMS object
     pub fn hams_init(name: *const libc::c_char) -> *mut Hams;
-    /// Free an UService
+    /// Free HaMS
     pub fn hams_free(hams: *mut Hams) -> i32;
     /// Start HaMS
     pub fn hams_start(ptr: *mut Hams) -> i32;
-    /// Start HaMS
+    /// Stop HaMS
     pub fn hams_stop(ptr: *mut Hams) -> i32;
 }
