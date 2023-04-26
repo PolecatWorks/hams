@@ -91,6 +91,10 @@ impl Sample {
         *self.count.lock().unwrap()
     }
 
+    pub fn get_kill(&self) -> Arc<Mutex<Option<Sender<()>>>> {
+        self.kill.clone()
+    }
+
     fn start_tokio(&mut self, rx_kill: Receiver<()>) {
         info!("starting Tokio");
 

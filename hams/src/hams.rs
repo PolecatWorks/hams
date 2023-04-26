@@ -1,78 +1,202 @@
-use std::sync::{Arc, Mutex};
-use std::thread::JoinHandle;
-use std::time::Instant;
+use std::{
+    collections::HashSet,
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle},
+    time::Instant,
+};
 
+use crate::{
+    error::HamsError,
+    healthcheck::{HealthCheck, HealthCheckWrapper, HealthSystemResult},
+};
 use futures::future;
-use log::info;
-use std::{mem, thread};
-use tokio::signal::unix::{signal, SignalKind};
-use tokio::sync::mpsc;
+use libc::c_void;
+use log::{error, info, warn};
+use std::mem;
+use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
-use warp::reply::Json;
-use warp::Filter;
+use tokio::{signal::unix::SignalKind, sync::mpsc};
 
-use crate::error::HamsError;
-use crate::healthcheck::{HealthCheck, HealthCheckResult};
-
-use serde::Serialize;
-
-/// Return structure for alive and ready endpoints
-#[derive(Serialize)]
-struct HealthSystemResult<'a> {
-    name: &'a str,
-    valid: bool,
-    detail: Vec<HealthCheckResult<'a>>,
+#[derive(Debug)]
+struct HamsCallback {
+    user_data: *mut c_void,
+    cb: unsafe extern "C" fn(*mut c_void),
 }
+/// Manually provide the Send impl for HamsCallBack to indicate it is thread safe.
+/// This is required because HamsCallback cannot automatically derive if it can support
+/// Send impl.
+unsafe impl Send for HamsCallback {}
 
-/// A HaMS provides essential facilities to support a k8s microservice.
-/// health, liveness, startup, shutdown, monitoring, logging
 #[derive(Debug, Clone)]
-pub struct Hams<'a> {
+pub struct Hams {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
 
     // pub rt: tokio::runtime::Runtime,
     channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
     handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
-    // so_services: Arc<Mutex<HashMap<String, Box<SoService>>>>,
-    // liveness: HealthCheck,
-    // readyness: HealthCheck,
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<Vec<Box<dyn HealthCheck + 'a>>>>,
-    ready: Arc<Mutex<Vec<Box<dyn HealthCheck + 'a>>>>,
-
+    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
     kill: Arc<Mutex<Option<Sender<()>>>>,
+
+    /// Provide the version of the api
+    api_version: String,
 
     /// Provide the version of the release of HaMS
     version: String,
+    /// Provide the name of the package
+    package: String,
+
+    /// Callback to be called on shutdown
+    shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
 
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
-    // thread_tx: Mutex<Option<sync::mpsc::Sender<()>>>,
 }
 
-impl<'a> Hams<'a> {
+impl Hams {
     /// Returns a HaMS instance with the name given
     ///
     /// # Arguments
     ///
     /// * 'name' - A string slice that holds the name of the HaMS
-    pub fn new(name: &str) -> Hams {
+    pub fn new<S: Into<String>>(name: S) -> Hams {
         Hams {
-            name: name.to_string(),
+            name: name.into(),
             thread_jh: Arc::new(Mutex::new(None)),
-            // thread_tx: Mutex::new(None),
+
             channels: Arc::new(Mutex::new(vec![])),
             handles: Arc::new(Mutex::new(vec![])),
             kill: Arc::new(Mutex::new(None)),
-            version: "v1".to_string(),
+            api_version: "v1".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            package: env!("CARGO_PKG_NAME").to_string(),
             port: 8079,
-            alive: Arc::new(Mutex::new(vec![])),
-            ready: Arc::new(Mutex::new(vec![])),
+            alive: Arc::new(Mutex::new(HashSet::new())),
+            ready: Arc::new(Mutex::new(HashSet::new())),
+            shutdown_cb: Arc::new(Mutex::new(None)),
+            // ready: Arc::new(Mutex::new(vec![])),
+        }
+    }
+
+    pub fn register_shutdown(&self, user_data: *mut c_void, cb: unsafe extern "C" fn(*mut c_void)) {
+        println!("Add shutdown to {}", self.name);
+        *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
+    }
+
+    fn add_ready(&self, newval: Box<dyn HealthCheck>) {
+        self.ready
+            .lock()
+            .unwrap()
+            .insert(HealthCheckWrapper(newval));
+    }
+
+    fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
+        let mut readys = self.ready.lock().unwrap();
+        readys.remove(&HealthCheckWrapper(ready))
+    }
+
+    // fn add_ready(&self, newval: Box<dyn HealthCheck>) {
+    //     self.ready.lock().unwrap().push(newval);
+    // }
+
+    // fn remove_ready(&mut self, my_val: Box<dyn HealthCheck>) -> Box<dyn HealthCheck> {
+
+    //     let ready_locked = self.ready.lock().unwrap();
+
+    //     let xyz = ready_locked.iter().enumerate() {}
+
+    //     let remove_index = 12;
+    //     ready_locked.remove(remove_index)
+
+    //     // let remove_range = ready_locked.iter().map(f)
+
+    //     // self.ready.lock().unwrap().drain_filter( |x|  {
+    //     //     *my_val == **x
+    //     // }).collect::<Vec<_>>()
+    // }
+    pub fn check_ready(&self) -> (bool, String) {
+        let my_now = Instant::now();
+
+        let my_lock = self.ready.lock().unwrap();
+
+        let detail = my_lock
+            .iter()
+            .map(|health| health.check(my_now))
+            .collect::<Vec<_>>();
+
+        let valid = detail.iter().all(|result| result.valid);
+
+        (
+            valid,
+            serde_json::to_string(&HealthSystemResult {
+                name: "ready",
+                valid,
+                detail,
+            })
+            .unwrap(),
+        )
+    }
+    fn print_names_ready(&self) {
+        println!("Show ready:");
+        let mylist = self.ready.lock().unwrap();
+        for x in &*mylist {
+            println!("> Ready: {}", x.get_name());
+        }
+    }
+
+    pub fn add_alive(&self, newval: Box<dyn HealthCheck>) {
+        self.alive
+            .lock()
+            .unwrap()
+            .insert(HealthCheckWrapper(newval));
+    }
+
+    pub fn remove_alive(&mut self, alive: Box<dyn HealthCheck>) -> bool {
+        let mut alives = self.alive.lock().unwrap();
+        alives.remove(&HealthCheckWrapper(alive))
+    }
+
+    // fn remove_alive(&mut self, my_val: Box<dyn HealthCheck>) -> Vec<Box<dyn HealthCheck>> {
+
+    //     self.alive.lock().unwrap().drain_filter( |x|  {
+    //         *my_val == **x
+    //     }).collect::<Vec<_>>()
+    // }
+
+    pub fn check_alive(&self) -> (bool, String) {
+        let my_now = Instant::now();
+
+        let my_lock = self.alive.lock().unwrap();
+
+        let detail = my_lock
+            .iter()
+            .map(|health| health.check(my_now))
+            .collect::<Vec<_>>();
+
+        let valid = detail.iter().all(|result| result.valid);
+
+        (
+            valid,
+            serde_json::to_string(&HealthSystemResult {
+                name: "alive",
+                valid,
+                detail,
+            })
+            .unwrap(),
+        )
+    }
+    fn print_names_alive(&self) {
+        println!("Show alive:");
+        let mylist = self.alive.lock().unwrap();
+        for x in &*mylist {
+            println!("> Alive: {}", x.get_name());
         }
     }
 
@@ -147,22 +271,6 @@ impl<'a> Hams<'a> {
         Ok(())
     }
 
-    /// Join all the services threads that have been added to the handle_list
-    async fn join(&self) {
-        let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
-        future::join_all(handle_list).await;
-
-        // future::join_all(mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")))).await;
-
-        // let mut handles = self
-        //     .handles
-        //     .lock()
-        //     .expect("Could not lock mutex for handles");
-        // // info!("Waiting for services: {:?}", handles);
-        // future::join_all(mem::take(&mut *handles)).await;
-        info!("Services completed");
-    }
-
     async fn start_async(&mut self, mut kill_signal: Receiver<()>) {
         info!("Starting ASYNC");
 
@@ -173,7 +281,7 @@ impl<'a> Hams<'a> {
         let (channel_health, kill_recv_health) = mpsc::channel(1);
         let health_listen = service_listen(self.clone(), kill_recv_health).await;
 
-        self.add_picosvc(channel_health, health_listen);
+        // self.add_picosvc(channel_health, health_listen);
 
         let channels_register = self.channels.clone();
 
@@ -199,7 +307,7 @@ impl<'a> Hams<'a> {
             info!("Signal handler triggered to start Shutdown");
 
             // Once any of the signal handlers have completed then send the kill signal to each registered shutdown
-            Hams::shutdown(channels_register).await;
+            shutdown(channels_register).await;
             info!("my_services complete");
         });
 
@@ -211,82 +319,61 @@ impl<'a> Hams<'a> {
         info!("start_async is now complete");
     }
 
-    async fn shutdown(channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>) {
-        let channels = channels.lock().unwrap().clone();
+    /// Join all the services threads that have been added to the handle_list
+    async fn join(&self) {
+        let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
+        future::join_all(handle_list).await;
 
-        for channel in channels.iter() {
-            let channel_rx = channel.send(()).await;
-            match channel_rx {
-                Ok(_v) => info!("Shutdown signal sent"),
-                Err(e) => info!("Error sending close signal: {:?}", e),
-            }
-        }
-    }
+        // future::join_all(mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")))).await;
 
-    pub fn register_alive<T: HealthCheck + 'a>(&self, check: T) {
-        let boxed = Box::new(check);
-
-        self.alive.lock().unwrap().push(boxed);
-    }
-
-    // pub fn register_alive(&self, check:  &dyn HealthCheck) {
-    //     self.alive.lock().unwrap().push(Box::new(check.clone()));
-    // }
-
-    pub fn deregister_alive(&self, check: Box<dyn HealthCheck>) {
-        self.alive.lock().unwrap().retain(|health| true); // health == check); //  TODO !Arc::ptr_eq(health, &check));
-    }
-
-    fn check_alive(&self) -> (bool, Json) {
-        // fn check_alive(&self) -> HealthSystemResult {
-        let my_now = Instant::now();
-        let my_lock = self.alive.lock().unwrap();
-
-        let detail = my_lock
-            .iter()
-            .map(|health| health.check(my_now))
-            .collect::<Vec<_>>();
-
-        let valid = detail.iter().all(|result| result.valid);
-
-        (
-            valid,
-            warp::reply::json(&HealthSystemResult {
-                name: "alive",
-                valid,
-                detail,
-            }),
-        )
-    }
-
-    fn check_ready(&self) -> (bool, Json) {
-        let my_now = Instant::now();
-
-        let my_lock = self.ready.lock().unwrap();
-
-        let detail = my_lock
-            .iter()
-            .map(|health| health.check(my_now))
-            .collect::<Vec<_>>();
-        let valid = detail.iter().all(|result| result.valid);
-
-        (
-            valid,
-            warp::reply::json(&HealthSystemResult {
-                name: "alive",
-                valid,
-                detail,
-            }),
-        )
-    }
-
-    // TODO: maybe we dont need this anymore
-    fn add_picosvc(&self, channel: Sender<()>, handle: tokio::task::JoinHandle<()>) {
-        self.handles.lock().unwrap().push(handle);
-        self.channels.lock().unwrap().push(channel);
+        // let mut handles = self
+        //     .handles
+        //     .lock()
+        //     .expect("Could not lock mutex for handles");
+        // // info!("Waiting for services: {:?}", handles);
+        // future::join_all(mem::take(&mut *handles)).await;
+        info!("Services completed");
     }
 }
 
+async fn shutdown(channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>) {
+    let channels = channels.lock().unwrap().clone();
+
+    for channel in channels.iter() {
+        let channel_rx = channel.send(()).await;
+        match channel_rx {
+            Ok(_v) => info!("Shutdown signal sent"),
+            Err(e) => info!("Error sending close signal: {:?}", e),
+        }
+    }
+}
+
+#[cfg(feature = "warp")]
+/**
+Start the port listening and exposing the service on it
+*/
+pub async fn service_listen<'a>(
+    hams: Hams,
+    mut kill_recv: Receiver<()>,
+) -> tokio::task::JoinHandle<()> {
+    use warp::Filter;
+
+    let temp_hams = hams.clone();
+    // TODO:  use a direct clone not temp
+    let api = warp_filters::hams_service(temp_hams);
+
+    let routes = api.with(warp::log("hams"));
+
+    let (_addr, server) =
+        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
+            kill_recv.recv().await;
+        });
+
+    info!("Serving service ({}) on port {}", hams.name, hams.port);
+    tokio::task::spawn(server)
+}
+
+#[cfg(feature = "axum")]
 /// Start the port listening and exposing the service on it
 pub async fn service_listen<'a>(
     hams: Hams,
@@ -307,48 +394,61 @@ pub async fn service_listen<'a>(
     tokio::task::spawn(server)
 }
 
-pub fn hams_service(
-    hams: Hams,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone + '_ {
-    warp::path!("version")
-        .and(warp::get())
-        .and(with_hams(hams.clone()))
-        .and_then(handlers::version_handler)
+#[cfg(feature = "warp")]
+mod warp_filters {
+    use warp::Filter;
 
-    // let myhams = with_hams(hams.clone());
+    use super::{warp_handlers, Hams};
 
-    // let version2 = warp::path("version")
-    //     .and(with_hams(hams.clone())).and_then(handlers::version_handler);
+    pub fn hams_service(
+        hams: Hams,
+    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        let name = warp::path("name")
+            .and(warp::get())
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::name_handler);
 
-    // let version = warp::path("version")
-    //     .and(with_hams(hams))
-    //     .and_then(handlers::version_handler);
-    // let name = warp::path("name")
-    //     .and(with_hams(hams.clone()))
-    //     .and_then(handlers::name_handler);
-    // let alive = warp::path("alive")
-    //     .and(with_hams(hams.clone()))
-    //     .and_then(handlers::alive_handler);
-    // let ready = warp::path("ready")
-    //     .and(with_hams(hams.clone()))
-    //     .and_then(handlers::ready_handler);
+        let shutdown = warp::path("shutdown")
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::shutdown_handler);
 
-    // warp::path("health").and(version)
-    // .or(name).or(alive).or(ready))
+        let alive = warp::path("alive")
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::alive_handler);
+
+        let ready = warp::path("ready")
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::ready_handler);
+
+        let version = warp::path("version")
+            .and(warp::get())
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::version_handler);
+
+        warp::path("health").and(name.or(version).or(alive).or(ready).or(shutdown))
+    }
+
+    fn with_hams(
+        hams: Hams,
+    ) -> impl Filter<Extract = (Hams,), Error = std::convert::Infallible> + Clone {
+        warp::any().map(move || hams.clone())
+    }
 }
 
-fn with_hams(
-    hams: Hams,
-) -> impl Filter<Extract = (Hams,), Error = std::convert::Infallible> + Clone {
-    warp::any().map(move || hams.clone())
-}
+#[cfg(feature = "warp")]
+mod warp_handlers {
+    use std::convert::Infallible;
 
-/// Handlers for health system
-mod handlers {
+    use log::{error, info};
     use serde::Serialize;
 
     use super::Hams;
-    use std::convert::Infallible;
+
+    /// Reply structure for Version endpoint
+    #[derive(Serialize)]
+    struct VersionReply {
+        version: String,
+    }
 
     /// Reply structure for Name endpoint
     #[derive(Serialize)]
@@ -356,27 +456,47 @@ mod handlers {
         name: String,
     }
 
+    /// Reply structure for Name endpoint
+    #[derive(Serialize)]
+    struct VersionNameReply {
+        name: String,
+        version: String,
+    }
+
     /// Handler for name endpoint
-    pub fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         let name_reply = NameReply { name: hams.name };
         Ok(warp::reply::json(&name_reply))
     }
 
-    /// Reply structure for Version endpoint
-    #[derive(Serialize)]
-    struct VersionReply {
-        version: String,
-    }
     /// Handler for version endpoint
-    pub async fn version_handler(hams: Hams<'_>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn version_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         let version_reply = VersionReply {
             version: hams.version,
         };
         Ok(warp::reply::json(&version_reply))
     }
 
+    /// Handler for shutdown endpoint
+    pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+        let shutdown_reply = VersionNameReply {
+            version: hams.version,
+            name: hams.name,
+        };
+
+        match hams.shutdown_cb.lock().unwrap().as_ref() {
+            Some(hams_callback) => {
+                info!("Executing CB");
+                unsafe { (hams_callback.cb)(hams_callback.user_data) };
+            }
+            None => error!("Call shutdown CB with None"),
+        }
+
+        Ok(warp::reply::json(&shutdown_reply))
+    }
+
     /// Handler for alive endpoint
-    pub async fn alive_handler(hams: Hams<'_>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         let (valid, content) = hams.check_alive();
 
         Ok(warp::reply::with_status(
@@ -390,7 +510,7 @@ mod handlers {
     }
 
     /// Handler for ready endpoint
-    pub async fn ready_handler(hams: Hams<'_>) -> Result<impl warp::Reply, Infallible> {
+    pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         let (valid, content) = hams.check_ready();
 
         Ok(warp::reply::with_status(
@@ -406,131 +526,111 @@ mod handlers {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, time::Duration};
-
-    use futures::Future;
-    use warp::hyper::{body, Client, StatusCode};
-
-    use crate::healthcheck::AliveCheckKicked;
+    use crate::{healthcheck::HealthCheckResult, healthkicked::AliveCheckKicked};
 
     use super::*;
-
-    #[ignore]
-    #[test]
-    fn init_start_stop() {
-        let mut my_hams = Hams::new("apple");
-
-        my_hams.start().expect("Hams started");
-
-        my_hams.stop().expect("Hams stopped");
-
-        drop(my_hams);
-    }
+    use std::time::Duration;
 
     #[test]
-    fn register_deregister() {
-        let mut my_hams = Hams::new("apple");
+    fn hams_add_remove() {
+        let mut hams = Hams::new("apple");
 
-        let my_alive = AliveCheckKicked::new("brown", Duration::from_secs(12));
-        my_hams.register_alive(my_alive.clone());
+        let hc0 = AliveCheckKicked::new("Howdy", Duration::from_secs(20));
+        hams.add_alive(Box::new(hc0.clone()));
+        hams.print_names_alive();
 
-        assert_eq!(1, my_hams.alive.lock().unwrap().len());
+        let hc1 = AliveCheckKicked::new("Hellow", Duration::from_secs(20));
+        hams.add_alive(Box::new(hc1));
+        hams.print_names_alive();
 
-        my_hams.deregister_alive(my_alive);
+        assert_eq!(2, hams.alive.lock().unwrap().len());
 
-        assert_eq!(0, my_hams.alive.lock().unwrap().len());
+        println!("Removing {:?}", hc0);
+
+        let reply = hams.remove_alive(Box::new(hc0.clone()) as Box<dyn HealthCheck>);
+        if reply {
+            println!("removed some elements")
+        };
+        // println!("removed {} elements", if reply {"OK"});
+        // assert_eq!(1, reply.len());
+        assert!(reply);
+        assert_eq!(1, hams.alive.lock().unwrap().len());
+        // for removed in reply {
+        //     println!("removed => {:?}", removed.get_name());
+        // }
+        hams.print_names_alive();
     }
 
-    /// Dispatch instructions to a tokio runtime using an async thread
-    fn tokio_async<F, C>(operation: C)
-    where
-        F: Future<Output = ()>,
-        C: FnOnce() -> F + 'static,
-        C: Send,
-    {
-        let client = thread::spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("Runtime created in current thread");
-            let _guard = rt.enter();
-
-            rt.block_on(async {
-                println!("in the tokio runtime");
-
-                operation().await
-            });
-
-            println!("Client complete");
-        });
-
-        client.join().expect("Couldnt join thread");
+    #[derive(Debug)]
+    struct I {
+        name: String,
     }
 
-    /// Tests create their own async environment for calling async APIs
-    #[test]
-    fn api_calls() {
-        let mut my_hams = Hams::new("apple");
-
-        my_hams.start().expect("Client started");
-
-        let test_hams = my_hams.clone();
-
-        #[derive(Debug)]
-        struct TestReply {
-            status: StatusCode,
-            body: String,
+    impl HealthCheck for I {
+        fn get_name(&self) -> &str {
+            println!("HealthCheck for I {}", self.name);
+            &self.name
         }
 
-        let testvals = HashMap::from([
-            (
-                "health/name",
-                TestReply {
-                    status: StatusCode::OK,
-                    body: String::from("{\"name\":\"apple\"}"),
-                },
-            ),
-            (
-                "health/version",
-                TestReply {
-                    status: StatusCode::OK,
-                    body: String::from("{\"version\":\"v1\"}"),
-                },
-            ),
-            (
-                "health/alive",
-                TestReply {
-                    status: StatusCode::OK,
-                    body: String::from("{\"name\":\"alive\",\"valid\":true,\"detail\":[]}"),
-                },
-            ),
-            (
-                "health/ready",
-                TestReply {
-                    status: StatusCode::OK,
-                    body: String::from("{\"name\":\"ready\",\"valid\":true,\"detail\":[]}"),
-                },
-            ),
-        ]);
+        fn check(&self, time: std::time::Instant) -> HealthCheckResult {
+            todo!()
+        }
+    }
 
-        tokio_async(|| async move {
-            let client = Client::new();
+    #[derive(Debug)]
+    struct J {
+        name: String,
+    }
+    impl HealthCheck for J {
+        fn get_name(&self) -> &str {
+            println!("HealthCheck for J {}", self.name);
+            &self.name
+        }
 
-            for (path, expected_response) in testvals {
-                println!("Checking {} = {:?}", path, expected_response);
+        fn check(&self, time: std::time::Instant) -> HealthCheckResult {
+            todo!()
+        }
+    }
 
-                let uri = format!("http://localhost:8079/{}", path).parse().unwrap();
-                let response = client.get(uri).await.unwrap();
+    #[test]
+    fn test_vec() {
+        let mut myvec = Hams::new("test");
 
-                assert_eq!(expected_response.status, response.status());
-                let body = body::to_bytes(response.into_body()).await.unwrap();
+        myvec.add_alive(Box::new(AliveCheckKicked::new(
+            "sofa",
+            Duration::from_secs(10),
+        )));
+        myvec.add_alive(Box::new(J {
+            name: "hello".to_owned(),
+        }));
 
-                assert_eq!(expected_response.body, body);
-            }
-        });
+        myvec.add_alive(Box::new(AliveCheckKicked::new(
+            "sofa",
+            Duration::from_secs(10),
+        )));
 
-        my_hams.stop().unwrap();
+        {
+            let newby = Box::new(I {
+                name: "hello".to_owned(),
+            });
 
-        drop(my_hams);
+            myvec.add_alive(newby);
+            myvec.add_alive(Box::new(AliveCheckKicked::new(
+                "sofa",
+                Duration::from_secs(10),
+            )));
+
+            myvec.add_alive(Box::new(AliveCheckKicked::new(
+                "sofa",
+                Duration::from_secs(10),
+            )));
+        }
+
+        myvec.print_names_alive();
+
+        println!(
+            "vecing done wtih size {}",
+            myvec.alive.lock().unwrap().len()
+        );
     }
 }

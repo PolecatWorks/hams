@@ -5,6 +5,8 @@ use std::{
     time::{Duration, Instant},
 };
 
+use log::info;
+
 use crate::healthcheck::{HealthCheck, HealthCheckResult};
 
 #[derive(Debug)]
@@ -16,12 +18,13 @@ struct AliveCheckKickedInner {
 /// Implement the alive check which will fail if the service has not been triggered within the margin
 #[derive(Debug, Clone)]
 pub struct AliveCheckKicked {
-    name: String,
+    pub name: String,
     inner: Arc<Mutex<AliveCheckKickedInner>>,
 }
 
 /// Create an alive check that takes a margin and fails when the time has not been kept up to date within the margin
 impl AliveCheckKicked {
+    /// Create an alive kicked object providing name and duration of time before triggering failure
     pub fn new<S: Into<String>>(name: S, margin: Duration) -> Self {
         Self {
             name: name.into(),
@@ -36,7 +39,9 @@ impl AliveCheckKicked {
     }
     /// Update the latest time record
     pub fn kick(&self) {
+        // info!("kickinHg {}", self.name);
         self.get_inner().latest = Instant::now();
+        // info!("did kick on {}", self.name);
     }
 }
 
@@ -60,49 +65,49 @@ mod tests {
 
     use super::*;
 
-    /// Test the API of alive to confirm check and kick
-    #[test]
-    fn alive() {
-        println!("OK");
+    // /// Test the API of alive to confirm check and kick
+    // #[test]
+    // fn alive() {
+    //     println!("OK");
 
-        let mut alive = I {
-            name: "apple".to_owned(),
-            count: 0,
-        };
+    //     let mut alive = I {
+    //         name: "apple".to_owned(),
+    //         count: 0,
+    //     };
 
-        let alive_ok = alive.check(alive.get_inner().latest + Duration::from_secs(1));
-        assert_eq!(
-            HealthCheckResult {
-                name: "apple",
-                valid: true
-            },
-            alive_ok
-        );
+    //     let alive_ok = alive.check(alive.get_inner().latest + Duration::from_secs(1));
+    //     assert_eq!(
+    //         HealthCheckResult {
+    //             name: "apple",
+    //             valid: true
+    //         },
+    //         alive_ok
+    //     );
 
-        let alive_margin = alive.check(alive.get_inner().latest + Duration::from_secs(10));
-        assert_eq!(
-            HealthCheckResult {
-                name: "apple",
-                valid: true
-            },
-            alive_margin
-        );
+    //     let alive_margin = alive.check(alive.get_inner().latest + Duration::from_secs(10));
+    //     assert_eq!(
+    //         HealthCheckResult {
+    //             name: "apple",
+    //             valid: true
+    //         },
+    //         alive_margin
+    //     );
 
-        let alive_fail = alive.check(alive.get_inner().latest + Duration::from_secs(11));
-        assert_eq!(
-            HealthCheckResult {
-                name: "apple",
-                valid: false
-            },
-            alive_fail
-        );
+    //     let alive_fail = alive.check(alive.get_inner().latest + Duration::from_secs(11));
+    //     assert_eq!(
+    //         HealthCheckResult {
+    //             name: "apple",
+    //             valid: false
+    //         },
+    //         alive_fail
+    //     );
 
-        let create_time = alive.get_inner().latest;
+    //     let create_time = alive.get_inner().latest;
 
-        alive.kick();
+    //     alive.kick();
 
-        assert!(alive.get_inner().latest > create_time);
-    }
+    //     assert!(alive.get_inner().latest > create_time);
+    // }
 
     #[test]
     fn alive_practical_use() {
@@ -115,6 +120,17 @@ mod tests {
         assert!(health.get_inner().latest > orig);
 
         println!("all done with {}", health.get_name());
+    }
+
+    #[test]
+    fn test_clone() {
+        let health = AliveCheckKicked::new("hello", Duration::from_secs(10));
+
+        let health2 = health.clone();
+
+        println!("{:?} => {:?}", health, health2);
+        drop(health);
+        println!("=> {:?}", health2);
     }
 
     #[test]

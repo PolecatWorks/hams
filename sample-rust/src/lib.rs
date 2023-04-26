@@ -5,9 +5,11 @@
 //!
 //! Following this pattern: <https://stackoverflow.com/questions/50107792/what-is-the-better-way-to-wrap-a-ffi-struct-that-owns-or-borrows-data>
 
+use ffi::kicked_free;
 use ffi_log2::LogParam;
-use log::info;
-use std::{fmt::Display, marker::PhantomData};
+use libc::c_void;
+use log::{error, info};
+use std::{fmt::Display, marker::PhantomData, time::Duration};
 
 use crate::hamserror::HamsError;
 mod ffi;
@@ -26,6 +28,8 @@ pub fn hams_logger_init(param: LogParam) -> Result<(), HamsError> {
     }
     Ok(())
 }
+
+type ShutdownCallback = unsafe extern "C" fn(*mut c_void);
 
 #[cfg_attr(doc, aquamarine::aquamarine)]
 ///
@@ -96,6 +100,37 @@ impl<'a> Hams<'a> {
             Ok(())
         }
     }
+    pub fn register_shutdown(
+        &self,
+        user_data: *mut c_void,
+        cb: ShutdownCallback,
+    ) -> Result<(), HamsError> {
+        let retval = unsafe { ffi::hams_register_shutdown(self.c, user_data, cb) };
+        if retval == 0 {
+            Err(HamsError::Message(
+                "Failed to register shutdown".to_string(),
+            ))
+        } else {
+            Ok(())
+        }
+    }
+
+    pub fn add_alive(&self, new_val: &AliveCheckKicked) -> Result<(), HamsError> {
+        let retval = unsafe { ffi::hams_add_alive(self.c, new_val.kicked) };
+        if retval == 0 {
+            Err(HamsError::Message("Failed to start HaMS".to_string()))
+        } else {
+            Ok(())
+        }
+    }
+    pub fn remove_alive(&self, new_val: &AliveCheckKicked) -> Result<(), HamsError> {
+        let retval = unsafe { ffi::hams_remove_alive(self.c, new_val.kicked) };
+        if retval == 0 {
+            Err(HamsError::Message("Failed to start HaMS".to_string()))
+        } else {
+            Ok(())
+        }
+    }
 }
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
@@ -109,6 +144,53 @@ impl<'a> Drop for Hams<'a> {
         }
 
         info!("HaMS freed")
+    }
+}
+
+#[derive(Clone)]
+// Define a Rust struct that wraps the KickedObject
+pub struct AliveCheckKicked {
+    kicked: *mut ffi::AliveCheckKicked,
+}
+
+impl AliveCheckKicked {
+    pub fn new<S: Into<String>>(name: S, duration: Duration) -> Result<AliveCheckKicked, HamsError>
+    where
+        S: Display,
+    {
+        info!("Registering AliveCheckKicked: {}", &name);
+
+        let c_name = std::ffi::CString::new(name.into())?;
+        let dur = duration.as_millis().try_into()?;
+        // if reply from function is null then reply with error
+
+        let kicked = unsafe { ffi::kicked_create(c_name.as_ptr(), dur) };
+        if kicked.is_null() {
+            return Err(HamsError::Message("Null reply from registering".to_owned()));
+        }
+
+        Ok(Self { kicked })
+    }
+
+    pub fn kick(&self) {
+        // info!("kicking");
+        let retval = unsafe { ffi::kicked_kick(self.kicked) };
+        if retval == 0 {
+            panic!("FAILED to kick AliveCheckKicked");
+        }
+        // info!("AliveCheckKicked kicked")
+    }
+}
+
+impl Drop for AliveCheckKicked {
+    // Define a destructor that calls kicked_free
+    fn drop(&mut self) {
+        let retval = unsafe { ffi::kicked_free(self.kicked) };
+        if retval == 0 {
+            panic!("FAILED to free AliveCheckKicked");
+        }
+
+        error!("AliveCheckKicked FREED")
     }
 }
 

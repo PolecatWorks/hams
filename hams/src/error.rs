@@ -1,4 +1,4 @@
-//! Module to describe errors in Hams
+//! describe errors in Hams
 
 use std::{error::Error, ffi::NulError, fmt};
 

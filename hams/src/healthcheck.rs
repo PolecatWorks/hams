@@ -7,6 +7,7 @@ use std::fmt::Debug;
 
 use std::hash::{Hash, Hasher};
 
+/// Result from whole HealthSystem
 #[derive(Debug, Serialize)]
 pub struct HealthSystemResult<'a> {
     pub(crate) name: &'a str,
