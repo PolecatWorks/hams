@@ -3,7 +3,7 @@
 //     and here: https://github.com/ratijas/rustc-issues/tree/dynlog-works
 //! Work out what needs to be configured inside the DLL to enable the log forwarding.
 //! Create a ffi function that enables the logging in the DLL to be configured (safely).
-//! Createa function in the main that allows creating of the object that is used to configure the DLL funciton.
+//! Creates function in the main that allows creating of the object that is used to configure the DLL funciton.
 
 use log::{Level, LevelFilter, Log, Metadata, Record, RecordBuilder};
 use std::{fmt, mem::ManuallyDrop};
@@ -58,6 +58,7 @@ impl RustStr {
     }
 }
 
+/// Provide an enum class for describing the type of logging to use
 #[repr(usize)]
 #[derive(Copy, Debug, Hash)]
 pub enum ExternCLevel {
@@ -87,7 +88,7 @@ pub enum ExternCLevel {
 }
 
 impl From<Level> for ExternCLevel {
-    fn from(myvalue: Level) -> Self {
+    fn from(_myvalue: Level) -> Self {
         // TODO: Make correct transorm of enums
         ExternCLevel::Info
     }
@@ -107,6 +108,7 @@ impl Clone for ExternCLevel {
 
 #[repr(usize)]
 #[derive(Copy, Debug, Hash)]
+/// Describe the filtering level to apply
 pub enum ExternCLevelFilter {
     /// A level lower than all log levels.
     Off,
@@ -123,7 +125,7 @@ pub enum ExternCLevelFilter {
 }
 
 impl From<LevelFilter> for ExternCLevelFilter {
-    fn from(myvalue: LevelFilter) -> Self {
+    fn from(_myvalue: LevelFilter) -> Self {
         ExternCLevelFilter::Info
         // TODO: Make correct transorm of enums
     }

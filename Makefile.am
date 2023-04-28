@@ -40,8 +40,10 @@ cargo-test-watch:
 cargo-bloat:
 	@cargo bloat --release -n 10
 
+doc: cargo-doc
+
 cargo-doc:
-	@cargo doc --no-deps --open
+	@cargo doc --no-deps --document-private-items
 
 cargo-fmt:
 	@cargo fmt --all -- --check

@@ -1,0 +1,20 @@
+// Workspace settings
+{
+    // The following will hide the js and map files in the editor
+    "files.exclude": {
+        "compile": true,
+        "Cargo.lock": true,
+        "config.*": true,
+        "configure.ac": true,
+        "depcomp": true,
+        "install-sh": true,
+        "aclocal.m4": true,
+        "lcov.info": true,
+        "default.profraw": true,
+        "Makefile.in": true,
+        "stamp-h1": true,
+        "missing": true,
+        "autom4te.cache": true
+
+    }
+}

@@ -1,3 +1,5 @@
+//! describe errors in Hams
+
 use std::{error::Error, ffi::NulError, fmt};
 
 use ffi_helpers::error_handling;

@@ -1,4 +1,4 @@
-use std::{error::Error, ffi::NulError, fmt};
+use std::{error::Error, ffi::NulError, fmt, num::TryFromIntError};
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
@@ -9,6 +9,7 @@ pub enum HamsError {
     Message(String),
     NulError,
     Unknown,
+    TryFromIntError,
 }
 
 impl fmt::Display for HamsError {
@@ -16,12 +17,19 @@ impl fmt::Display for HamsError {
         match self {
             HamsError::Message(msg) => write!(f, "Custom error: {}", msg),
             HamsError::NulError => write!(f, "Null was retuned"),
+            HamsError::TryFromIntError => write!(f, "Try conversion from int"),
             HamsError::Unknown => todo!(),
         }
     }
 }
 
 impl Error for HamsError {}
+
+impl From<TryFromIntError> for HamsError {
+    fn from(value: TryFromIntError) -> Self {
+        HamsError::TryFromIntError
+    }
+}
 
 impl From<NulError> for HamsError {
     fn from(_: NulError) -> HamsError {

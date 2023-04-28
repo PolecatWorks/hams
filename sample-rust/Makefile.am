@@ -8,3 +8,6 @@ $(top_build_prefix)$(CARGO_TARGET)/sample-rust:
 
 check-local: $(top_build_prefix)$(CARGO_TARGET)/sample-rust
 	@$(top_build_prefix)$(CARGO_TARGET)/sample-rust start
+
+clean-local:
+	@$(CARGO) clean $(CARGO_BUILD_FLAGS)
