@@ -4,7 +4,7 @@
 # and also https://aravindavk.in/blog/autoconf-for-rust-projects/
 # and https://www.figuiere.net/hub/blog/?2016/10/07/862-rust-and-automake
 #  BUT these make assumptions on structure of cargo.toml rather than actually reading it
-AC_PREREQ([2.71])
+AC_PREREQ([2.69])
 
 AC_INIT([hams],[0.1])
 
@@ -15,7 +15,7 @@ m4_ifdef([AM_SILENT_RULES], [
 
 AC_CANONICAL_HOST
 
-AC_CONFIG_HEADERS([sample-c/config.h])
+# AC_CONFIG_HEADERS([sample-c/config.h])
 
 AC_PROG_CC
 AM_PROG_CC_C_O

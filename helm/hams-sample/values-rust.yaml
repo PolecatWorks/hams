@@ -1,0 +1,2 @@
+image:
+  repository: dockerreg.k8s/polecatworks/sample-rust
