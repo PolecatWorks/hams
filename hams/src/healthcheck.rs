@@ -18,23 +18,30 @@ pub struct HealthSystemResult<'a> {
 /// Detail structure for replies from ready and alive
 #[derive(Serialize, Debug, PartialEq)]
 pub struct HealthCheckResult<'a> {
+    /// Name of health Reply
     pub name: &'a str,
+    /// Return value of health Reply
     pub valid: bool,
 }
 
 /// Trait to define the health check functionality
 pub trait HealthCheck: Debug + Send {
+    /// Get name of HealthCheck
     fn get_name(&self) -> &str;
+    /// Check if the HealthCheck is valid
     fn check(&self, time: Instant) -> HealthCheckResult;
 }
 
+/// Wrapper around health check to give it a type
 #[derive(Debug)]
 pub struct HealthCheckWrapper(pub Box<dyn HealthCheck>);
 
 impl HealthCheckWrapper {
+    /// get the name of HealthCheck
     pub fn get_name(&self) -> &str {
         self.0.get_name()
     }
+    /// Check if the HealthCheck is valid
     pub fn check(&self, time: Instant) -> HealthCheckResult {
         self.0.check(time)
     }
@@ -73,11 +80,6 @@ impl Hash for dyn HealthCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{
-        sync::{Arc, Mutex, RwLock},
-        thread::{self, spawn},
-        time::{Duration, Instant},
-    };
 
     #[derive(Debug, Clone)]
     struct I {

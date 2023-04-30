@@ -14,9 +14,9 @@ fn main() {
         .display()
         .to_string();
 
-    // cbindgen::generate(crate_dir)
-    //     .expect("Unable to generate bindings")
-    //     .write_to_file(output_file);
+    cbindgen::generate(crate_dir)
+        .expect("Unable to generate bindings")
+        .write_to_file(output_file);
 }
 
 fn target_dir() -> PathBuf {

@@ -121,7 +121,7 @@ pub fn main() {
 
             hams.register_shutdown(state, callback).ok();
 
-            let deadline = Instant::now() + Duration::from_secs(30);
+            // let deadline = Instant::now() + Duration::from_secs(30);
 
             let my_alive = AliveCheckKicked::new("apple", Duration::from_secs(100)).unwrap();
 
@@ -129,10 +129,10 @@ pub fn main() {
             while running.load(Ordering::Relaxed) {
                 // println!("Doing something");
                 sleep(Duration::from_millis(1000));
-                if Instant::now() > deadline {
-                    running.store(false, Ordering::Relaxed);
-                    println!("Deadline met so preparing to exit");
-                }
+                // if Instant::now() > deadline {
+                //     running.store(false, Ordering::Relaxed);
+                //     println!("Deadline met so preparing to exit");
+                // }
                 my_alive.kick();
             }
 

@@ -11,7 +11,7 @@ use crate::{
 };
 use futures::future;
 use libc::c_void;
-use log::{error, info, warn};
+use log::info;
 use std::mem;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -594,7 +594,7 @@ mod tests {
 
     #[test]
     fn test_vec() {
-        let mut myvec = Hams::new("test");
+        let myvec = Hams::new("test");
 
         myvec.add_alive(Box::new(AliveCheckKicked::new(
             "sofa",
