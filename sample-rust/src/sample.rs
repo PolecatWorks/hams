@@ -1,10 +1,16 @@
 use std::{
     mem,
+    path::Path,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
+use figment::{
+    providers::{Format, Yaml},
+    Figment,
+};
 use futures::future;
+use serde::Deserialize;
 use tokio::signal::unix::signal;
 use tokio::{
     signal::{self, unix::SignalKind},
@@ -16,11 +22,25 @@ use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::sampleerror::SampleError;
 
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct SampleConfig {
+    prefix: String,
+}
+
+impl SampleConfig {
+    // Note the `nested` option on both `file` providers. This makes each
+    // top-level dictionary act as a profile.
+    pub fn figment<P: AsRef<Path>>(path: P) -> Figment {
+        Figment::new().merge(Yaml::file(path))
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Sample {
     count: Arc<Mutex<i32>>,
     name: String,
     port: u16,
+    config: SampleConfig,
 
     channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
     handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
@@ -69,7 +89,7 @@ pub async fn service_listen<'a>(
 }
 
 impl Sample {
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new<S: Into<String>>(name: S, config: SampleConfig) -> Self {
         Sample {
             count: Arc::new(Mutex::new(0)),
             name: name.into(),
@@ -79,6 +99,7 @@ impl Sample {
             thread_jh: Arc::new(Mutex::new(None)),
             channels: Arc::new(Mutex::new(vec![])),
             handles: Arc::new(Mutex::new(vec![])),
+            config,
         }
     }
 
@@ -218,12 +239,13 @@ mod warp_filters {
     pub fn sample_service(
         sample: Sample,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        let prefix = sample.config.prefix.clone();
         let name = warp::path("name")
             .and(warp::get())
             .and(with_sample(sample.clone()))
             .and_then(warp_handlers::name_handler);
 
-        warp::path("abc").and(
+        warp::path(prefix).and(
             name, // .or(name)
                  // .or(alive)
                  // .or(ready)

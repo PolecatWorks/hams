@@ -37,6 +37,8 @@ List of topics that need work
   * [ ] How to map a shutdown signal from HaMS to main loop to enable a shutdown API
 * [ ] Show an example with header propagation to follow on calls: https://istio.io/latest/docs/tasks/observability/distributed-tracing/overview/
 * [ ] Create callback for health endpoint to indicate the service is to be shut down
+* [ ] Check and update the shutdown hook so that it completes the shutdown process before yeilding the shutdown http API
+* [ ] Remove shutdown trigger on main thread and use ONLY the health thread as trigger for shutdowns via callback
 
 # Useful Reference
 List of useful sites to review
