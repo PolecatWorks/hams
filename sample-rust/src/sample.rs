@@ -23,8 +23,13 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use crate::sampleerror::SampleError;
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
-pub struct SampleConfig {
+pub struct WebServiceConfig {
     prefix: String,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct SampleConfig {
+    webservice: WebServiceConfig,
 }
 
 impl SampleConfig {
@@ -239,7 +244,7 @@ mod warp_filters {
     pub fn sample_service(
         sample: Sample,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        let prefix = sample.config.prefix.clone();
+        let prefix = sample.config.webservice.prefix.clone();
         let name = warp::path("name")
             .and(warp::get())
             .and(with_sample(sample.clone()))
