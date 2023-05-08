@@ -96,7 +96,8 @@ pub fn main() {
         }
         Some(Commands::Validate {}) => {
             println!("Validating");
-            todo!("Implement validate functions")
+            error!("Doing nothing here yet!!!")
+            // todo!("Implement validate functions")
         }
         Some(Commands::Start {}) => {
             let config_file = "myconfig.yaml";
