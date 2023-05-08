@@ -9,6 +9,7 @@ repos:
     -   id: end-of-file-fixer
         exclude: ^docs/source/generated/
     -   id: check-yaml
+        exclude: ^helm/hams-sample/templates/
     -   id: check-added-large-files
     -   id: no-commit-to-branch
         args: ['--branch', 'main']

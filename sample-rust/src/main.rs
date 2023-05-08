@@ -2,10 +2,15 @@
 
 //! A minimal microservice built as an exec (caller) and a sharedobject. This allows the library to have exposed APIs that can be called from other languages
 
+use figment::{
+    providers::{Format, Yaml},
+    Figment,
+};
+use serde::Deserialize;
 use std::{
     error,
     ffi::c_int,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -25,7 +30,7 @@ use log::{error, info};
 mod sample;
 mod sampleerror;
 
-use sample::Sample;
+use sample::{Sample, SampleConfig};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -35,7 +40,7 @@ struct Cli {
 
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
+    config: PathBuf,
 
     /// Turn debugging information on
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -70,9 +75,9 @@ pub fn main() {
         info!("Value for name: {}", name);
     }
 
-    if let Some(config_path) = cli.config.as_deref() {
-        info!("Value for config: {}", config_path.display());
-    }
+    let config: SampleConfig = SampleConfig::figment(cli.config)
+        .extract()
+        .expect("Config file loaded");
 
     match cli.debug {
         0 => println!("Debug mode is off"),
@@ -94,6 +99,8 @@ pub fn main() {
             todo!("Implement validate functions")
         }
         Some(Commands::Start {}) => {
+            let config_file = "myconfig.yaml";
+
             info!("Start");
             hams_logger_init(log_param()).unwrap();
 
@@ -102,7 +109,7 @@ pub fn main() {
             info!("I have a HaMS");
             hams.start().expect("HaMS started successfully");
 
-            let mut sample_service = Sample::new("sample1");
+            let mut sample_service = Sample::new("sample1", config);
             sample_service
                 .start()
                 .expect("Service started successfully");
