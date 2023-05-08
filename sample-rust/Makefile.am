@@ -28,3 +28,9 @@ docker-run: docker-build
 docker-push: docker-build
 	@docker tag $(IMAGE_NAME) $(REGISTRY_URL)/$(IMAGE_NAME):$(TAG)
 	@docker push $(REGISTRY_URL)/$(IMAGE_NAME):$(TAG)
+
+helm-upgrade:
+	helm upgrade -i rust-sample ../helm/hams-sample -f helm-values.yaml --set image.tag=$(TAG)
+
+helm-template:
+	helm template rust-sample ../helm/hams-sample -f helm-values.yaml --set image.tag=$(TAG) | less

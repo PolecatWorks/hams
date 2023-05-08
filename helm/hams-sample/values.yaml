@@ -6,6 +6,14 @@ config:
   webservice:
     prefix: sample
 
+# command:
+# - /usr/local/bin/sample-rust
+# args:
+# - sample_rust
+# - --config
+# - /config/config.yaml
+# - start
+
 replicaCount: 1
 
 image:
