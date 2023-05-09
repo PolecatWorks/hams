@@ -247,6 +247,7 @@ mod warp_filters {
         let prefix = sample.config.webservice.prefix.clone();
         let name = warp::path("name")
             .and(warp::get())
+            .and(warp::header::headers_cloned())
             .and(with_sample(sample.clone()))
             .and_then(warp_handlers::name_handler);
 
@@ -269,6 +270,7 @@ mod warp_handlers {
     use std::convert::Infallible;
 
     use serde::Serialize;
+    use warp::hyper::HeaderMap;
 
     use super::Sample;
 
@@ -285,7 +287,11 @@ mod warp_handlers {
     }
 
     /// Handler for name endpoint
-    pub async fn name_handler(hams: Sample) -> Result<impl warp::Reply, Infallible> {
+    pub async fn name_handler(
+        headers: HeaderMap,
+        hams: Sample,
+    ) -> Result<impl warp::Reply, Infallible> {
+        println!("Got headeers as {:?}", headers);
         let name_reply = NameReply { name: hams.name };
         Ok(warp::reply::json(&name_reply))
     }
