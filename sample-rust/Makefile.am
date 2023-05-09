@@ -34,3 +34,6 @@ helm-upgrade:
 
 helm-template:
 	helm template rust-sample ../helm/hams-sample -f helm-values.yaml --set image.tag=$(TAG) | less
+
+alpine-shell:
+	kubectl run -i --tty alpine-$(USER) --image=alpine:latest --rm --restart=Never -- sh -c "until apk add curl bind-tools; do echo waiting for sidecar; sleep 3; done;sh"

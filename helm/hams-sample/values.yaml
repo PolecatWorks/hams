@@ -14,6 +14,15 @@ config:
 # - /config/config.yaml
 # - start
 
+init:
+  command:
+  - /usr/local/bin/sample-rust
+  args:
+  - sample_rust
+  - --config
+  - /config/config.yaml
+  - validate
+
 replicaCount: 1
 
 image:
@@ -50,7 +59,8 @@ securityContext: {}
 
 service:
   type: ClusterIP
-  port: 8080
+  port: 80
+  internalPort: 8080
 
 health:
   port: 8079
