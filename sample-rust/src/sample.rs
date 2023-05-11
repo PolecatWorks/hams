@@ -17,10 +17,20 @@ use tokio::{
     sync::mpsc,
 };
 
-use log::info;
+use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::sampleerror::SampleError;
+
+const TRACE_HEADERS: [&str; 7] = [
+    "x-request-id",
+    "x-b3-traceid",
+    "x-b3-spanid",
+    "x-b3-parentspanid",
+    "x-b3-sampled",
+    "x-b3-flags",
+    "b3",
+];
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct WebServiceConfig {
@@ -251,10 +261,29 @@ mod warp_filters {
             .and(with_sample(sample.clone()))
             .and_then(warp_handlers::name_handler);
 
+        let get_relay = warp::get()
+            .and(warp::header::headers_cloned())
+            .and(with_sample(sample.clone()))
+            .and(warp::body::json())
+            .and_then(warp_handlers::call_relay_get_handler);
+        let put_relay = warp::put()
+            .and(warp::header::headers_cloned())
+            .and(with_sample(sample.clone()))
+            .and_then(warp_handlers::call_relay_put_handler);
+
+        let call_relay = warp::path("relay").and(get_relay.or(put_relay));
+
+        // let call_relay = warp::path("relay")
+        //     .and(warp::get())
+        //     .and(warp::header::headers_cloned())
+        //     .and(with_sample(sample.clone()))
+        //     .and_then(warp_handlers::call_relay_handler);
+
         warp::path(prefix).and(
-            name, // .or(name)
-                 // .or(alive)
-                 // .or(ready)
+            name.or(call_relay),
+            // .or(name)
+            // .or(alive)
+            // .or(ready)
         )
     }
 
@@ -267,10 +296,16 @@ mod warp_filters {
 
 #[cfg(feature = "warp")]
 mod warp_handlers {
-    use std::convert::Infallible;
+    use std::{collections::HashMap, convert::Infallible, iter::Map};
 
-    use serde::Serialize;
-    use warp::hyper::HeaderMap;
+    use log::{error, info};
+    use serde::{Deserialize, Serialize};
+    use warp::{
+        http::{HeaderName, HeaderValue},
+        hyper::{header::HOST, Body, Client, HeaderMap, Method, Request, Uri},
+    };
+
+    use crate::sample::TRACE_HEADERS;
 
     use super::Sample;
 
@@ -292,7 +327,76 @@ mod warp_handlers {
         hams: Sample,
     ) -> Result<impl warp::Reply, Infallible> {
         println!("Got headeers as {:?}", headers);
+
+        let trace_headers = vec!["x-request-id"];
+
         let name_reply = NameReply { name: hams.name };
         Ok(warp::reply::json(&name_reply))
+    }
+
+    /// Reply structure for Name endpoint
+    #[derive(Serialize)]
+    struct CallRelayReply {
+        name: String,
+    }
+
+    #[derive(Deserialize, Debug)]
+    pub struct RelayBodyRequest {
+        path: String,
+        hosts: Vec<String>,
+    }
+
+    /// Handler for name endpoint
+    /// curl http://localhost:8080/hellothere/relay
+    /// BUT also need to work out to handle a PUT with
+    ///
+    /// curl -X GET http://localhost:8080/hellothere/relay -H 'Content-Type: application/json' -d '{"path":"/sample","hosts":["sample00","sample01"]}'
+    pub async fn call_relay_get_handler(
+        headers: HeaderMap,
+        hams: Sample,
+        body: RelayBodyRequest,
+    ) -> Result<impl warp::Reply, Infallible> {
+        println!("Headers for get = {:?}", headers);
+        println!("Got body = {:?}", body);
+
+        let client = Client::new();
+
+        let mut request = Request::builder()
+            .method(Method::POST)
+            .uri("http://httpbin.org/ip")
+            .body(Body::empty())
+            .expect("request builder");
+
+        let outbound_headers = request.headers_mut();
+
+        for name in &TRACE_HEADERS {
+            if let Some(value) = headers.get(*name) {
+                outbound_headers.append(*name, value.clone());
+                // request.header(*name, value);
+            }
+        }
+
+        println!("outbound headers = {:?}", outbound_headers);
+
+        match client.request(request).await {
+            Ok(reply) => info!("Got a reply as {:?}", reply),
+            Err(e) => error!("Got an error of {}", e),
+        }
+
+        //Look at incoming headers and re-use.
+        // Take list of inbound names and choose first on list and remove it from list. Then send message on to that item
+
+        let call_reply_reply = CallRelayReply { name: hams.name };
+        Ok(warp::reply::json(&call_reply_reply))
+    }
+
+    pub async fn call_relay_put_handler(
+        headers: HeaderMap,
+        hams: Sample,
+    ) -> Result<impl warp::Reply, Infallible> {
+        println!("Headers for put = {:?}", headers);
+
+        let call_reply_reply = CallRelayReply { name: hams.name };
+        Ok(warp::reply::json(&call_reply_reply))
     }
 }
