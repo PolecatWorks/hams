@@ -1,7 +1,10 @@
 use std::{
     mem,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread::{self, JoinHandle},
 };
 
@@ -20,7 +23,7 @@ use tokio::{
 use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::sampleerror::SampleError;
+use crate::{sample, sampleerror::SampleError};
 
 const TRACE_HEADERS: [&str; 7] = [
     "x-request-id",
@@ -54,13 +57,14 @@ impl SampleConfig {
 pub struct Sample {
     count: Arc<Mutex<i32>>,
     name: String,
+    /// Provide the port on which to serve the Service
     port: u16,
     config: SampleConfig,
 
     channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
     handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
     kill: Arc<Mutex<Option<Sender<()>>>>,
-    /// Provide the port on which to serve the HaMS readyness and liveness
+    running: Arc<AtomicBool>,
 
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -114,8 +118,13 @@ impl Sample {
             thread_jh: Arc::new(Mutex::new(None)),
             channels: Arc::new(Mutex::new(vec![])),
             handles: Arc::new(Mutex::new(vec![])),
+            running: Arc::new(AtomicBool::new(false)),
             config,
         }
+    }
+
+    pub fn running(&self) -> Arc<AtomicBool> {
+        self.running.clone()
     }
 
     fn increment(&self) {
@@ -147,33 +156,29 @@ impl Sample {
 
     async fn start_async(&mut self, mut kill_signal: Receiver<()>) {
         info!("Starting ASYNC");
-        let (channel_health, kill_recv_health) = mpsc::channel(1);
-        let health_listen = service_listen(self.clone(), kill_recv_health).await;
+        let (shutdown_sample, shutdown_sample_recv) = mpsc::channel(1);
+        let sample_listen = service_listen(self.clone(), shutdown_sample_recv).await;
+
+        self.channels.lock().unwrap().push(shutdown_sample);
+        self.handles.lock().unwrap().push(sample_listen);
         let channels_register = self.channels.clone();
+
+        let my_running = self.running.clone();
 
         let my_services = tokio::spawn(async move {
             // TODO: Check if this future should be waited via the join
             info!("Starting Tokio spawn");
 
-            let mut sig_terminate =
-                signal(SignalKind::terminate()).expect("Register terminate signal handler");
-            let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
-            let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
+            while my_running.load(Ordering::Relaxed) {
+                info!("Waiting on signal handlers");
 
-            info!("registered signal handlers");
-
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => info!("Received ctrl-c signal"),
-                _ = kill_signal.recv() => info!("Received kill from library"),
-                // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
-                _ = sig_terminate.recv() => info!("Received TERM signal"),
-                _ = sig_quit.recv() => info!("Received QUIT signal"),
-                _ = sig_hup.recv() => info!("Received HUP signal"),
-            };
-            info!("Signal handler triggered to start Shutdown");
-
-            // Once any of the signal handlers have completed then send the kill signal to each registered shutdown
-            shutdown(channels_register).await;
+                tokio::select! {
+                    ks = kill_signal.recv() => {
+                        info!("Received kill {:?}", ks);
+                        my_running.store(false, Ordering::Relaxed);
+                    },
+                };
+            }
             info!("my_services complete");
         });
 
@@ -181,6 +186,7 @@ impl Sample {
             .await
             .expect("Barried completes from a signal or service shutdown (explicit kill)");
 
+        shutdown(channels_register).await;
         self.join().await;
         info!("start_async is now complete");
     }
@@ -193,6 +199,7 @@ impl Sample {
 
     pub fn start(&mut self) -> Result<(), SampleError> {
         info!("Started sample {}", self.name);
+        self.running.store(true, Ordering::Relaxed);
 
         let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
         *self.kill.lock().unwrap() = Some(channel_kill);
@@ -212,7 +219,6 @@ impl Sample {
 
             info!("Thread loop is complete");
         });
-
         *self.thread_jh.lock().unwrap() = Some(new_thread);
 
         Ok(())
@@ -228,10 +234,13 @@ impl Sample {
         let old_kill = mem::replace(&mut *temp_kill, None);
 
         info!("Sending soft KILL signal");
+        error!("GOT 0 HERE");
         old_kill
             .unwrap()
             .blocking_send(())
             .expect("Send close to async");
+
+        error!("GOT 1 HERE");
 
         match old_thread {
             Some(jh) => {
@@ -317,7 +326,7 @@ mod warp_handlers {
         headers: HeaderMap,
         hams: Sample,
     ) -> Result<impl warp::Reply, Infallible> {
-        println!("Got headeers as {:?}", headers);
+        println!("Got headers as {:?}", headers);
 
         let trace_headers = vec!["x-request-id"];
 

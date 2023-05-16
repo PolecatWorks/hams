@@ -102,53 +102,37 @@ pub fn main() {
         Some(Commands::Start {}) => {
             let config_file = "myconfig.yaml";
 
+            let mut sample_service = Sample::new("sample1", config);
+
             info!("Start");
+
+            let my_running = sample_service.running();
+
             hams_logger_init(log_param()).unwrap();
-
             let hams = Hams::new("hello").unwrap();
-
             info!("I have a HaMS");
+            let mut shutdown_closure = || {
+                info!("Shutdown request closure triggered");
+                error!("GOT 2 HERE");
+
+                my_running.store(false, Ordering::Relaxed);
+                info!("Shutdown closure completed");
+            };
+            let (state, callback) = unsafe { ffi_helpers::split_closure(&mut shutdown_closure) };
+            hams.register_shutdown(state, callback).ok();
             hams.start().expect("HaMS started successfully");
 
-            let mut sample_service = Sample::new("sample1", config);
             sample_service
                 .start()
                 .expect("Service started successfully");
 
-            let running = Arc::new(AtomicBool::new(true));
-
-            let mut shutdown_closure = || {
-                info!("Shutdown request closure triggered");
-                running.store(false, Ordering::Relaxed);
-                info!("Shutdown closure completed");
-            };
-
-            // type Callback = unsafe extern "C" fn(*mut c_void);
-
-            let (state, callback) = unsafe { ffi_helpers::split_closure(&mut shutdown_closure) };
-
-            hams.register_shutdown(state, callback).ok();
-
-            // let deadline = Instant::now() + Duration::from_secs(30);
-
             let my_alive = AliveCheckKicked::new("apple", Duration::from_secs(100)).unwrap();
-
             hams.add_alive(&my_alive).ok();
-            while running.load(Ordering::Relaxed) {
-                // println!("Doing something");
+            while my_running.load(Ordering::Relaxed) {
                 sleep(Duration::from_millis(1000));
-                // if Instant::now() > deadline {
-                //     running.store(false, Ordering::Relaxed);
-                //     println!("Deadline met so preparing to exit");
-                // }
                 my_alive.kick();
             }
-
             hams.remove_alive(&my_alive).ok();
-
-            // let sleep_time = 50;
-            // info!("Sleeping for {} secs", sleep_time);
-            // sleep(Duration::from_secs(sleep_time));
 
             sample_service.stop().ok();
 

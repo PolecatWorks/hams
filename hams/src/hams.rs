@@ -1,6 +1,9 @@
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -11,7 +14,7 @@ use crate::{
 };
 use futures::future;
 use libc::c_void;
-use log::info;
+use log::{error, info};
 use std::mem;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -33,8 +36,8 @@ pub struct Hams {
     pub name: String,
 
     // pub rt: tokio::runtime::Runtime,
-    channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
-    handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+    // channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
+    // handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
     alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
@@ -58,6 +61,7 @@ pub struct Hams {
 
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
+    running: Arc<AtomicBool>,
 }
 
 impl Hams {
@@ -71,8 +75,8 @@ impl Hams {
             name: name.into(),
             thread_jh: Arc::new(Mutex::new(None)),
 
-            channels: Arc::new(Mutex::new(vec![])),
-            handles: Arc::new(Mutex::new(vec![])),
+            // channels: Arc::new(Mutex::new(vec![])),
+            // handles: Arc::new(Mutex::new(vec![])),
             kill: Arc::new(Mutex::new(None)),
             api_version: "v1".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -81,7 +85,7 @@ impl Hams {
             alive: Arc::new(Mutex::new(HashSet::new())),
             ready: Arc::new(Mutex::new(HashSet::new())),
             shutdown_cb: Arc::new(Mutex::new(None)),
-            // ready: Arc::new(Mutex::new(vec![])),
+            running: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -202,6 +206,7 @@ impl Hams {
 
     pub fn start(&mut self) -> Result<(), HamsError> {
         info!("started hams {}", self.name);
+        self.running.store(true, Ordering::Relaxed);
 
         let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
         *self.kill.lock().unwrap() = Some(channel_kill);
@@ -278,12 +283,13 @@ impl Hams {
         // for each servcie get a channel to allow us to shut it down
         // and when spawning save the handle to allow us to wait on it finishing.
 
-        let (channel_health, kill_recv_health) = mpsc::channel(1);
-        let health_listen = service_listen(self.clone(), kill_recv_health).await;
+        let (shutdown_health, shutdown_health_recv) = mpsc::channel(1);
+        let health_listen = service_listen(self.clone(), shutdown_health_recv).await;
 
-        // self.add_picosvc(channel_health, health_listen);
+        // let channels_register = self.channels.clone();
 
-        let channels_register = self.channels.clone();
+        let my_running = self.running.clone();
+        let my_shutdown_cb = self.shutdown_cb.clone();
 
         let my_services = tokio::spawn(async move {
             // TODO: Check if this future should be waited via the join
@@ -293,36 +299,68 @@ impl Hams {
                 signal(SignalKind::terminate()).expect("Register terminate signal handler");
             let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
             let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
-
             info!("registered signal handlers");
 
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => info!("Received ctrl-c signal"),
-                _ = kill_signal.recv() => info!("Received kill from library"),
-                // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
-                _ = sig_terminate.recv() => info!("Received TERM signal"),
-                _ = sig_quit.recv() => info!("Received QUIT signal"),
-                _ = sig_hup.recv() => info!("Received HUP signal"),
-            };
-            info!("Signal handler triggered to start Shutdown");
+            while my_running.load(Ordering::Relaxed) {
+                info!("Waiting on signal handlers");
+                tokio::select! {
+                        _ = tokio::signal::ctrl_c() => {
+                            info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
+                            Hams::tigger_callback(my_shutdown_cb.clone());
+                            // self.tigger_callback();
+                        },
+                        _ = kill_signal.recv() => {
+                            info!("Received kill from library");
+                            my_running.store(false, Ordering::Relaxed);
+                        },
+                        // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
+                        _ = sig_terminate.recv() => {
+                            info!("Received TERM signal");
+                            Hams::tigger_callback(my_shutdown_cb.clone());
+                        },
+                        _ = sig_quit.recv() => {
+                            info!("Received QUIT signal");
+                        Hams::tigger_callback(my_shutdown_cb.clone());
+                        },
+                        _ = sig_hup.recv() => {
+                            info!("Received HUP signal");
+                            Hams::tigger_callback(my_shutdown_cb.clone());
+                        },
+                };
+            }
 
-            // Once any of the signal handlers have completed then send the kill signal to each registered shutdown
-            shutdown(channels_register).await;
-            info!("my_services complete");
+            shutdown_health
+                .send(())
+                .await
+                .expect("Shutdown sent to listen");
+
+            health_listen.await.expect("health system completed");
+
+            info!("health service complete");
         });
 
         my_services
             .await
             .expect("Barried completes from a signal or service shutdown (explicit kill)");
 
-        self.join().await;
+        // self.join().await;
         info!("start_async is now complete");
+    }
+
+    fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {
+        match shutdown_cb.lock().unwrap().as_ref() {
+            Some(hams_callback) => {
+                info!("Executing CB");
+                unsafe { (hams_callback.cb)(hams_callback.user_data) };
+            }
+            None => error!("Call shutdown CB with None"),
+        }
     }
 
     /// Join all the services threads that have been added to the handle_list
     async fn join(&self) {
-        let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
-        future::join_all(handle_list).await;
+        // let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
+        // future::join_all(handle_list).await;
 
         // future::join_all(mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")))).await;
 
@@ -479,18 +517,12 @@ mod warp_handlers {
 
     /// Handler for shutdown endpoint
     pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+        Hams::tigger_callback(hams.shutdown_cb.clone());
+
         let shutdown_reply = VersionNameReply {
             version: hams.version,
             name: hams.name,
         };
-
-        match hams.shutdown_cb.lock().unwrap().as_ref() {
-            Some(hams_callback) => {
-                info!("Executing CB");
-                unsafe { (hams_callback.cb)(hams_callback.user_data) };
-            }
-            None => error!("Call shutdown CB with None"),
-        }
 
         Ok(warp::reply::json(&shutdown_reply))
     }
