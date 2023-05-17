@@ -14,16 +14,13 @@ use figment::{
 };
 use futures::future;
 use serde::Deserialize;
-use tokio::signal::unix::signal;
-use tokio::{
-    signal::{self, unix::SignalKind},
-    sync::mpsc,
-};
+
+use tokio::sync::mpsc;
 
 use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::{sample, sampleerror::SampleError};
+use crate::sampleerror::SampleError;
 
 const TRACE_HEADERS: [&str; 7] = [
     "x-request-id",
@@ -266,7 +263,6 @@ mod warp_filters {
         let prefix = sample.config.webservice.prefix.clone();
         let name = warp::path("name")
             .and(warp::get())
-            .and(warp::header::headers_cloned())
             .and(with_sample(sample.clone()))
             .and_then(warp_handlers::name_handler);
 
@@ -295,15 +291,11 @@ mod warp_filters {
 
 #[cfg(feature = "warp")]
 mod warp_handlers {
-    use std::{collections::HashMap, convert::Infallible, iter::Map};
+    use std::convert::Infallible;
 
-    use futures::TryFutureExt;
     use log::{error, info};
     use serde::{Deserialize, Serialize};
-    use warp::{
-        http::{HeaderName, HeaderValue},
-        hyper::{self, header::HOST, Body, Client, HeaderMap, Method, Request, Uri},
-    };
+    use warp::hyper::{self, Client, HeaderMap, Method, Request};
 
     use crate::sample::TRACE_HEADERS;
 
@@ -322,14 +314,7 @@ mod warp_handlers {
     }
 
     /// Handler for name endpoint
-    pub async fn name_handler(
-        headers: HeaderMap,
-        hams: Sample,
-    ) -> Result<impl warp::Reply, Infallible> {
-        println!("Got headers as {:?}", headers);
-
-        let trace_headers = vec!["x-request-id"];
-
+    pub async fn name_handler(hams: Sample) -> Result<impl warp::Reply, Infallible> {
         let name_reply = NameReply { name: hams.name };
         Ok(warp::reply::json(&name_reply))
     }
@@ -386,10 +371,10 @@ mod warp_handlers {
                 //Look at incoming headers and re-use.
                 // Take list of inbound names and choose first on list and remove it from list. Then send message on to that item
                 match client.request(request).await {
-                    Ok(mut reply) => {
+                    Ok(reply) => {
                         info!("Got a reply as {:?}", reply);
 
-                        let (parts, body) = reply.into_parts();
+                        let (_parts, body) = reply.into_parts();
                         let body_bytes = hyper::body::to_bytes(body).await.unwrap();
 
                         let mut call_reply_reply: CallRelayReply =

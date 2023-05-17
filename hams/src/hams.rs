@@ -12,7 +12,7 @@ use crate::{
     error::HamsError,
     healthcheck::{HealthCheck, HealthCheckWrapper, HealthSystemResult},
 };
-use futures::future;
+
 use libc::c_void;
 use log::{error, info};
 use std::mem;
@@ -35,16 +35,6 @@ pub struct Hams {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
 
-    // pub rt: tokio::runtime::Runtime,
-    // channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
-    // handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
-
-    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
-    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
-    // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
-    kill: Arc<Mutex<Option<Sender<()>>>>,
-
     /// Provide the version of the api
     api_version: String,
 
@@ -53,14 +43,20 @@ pub struct Hams {
     /// Provide the name of the package
     package: String,
 
-    /// Callback to be called on shutdown
-    shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
-
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
+    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
+    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
+    kill: Arc<Mutex<Option<Sender<()>>>>,
+
+    /// Callback to be called on shutdown
+    shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
+    /// Value to indicate if service is running
     running: Arc<AtomicBool>,
 }
 
@@ -94,37 +90,18 @@ impl Hams {
         *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
     }
 
-    fn add_ready(&self, newval: Box<dyn HealthCheck>) {
+    pub fn add_ready(&self, newval: Box<dyn HealthCheck>) {
         self.ready
             .lock()
             .unwrap()
             .insert(HealthCheckWrapper(newval));
     }
 
-    fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
+    pub fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
         let mut readys = self.ready.lock().unwrap();
         readys.remove(&HealthCheckWrapper(ready))
     }
 
-    // fn add_ready(&self, newval: Box<dyn HealthCheck>) {
-    //     self.ready.lock().unwrap().push(newval);
-    // }
-
-    // fn remove_ready(&mut self, my_val: Box<dyn HealthCheck>) -> Box<dyn HealthCheck> {
-
-    //     let ready_locked = self.ready.lock().unwrap();
-
-    //     let xyz = ready_locked.iter().enumerate() {}
-
-    //     let remove_index = 12;
-    //     ready_locked.remove(remove_index)
-
-    //     // let remove_range = ready_locked.iter().map(f)
-
-    //     // self.ready.lock().unwrap().drain_filter( |x|  {
-    //     //     *my_val == **x
-    //     // }).collect::<Vec<_>>()
-    // }
     pub fn check_ready(&self) -> (bool, String) {
         let my_now = Instant::now();
 
@@ -147,13 +124,6 @@ impl Hams {
             .unwrap(),
         )
     }
-    fn print_names_ready(&self) {
-        println!("Show ready:");
-        let mylist = self.ready.lock().unwrap();
-        for x in &*mylist {
-            println!("> Ready: {}", x.get_name());
-        }
-    }
 
     pub fn add_alive(&self, newval: Box<dyn HealthCheck>) {
         self.alive
@@ -166,13 +136,6 @@ impl Hams {
         let mut alives = self.alive.lock().unwrap();
         alives.remove(&HealthCheckWrapper(alive))
     }
-
-    // fn remove_alive(&mut self, my_val: Box<dyn HealthCheck>) -> Vec<Box<dyn HealthCheck>> {
-
-    //     self.alive.lock().unwrap().drain_filter( |x|  {
-    //         *my_val == **x
-    //     }).collect::<Vec<_>>()
-    // }
 
     pub fn check_alive(&self) -> (bool, String) {
         let my_now = Instant::now();
@@ -195,13 +158,6 @@ impl Hams {
             })
             .unwrap(),
         )
-    }
-    fn print_names_alive(&self) {
-        println!("Show alive:");
-        let mylist = self.alive.lock().unwrap();
-        for x in &*mylist {
-            println!("> Alive: {}", x.get_name());
-        }
     }
 
     pub fn start(&mut self) -> Result<(), HamsError> {
@@ -291,60 +247,49 @@ impl Hams {
         let my_running = self.running.clone();
         let my_shutdown_cb = self.shutdown_cb.clone();
 
-        let my_services = tokio::spawn(async move {
-            // TODO: Check if this future should be waited via the join
-            info!("Starting Tokio spawn");
+        info!("Starting Tokio spawn");
 
-            let mut sig_terminate =
-                signal(SignalKind::terminate()).expect("Register terminate signal handler");
-            let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
-            let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
-            info!("registered signal handlers");
+        let mut sig_terminate =
+            signal(SignalKind::terminate()).expect("Register terminate signal handler");
+        let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
+        let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
+        info!("registered signal handlers");
 
-            while my_running.load(Ordering::Relaxed) {
-                info!("Waiting on signal handlers");
-                tokio::select! {
-                        _ = tokio::signal::ctrl_c() => {
-                            info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
-                            Hams::tigger_callback(my_shutdown_cb.clone());
-                            // self.tigger_callback();
-                        },
-                        _ = kill_signal.recv() => {
-                            info!("Received kill from library");
-                            my_running.store(false, Ordering::Relaxed);
-                        },
-                        // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
-                        _ = sig_terminate.recv() => {
-                            info!("Received TERM signal");
-                            Hams::tigger_callback(my_shutdown_cb.clone());
-                        },
-                        _ = sig_quit.recv() => {
-                            info!("Received QUIT signal");
+        while my_running.load(Ordering::Relaxed) {
+            info!("Waiting on signal handlers");
+            tokio::select! {
+                    _ = tokio::signal::ctrl_c() => {
+                        info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
                         Hams::tigger_callback(my_shutdown_cb.clone());
-                        },
-                        _ = sig_hup.recv() => {
-                            info!("Received HUP signal");
-                            Hams::tigger_callback(my_shutdown_cb.clone());
-                        },
-                };
-            }
+                        // self.tigger_callback();
+                    },
+                    _ = kill_signal.recv() => {
+                        info!("Received kill from library");
+                        my_running.store(false, Ordering::Relaxed);
+                    },
+                    // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
+                    _ = sig_terminate.recv() => {
+                        info!("Received TERM signal");
+                        Hams::tigger_callback(my_shutdown_cb.clone());
+                    },
+                    _ = sig_quit.recv() => {
+                        info!("Received QUIT signal");
+                    Hams::tigger_callback(my_shutdown_cb.clone());
+                    },
+                    _ = sig_hup.recv() => {
+                        info!("Received HUP signal");
+                        Hams::tigger_callback(my_shutdown_cb.clone());
+                    },
+            };
+        }
 
-            shutdown_health
-                .send(())
-                .await
-                .expect("Shutdown sent to listen");
-
-            health_listen.await.expect("health system completed");
-
-            info!("health service complete");
-        });
-
-        my_services
+        shutdown_health
+            .send(())
             .await
-            .expect("Barried completes from a signal or service shutdown (explicit kill)");
+            .expect("Shutdown sent to listen");
 
-        // self.join().await;
-        info!("start_async is now complete");
+        health_listen.await.expect("health_listen is complete");
+        info!("start_async is now complete for health");
     }
 
     fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {
@@ -355,22 +300,6 @@ impl Hams {
             }
             None => error!("Call shutdown CB with None"),
         }
-    }
-
-    /// Join all the services threads that have been added to the handle_list
-    async fn join(&self) {
-        // let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
-        // future::join_all(handle_list).await;
-
-        // future::join_all(mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")))).await;
-
-        // let mut handles = self
-        //     .handles
-        //     .lock()
-        //     .expect("Could not lock mutex for handles");
-        // // info!("Waiting for services: {:?}", handles);
-        // future::join_all(mem::take(&mut *handles)).await;
-        info!("Services completed");
     }
 }
 
@@ -477,7 +406,6 @@ mod warp_filters {
 mod warp_handlers {
     use std::convert::Infallible;
 
-    use log::{error, info};
     use serde::Serialize;
 
     use super::Hams;

@@ -2,28 +2,13 @@
 
 //! A minimal microservice built as an exec (caller) and a sharedobject. This allows the library to have exposed APIs that can be called from other languages
 
-use figment::{
-    providers::{Format, Yaml},
-    Figment,
-};
-use serde::Deserialize;
-use std::{
-    error,
-    ffi::c_int,
-    path::{Path, PathBuf},
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    thread::sleep,
-    time::{Duration, Instant},
-};
+use std::{path::PathBuf, sync::atomic::Ordering, thread::sleep, time::Duration};
 
 use clap::{Parser, Subcommand};
 use env_logger::Env;
 
 use ffi_log2::log_param;
-use libc::c_void;
+
 use sample_rust::{self, hams_logger_init, AliveCheckKicked, Hams};
 
 use log::{error, info};
@@ -100,8 +85,6 @@ pub fn main() {
             // todo!("Implement validate functions")
         }
         Some(Commands::Start {}) => {
-            let config_file = "myconfig.yaml";
-
             let mut sample_service = Sample::new("sample1", config);
 
             info!("Start");

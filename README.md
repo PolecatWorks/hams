@@ -32,14 +32,16 @@ List of topics that need work
 * [x] C/C++ bindings
   * [x] Show usage of C logging from Rust SO
 * [ ] Support for prometheus
-* [ ] Shutdown sequences
+* [x] Shutdown sequences
   * [*] Should Hams include shutdown or should that be provided ONLY by main loop. HaMS provides the signal handling and raises the shutdown_callback BUT it is up to the app on how to respond.
-  * [ ] How to map a shutdown signal from HaMS to main loop to enable a shutdown API
+  * [x] How to map a shutdown signal from HaMS to main loop to enable a shutdown API
 * [ ] Show an example with header propagation to follow on calls: https://istio.io/latest/docs/tasks/observability/distributed-tracing/overview/
-* [ ] Create callback for health endpoint to indicate the service is to be shut down
+* [*] Create callback for health endpoint to indicate the service is to be shut down
 * [ ] Check and update the shutdown hook so that it completes the shutdown process before yeilding the shutdown http API
-* [ ] Remove shutdown trigger on main thread and use ONLY the health thread as trigger for shutdowns via callback.
-* [ ] SIG interrupts are detected by hams but not acted upon.. Except to make call against shutdown callback.
+* [*] Remove shutdown trigger on main thread and use ONLY the health thread as trigger for shutdowns via callback.
+  * Health can pickup signals and then make shutdown callback
+  * Health does not shutdown based on signals only on command from main thread
+  * [*] SIG interrupts are detected by hams but not acted upon.. Except to make call against shutdown callback.
 
 # Useful Reference
 List of useful sites to review
