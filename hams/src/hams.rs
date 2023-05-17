@@ -1,6 +1,9 @@
 use std::{
     collections::HashSet,
-    sync::{Arc, Mutex},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread::{self, JoinHandle},
     time::Instant,
 };
@@ -9,9 +12,9 @@ use crate::{
     error::HamsError,
     healthcheck::{HealthCheck, HealthCheckWrapper, HealthSystemResult},
 };
-use futures::future;
+
 use libc::c_void;
-use log::{error, info, warn};
+use log::{error, info};
 use std::mem;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -32,16 +35,6 @@ pub struct Hams {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
 
-    // pub rt: tokio::runtime::Runtime,
-    channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
-    handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
-
-    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
-    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
-    // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
-    kill: Arc<Mutex<Option<Sender<()>>>>,
-
     /// Provide the version of the api
     api_version: String,
 
@@ -50,14 +43,21 @@ pub struct Hams {
     /// Provide the name of the package
     package: String,
 
-    /// Callback to be called on shutdown
-    shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
-
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
+    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
+    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
+    kill: Arc<Mutex<Option<Sender<()>>>>,
+
+    /// Callback to be called on shutdown
+    shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
+    /// Value to indicate if service is running
+    running: Arc<AtomicBool>,
 }
 
 impl Hams {
@@ -71,8 +71,8 @@ impl Hams {
             name: name.into(),
             thread_jh: Arc::new(Mutex::new(None)),
 
-            channels: Arc::new(Mutex::new(vec![])),
-            handles: Arc::new(Mutex::new(vec![])),
+            // channels: Arc::new(Mutex::new(vec![])),
+            // handles: Arc::new(Mutex::new(vec![])),
             kill: Arc::new(Mutex::new(None)),
             api_version: "v1".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
@@ -81,7 +81,7 @@ impl Hams {
             alive: Arc::new(Mutex::new(HashSet::new())),
             ready: Arc::new(Mutex::new(HashSet::new())),
             shutdown_cb: Arc::new(Mutex::new(None)),
-            // ready: Arc::new(Mutex::new(vec![])),
+            running: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -90,37 +90,18 @@ impl Hams {
         *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
     }
 
-    fn add_ready(&self, newval: Box<dyn HealthCheck>) {
+    pub fn add_ready(&self, newval: Box<dyn HealthCheck>) {
         self.ready
             .lock()
             .unwrap()
             .insert(HealthCheckWrapper(newval));
     }
 
-    fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
+    pub fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
         let mut readys = self.ready.lock().unwrap();
         readys.remove(&HealthCheckWrapper(ready))
     }
 
-    // fn add_ready(&self, newval: Box<dyn HealthCheck>) {
-    //     self.ready.lock().unwrap().push(newval);
-    // }
-
-    // fn remove_ready(&mut self, my_val: Box<dyn HealthCheck>) -> Box<dyn HealthCheck> {
-
-    //     let ready_locked = self.ready.lock().unwrap();
-
-    //     let xyz = ready_locked.iter().enumerate() {}
-
-    //     let remove_index = 12;
-    //     ready_locked.remove(remove_index)
-
-    //     // let remove_range = ready_locked.iter().map(f)
-
-    //     // self.ready.lock().unwrap().drain_filter( |x|  {
-    //     //     *my_val == **x
-    //     // }).collect::<Vec<_>>()
-    // }
     pub fn check_ready(&self) -> (bool, String) {
         let my_now = Instant::now();
 
@@ -143,13 +124,6 @@ impl Hams {
             .unwrap(),
         )
     }
-    fn print_names_ready(&self) {
-        println!("Show ready:");
-        let mylist = self.ready.lock().unwrap();
-        for x in &*mylist {
-            println!("> Ready: {}", x.get_name());
-        }
-    }
 
     pub fn add_alive(&self, newval: Box<dyn HealthCheck>) {
         self.alive
@@ -162,13 +136,6 @@ impl Hams {
         let mut alives = self.alive.lock().unwrap();
         alives.remove(&HealthCheckWrapper(alive))
     }
-
-    // fn remove_alive(&mut self, my_val: Box<dyn HealthCheck>) -> Vec<Box<dyn HealthCheck>> {
-
-    //     self.alive.lock().unwrap().drain_filter( |x|  {
-    //         *my_val == **x
-    //     }).collect::<Vec<_>>()
-    // }
 
     pub fn check_alive(&self) -> (bool, String) {
         let my_now = Instant::now();
@@ -192,16 +159,10 @@ impl Hams {
             .unwrap(),
         )
     }
-    fn print_names_alive(&self) {
-        println!("Show alive:");
-        let mylist = self.alive.lock().unwrap();
-        for x in &*mylist {
-            println!("> Alive: {}", x.get_name());
-        }
-    }
 
     pub fn start(&mut self) -> Result<(), HamsError> {
         info!("started hams {}", self.name);
+        self.running.store(true, Ordering::Relaxed);
 
         let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
         *self.kill.lock().unwrap() = Some(channel_kill);
@@ -278,61 +239,67 @@ impl Hams {
         // for each servcie get a channel to allow us to shut it down
         // and when spawning save the handle to allow us to wait on it finishing.
 
-        let (channel_health, kill_recv_health) = mpsc::channel(1);
-        let health_listen = service_listen(self.clone(), kill_recv_health).await;
+        let (shutdown_health, shutdown_health_recv) = mpsc::channel(1);
+        let health_listen = service_listen(self.clone(), shutdown_health_recv).await;
 
-        // self.add_picosvc(channel_health, health_listen);
+        // let channels_register = self.channels.clone();
 
-        let channels_register = self.channels.clone();
+        let my_running = self.running.clone();
+        let my_shutdown_cb = self.shutdown_cb.clone();
 
-        let my_services = tokio::spawn(async move {
-            // TODO: Check if this future should be waited via the join
-            info!("Starting Tokio spawn");
+        info!("Starting Tokio spawn");
 
-            let mut sig_terminate =
-                signal(SignalKind::terminate()).expect("Register terminate signal handler");
-            let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
-            let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
+        let mut sig_terminate =
+            signal(SignalKind::terminate()).expect("Register terminate signal handler");
+        let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
+        let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
+        info!("registered signal handlers");
 
-            info!("registered signal handlers");
-
+        while my_running.load(Ordering::Relaxed) {
+            info!("Waiting on signal handlers");
             tokio::select! {
-                _ = tokio::signal::ctrl_c() => info!("Received ctrl-c signal"),
-                _ = kill_signal.recv() => info!("Received kill from library"),
-                // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
-                _ = sig_terminate.recv() => info!("Received TERM signal"),
-                _ = sig_quit.recv() => info!("Received QUIT signal"),
-                _ = sig_hup.recv() => info!("Received HUP signal"),
+                    _ = tokio::signal::ctrl_c() => {
+                        info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
+                        Hams::tigger_callback(my_shutdown_cb.clone());
+                        // self.tigger_callback();
+                    },
+                    _ = kill_signal.recv() => {
+                        info!("Received kill from library");
+                        my_running.store(false, Ordering::Relaxed);
+                    },
+                    // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
+                    _ = sig_terminate.recv() => {
+                        info!("Received TERM signal");
+                        Hams::tigger_callback(my_shutdown_cb.clone());
+                    },
+                    _ = sig_quit.recv() => {
+                        info!("Received QUIT signal");
+                    Hams::tigger_callback(my_shutdown_cb.clone());
+                    },
+                    _ = sig_hup.recv() => {
+                        info!("Received HUP signal");
+                        Hams::tigger_callback(my_shutdown_cb.clone());
+                    },
             };
-            info!("Signal handler triggered to start Shutdown");
+        }
 
-            // Once any of the signal handlers have completed then send the kill signal to each registered shutdown
-            shutdown(channels_register).await;
-            info!("my_services complete");
-        });
-
-        my_services
+        shutdown_health
+            .send(())
             .await
-            .expect("Barried completes from a signal or service shutdown (explicit kill)");
+            .expect("Shutdown sent to listen");
 
-        self.join().await;
-        info!("start_async is now complete");
+        health_listen.await.expect("health_listen is complete");
+        info!("start_async is now complete for health");
     }
 
-    /// Join all the services threads that have been added to the handle_list
-    async fn join(&self) {
-        let handle_list = mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")));
-        future::join_all(handle_list).await;
-
-        // future::join_all(mem::take(&mut *(self.handles.lock().expect("lock mutex for handles")))).await;
-
-        // let mut handles = self
-        //     .handles
-        //     .lock()
-        //     .expect("Could not lock mutex for handles");
-        // // info!("Waiting for services: {:?}", handles);
-        // future::join_all(mem::take(&mut *handles)).await;
-        info!("Services completed");
+    fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {
+        match shutdown_cb.lock().unwrap().as_ref() {
+            Some(hams_callback) => {
+                info!("Executing CB");
+                unsafe { (hams_callback.cb)(hams_callback.user_data) };
+            }
+            None => error!("Call shutdown CB with None"),
+        }
     }
 }
 
@@ -439,7 +406,6 @@ mod warp_filters {
 mod warp_handlers {
     use std::convert::Infallible;
 
-    use log::{error, info};
     use serde::Serialize;
 
     use super::Hams;
@@ -479,18 +445,12 @@ mod warp_handlers {
 
     /// Handler for shutdown endpoint
     pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+        Hams::tigger_callback(hams.shutdown_cb.clone());
+
         let shutdown_reply = VersionNameReply {
             version: hams.version,
             name: hams.name,
         };
-
-        match hams.shutdown_cb.lock().unwrap().as_ref() {
-            Some(hams_callback) => {
-                info!("Executing CB");
-                unsafe { (hams_callback.cb)(hams_callback.user_data) };
-            }
-            None => error!("Call shutdown CB with None"),
-        }
 
         Ok(warp::reply::json(&shutdown_reply))
     }
@@ -594,7 +554,7 @@ mod tests {
 
     #[test]
     fn test_vec() {
-        let mut myvec = Hams::new("test");
+        let myvec = Hams::new("test");
 
         myvec.add_alive(Box::new(AliveCheckKicked::new(
             "sofa",

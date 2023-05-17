@@ -5,8 +5,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use log::info;
-
 use crate::healthcheck::{HealthCheck, HealthCheckResult};
 
 #[derive(Debug)]
@@ -18,7 +16,9 @@ struct AliveCheckKickedInner {
 /// Implement the alive check which will fail if the service has not been triggered within the margin
 #[derive(Debug, Clone)]
 pub struct AliveCheckKicked {
+    /// Name of the alive check for human reading
     pub name: String,
+    /// An object representing the actual content behind an Arc<Mutex>>
     inner: Arc<Mutex<AliveCheckKickedInner>>,
 }
 

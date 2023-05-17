@@ -23,4 +23,4 @@ COPY --from=build /app/target/release/sample-rust /usr/local/bin/
 COPY --from=build /app/target/release/deps/libhams.so /usr/local/lib/
 RUN ldconfig
 ENTRYPOINT ["/usr/local/bin/sample-rust"]
-CMD ["sample_rust", "start"]
+CMD ["sample_rust", "--config", "/config/config.yaml", "start"]

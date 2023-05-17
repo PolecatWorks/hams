@@ -26,7 +26,7 @@ impl fmt::Display for HamsError {
 impl Error for HamsError {}
 
 impl From<TryFromIntError> for HamsError {
-    fn from(value: TryFromIntError) -> Self {
+    fn from(_value: TryFromIntError) -> Self {
         HamsError::TryFromIntError
     }
 }

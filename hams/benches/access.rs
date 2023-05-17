@@ -1,9 +1,8 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 use std::{
-    iter,
     sync::{Arc, Mutex, RwLock},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 struct CheckMe {

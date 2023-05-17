@@ -1,31 +1,67 @@
 use std::{
     mem,
-    sync::{Arc, Mutex},
+    path::Path,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, Mutex,
+    },
     thread::{self, JoinHandle},
 };
 
-use futures::future;
-use tokio::signal::unix::signal;
-use tokio::{
-    signal::{self, unix::SignalKind},
-    sync::mpsc,
+use figment::{
+    providers::{Format, Yaml},
+    Figment,
 };
+use futures::future;
+use serde::Deserialize;
 
-use log::info;
+use tokio::sync::mpsc;
+
+use log::{error, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use crate::sampleerror::SampleError;
+
+const TRACE_HEADERS: [&str; 7] = [
+    "x-request-id",
+    "x-b3-traceid",
+    "x-b3-spanid",
+    "x-b3-parentspanid",
+    "x-b3-sampled",
+    "x-b3-flags",
+    "b3",
+];
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct WebServiceConfig {
+    prefix: String,
+}
+
+#[derive(Debug, PartialEq, Deserialize, Clone)]
+pub struct SampleConfig {
+    webservice: WebServiceConfig,
+}
+
+impl SampleConfig {
+    // Note the `nested` option on both `file` providers. This makes each
+    // top-level dictionary act as a profile.
+    pub fn figment<P: AsRef<Path>>(path: P) -> Figment {
+        Figment::new().merge(Yaml::file(path))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct Sample {
     count: Arc<Mutex<i32>>,
     name: String,
+    /// Provide the port on which to serve the Service
     port: u16,
+    config: SampleConfig,
 
     channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>,
     handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
     kill: Arc<Mutex<Option<Sender<()>>>>,
-    /// Provide the port on which to serve the HaMS readyness and liveness
+    running: Arc<AtomicBool>,
 
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
@@ -69,7 +105,7 @@ pub async fn service_listen<'a>(
 }
 
 impl Sample {
-    pub fn new<S: Into<String>>(name: S) -> Self {
+    pub fn new<S: Into<String>>(name: S, config: SampleConfig) -> Self {
         Sample {
             count: Arc::new(Mutex::new(0)),
             name: name.into(),
@@ -79,7 +115,13 @@ impl Sample {
             thread_jh: Arc::new(Mutex::new(None)),
             channels: Arc::new(Mutex::new(vec![])),
             handles: Arc::new(Mutex::new(vec![])),
+            running: Arc::new(AtomicBool::new(false)),
+            config,
         }
+    }
+
+    pub fn running(&self) -> Arc<AtomicBool> {
+        self.running.clone()
     }
 
     fn increment(&self) {
@@ -111,33 +153,29 @@ impl Sample {
 
     async fn start_async(&mut self, mut kill_signal: Receiver<()>) {
         info!("Starting ASYNC");
-        let (channel_health, kill_recv_health) = mpsc::channel(1);
-        let health_listen = service_listen(self.clone(), kill_recv_health).await;
+        let (shutdown_sample, shutdown_sample_recv) = mpsc::channel(1);
+        let sample_listen = service_listen(self.clone(), shutdown_sample_recv).await;
+
+        self.channels.lock().unwrap().push(shutdown_sample);
+        self.handles.lock().unwrap().push(sample_listen);
         let channels_register = self.channels.clone();
+
+        let my_running = self.running.clone();
 
         let my_services = tokio::spawn(async move {
             // TODO: Check if this future should be waited via the join
             info!("Starting Tokio spawn");
 
-            let mut sig_terminate =
-                signal(SignalKind::terminate()).expect("Register terminate signal handler");
-            let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
-            let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
+            while my_running.load(Ordering::Relaxed) {
+                info!("Waiting on signal handlers");
 
-            info!("registered signal handlers");
-
-            tokio::select! {
-                _ = tokio::signal::ctrl_c() => info!("Received ctrl-c signal"),
-                _ = kill_signal.recv() => info!("Received kill from library"),
-                // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
-                _ = sig_terminate.recv() => info!("Received TERM signal"),
-                _ = sig_quit.recv() => info!("Received QUIT signal"),
-                _ = sig_hup.recv() => info!("Received HUP signal"),
-            };
-            info!("Signal handler triggered to start Shutdown");
-
-            // Once any of the signal handlers have completed then send the kill signal to each registered shutdown
-            shutdown(channels_register).await;
+                tokio::select! {
+                    ks = kill_signal.recv() => {
+                        info!("Received kill {:?}", ks);
+                        my_running.store(false, Ordering::Relaxed);
+                    },
+                };
+            }
             info!("my_services complete");
         });
 
@@ -145,6 +183,7 @@ impl Sample {
             .await
             .expect("Barried completes from a signal or service shutdown (explicit kill)");
 
+        shutdown(channels_register).await;
         self.join().await;
         info!("start_async is now complete");
     }
@@ -157,6 +196,7 @@ impl Sample {
 
     pub fn start(&mut self) -> Result<(), SampleError> {
         info!("Started sample {}", self.name);
+        self.running.store(true, Ordering::Relaxed);
 
         let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
         *self.kill.lock().unwrap() = Some(channel_kill);
@@ -176,7 +216,6 @@ impl Sample {
 
             info!("Thread loop is complete");
         });
-
         *self.thread_jh.lock().unwrap() = Some(new_thread);
 
         Ok(())
@@ -192,10 +231,13 @@ impl Sample {
         let old_kill = mem::replace(&mut *temp_kill, None);
 
         info!("Sending soft KILL signal");
+        error!("GOT 0 HERE");
         old_kill
             .unwrap()
             .blocking_send(())
             .expect("Send close to async");
+
+        error!("GOT 1 HERE");
 
         match old_thread {
             Some(jh) => {
@@ -218,16 +260,26 @@ mod warp_filters {
     pub fn sample_service(
         sample: Sample,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+        let prefix = sample.config.webservice.prefix.clone();
         let name = warp::path("name")
             .and(warp::get())
             .and(with_sample(sample.clone()))
             .and_then(warp_handlers::name_handler);
 
-        warp::path("abc").and(
-            name, // .or(name)
-                 // .or(alive)
-                 // .or(ready)
-        )
+        let get_relay = warp::get()
+            .and(warp::header::headers_cloned())
+            .and(with_sample(sample.clone()))
+            .and_then(warp_handlers::call_relay_get_handler);
+
+        let put_relay = warp::put()
+            .and(warp::header::headers_cloned())
+            .and(with_sample(sample.clone()))
+            .and(warp::body::json())
+            .and_then(warp_handlers::call_relay_put_handler);
+
+        let call_relay = warp::path("relay").and(get_relay.or(put_relay));
+
+        warp::path(prefix).and(name.or(call_relay))
     }
 
     fn with_sample(
@@ -241,7 +293,11 @@ mod warp_filters {
 mod warp_handlers {
     use std::convert::Infallible;
 
-    use serde::Serialize;
+    use log::{error, info};
+    use serde::{Deserialize, Serialize};
+    use warp::hyper::{self, Client, HeaderMap, Method, Request};
+
+    use crate::sample::TRACE_HEADERS;
 
     use super::Sample;
 
@@ -261,5 +317,102 @@ mod warp_handlers {
     pub async fn name_handler(hams: Sample) -> Result<impl warp::Reply, Infallible> {
         let name_reply = NameReply { name: hams.name };
         Ok(warp::reply::json(&name_reply))
+    }
+
+    /// Reply structure for Name endpoint
+    #[derive(Serialize, Deserialize)]
+    struct CallRelayReply {
+        names: Vec<String>,
+    }
+
+    #[derive(Deserialize, Serialize, Debug)]
+    pub struct RelayBodyRequest {
+        name: String,
+        urls: Vec<String>,
+    }
+
+    /// Handler for name endpoint
+    /// curl http://localhost:8080/hellothere/relay
+    /// BUT also need to work out to handle a PUT with
+    ///
+    /// curl -X GET http://localhost:8080/hellothere/relay -H 'Content-Type: application/json' -d '{"path":"/sample","hosts":["sample00","sample01"]}'
+    pub async fn call_relay_put_handler(
+        headers: HeaderMap,
+        hams: Sample,
+        mut body: RelayBodyRequest,
+    ) -> Result<impl warp::Reply, Infallible> {
+        println!("Headers for get = {:?}", headers);
+        println!("Got body = {:?}", body);
+
+        match body.urls.pop() {
+            Some(next_uri) => {
+                println!("next url is {}", next_uri);
+                println!("Body request is {:?}", body);
+
+                let client = Client::new();
+
+                let mut request = Request::builder()
+                    .method(Method::PUT)
+                    .uri(next_uri)
+                    .body(serde_json::to_vec(&body).unwrap().into())
+                    .expect("request builder");
+
+                let outbound_headers = request.headers_mut();
+
+                for name in &TRACE_HEADERS {
+                    if let Some(value) = headers.get(*name) {
+                        outbound_headers.append(*name, value.clone());
+                        // request.header(*name, value);
+                    }
+                }
+
+                println!("outbound headers = {:?}", outbound_headers);
+
+                //Look at incoming headers and re-use.
+                // Take list of inbound names and choose first on list and remove it from list. Then send message on to that item
+                match client.request(request).await {
+                    Ok(reply) => {
+                        info!("Got a reply as {:?}", reply);
+
+                        let (_parts, body) = reply.into_parts();
+                        let body_bytes = hyper::body::to_bytes(body).await.unwrap();
+
+                        let mut call_reply_reply: CallRelayReply =
+                            serde_json::from_slice(&body_bytes).unwrap();
+
+                        call_reply_reply.names.push(hams.name);
+
+                        Ok(warp::reply::json(&call_reply_reply))
+                    }
+                    Err(e) => {
+                        error!("Got an error of {}", e);
+                        let call_reply_reply = CallRelayReply {
+                            names: vec![hams.name],
+                        };
+                        Ok(warp::reply::json(&call_reply_reply))
+                    }
+                }
+            }
+            None => {
+                println!("End of urls met");
+
+                let call_reply_reply = CallRelayReply {
+                    names: vec![hams.name],
+                };
+                Ok(warp::reply::json(&call_reply_reply))
+            }
+        }
+    }
+
+    pub async fn call_relay_get_handler(
+        headers: HeaderMap,
+        hams: Sample,
+    ) -> Result<impl warp::Reply, Infallible> {
+        println!("Headers for put = {:?}", headers);
+
+        let call_reply_reply = CallRelayReply {
+            names: vec![hams.name],
+        };
+        Ok(warp::reply::json(&call_reply_reply))
     }
 }

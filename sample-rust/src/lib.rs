@@ -5,7 +5,6 @@
 //!
 //! Following this pattern: <https://stackoverflow.com/questions/50107792/what-is-the-better-way-to-wrap-a-ffi-struct-that-owns-or-borrows-data>
 
-use ffi::kicked_free;
 use ffi_log2::LogParam;
 use libc::c_void;
 use log::{error, info};

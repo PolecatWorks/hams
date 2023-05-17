@@ -2,30 +2,20 @@
 
 //! A minimal microservice built as an exec (caller) and a sharedobject. This allows the library to have exposed APIs that can be called from other languages
 
-use std::{
-    error,
-    ffi::c_int,
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
-    thread::sleep,
-    time::{Duration, Instant},
-};
+use std::{path::PathBuf, sync::atomic::Ordering, thread::sleep, time::Duration};
 
 use clap::{Parser, Subcommand};
 use env_logger::Env;
 
 use ffi_log2::log_param;
-use libc::c_void;
+
 use sample_rust::{self, hams_logger_init, AliveCheckKicked, Hams};
 
 use log::{error, info};
 mod sample;
 mod sampleerror;
 
-use sample::Sample;
+use sample::{Sample, SampleConfig};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -35,7 +25,7 @@ struct Cli {
 
     /// Sets a custom config file
     #[arg(short, long, value_name = "FILE")]
-    config: Option<PathBuf>,
+    config: PathBuf,
 
     /// Turn debugging information on
     #[arg(short, long, action = clap::ArgAction::Count)]
@@ -70,9 +60,9 @@ pub fn main() {
         info!("Value for name: {}", name);
     }
 
-    if let Some(config_path) = cli.config.as_deref() {
-        info!("Value for config: {}", config_path.display());
-    }
+    let config: SampleConfig = SampleConfig::figment(cli.config)
+        .extract()
+        .expect("Config file loaded");
 
     match cli.debug {
         0 => println!("Debug mode is off"),
@@ -91,56 +81,41 @@ pub fn main() {
         }
         Some(Commands::Validate {}) => {
             println!("Validating");
-            todo!("Implement validate functions")
+            error!("Doing nothing here yet!!!")
+            // todo!("Implement validate functions")
         }
         Some(Commands::Start {}) => {
+            let mut sample_service = Sample::new("sample1", config);
+
             info!("Start");
+
+            let my_running = sample_service.running();
+
             hams_logger_init(log_param()).unwrap();
-
             let hams = Hams::new("hello").unwrap();
-
             info!("I have a HaMS");
+            let mut shutdown_closure = || {
+                info!("Shutdown request closure triggered");
+                error!("GOT 2 HERE");
+
+                my_running.store(false, Ordering::Relaxed);
+                info!("Shutdown closure completed");
+            };
+            let (state, callback) = unsafe { ffi_helpers::split_closure(&mut shutdown_closure) };
+            hams.register_shutdown(state, callback).ok();
             hams.start().expect("HaMS started successfully");
 
-            let mut sample_service = Sample::new("sample1");
             sample_service
                 .start()
                 .expect("Service started successfully");
 
-            let running = Arc::new(AtomicBool::new(true));
-
-            let mut shutdown_closure = || {
-                info!("Shutdown request closure triggered");
-                running.store(false, Ordering::Relaxed);
-                info!("Shutdown closure completed");
-            };
-
-            // type Callback = unsafe extern "C" fn(*mut c_void);
-
-            let (state, callback) = unsafe { ffi_helpers::split_closure(&mut shutdown_closure) };
-
-            hams.register_shutdown(state, callback).ok();
-
-            let deadline = Instant::now() + Duration::from_secs(30);
-
             let my_alive = AliveCheckKicked::new("apple", Duration::from_secs(100)).unwrap();
-
             hams.add_alive(&my_alive).ok();
-            while running.load(Ordering::Relaxed) {
-                // println!("Doing something");
+            while my_running.load(Ordering::Relaxed) {
                 sleep(Duration::from_millis(1000));
-                if Instant::now() > deadline {
-                    running.store(false, Ordering::Relaxed);
-                    println!("Deadline met so preparing to exit");
-                }
                 my_alive.kick();
             }
-
             hams.remove_alive(&my_alive).ok();
-
-            // let sleep_time = 50;
-            // info!("Sleeping for {} secs", sleep_time);
-            // sleep(Duration::from_secs(sleep_time));
 
             sample_service.stop().ok();
 

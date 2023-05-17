@@ -8,8 +8,11 @@ use libc::{c_char, c_int};
 /// Error type for handling errors on FFI calls
 #[derive(Debug)]
 pub enum HamsError {
+    /// A standard error with configurable message
     Message(String),
+    /// A Nul was found
     NulError,
+    /// An error with unknown source
     Unknown,
 }
 

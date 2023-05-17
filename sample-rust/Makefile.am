@@ -3,7 +3,7 @@ CARGO_TARGET =$(if $(RELEASE),target/release,target/debug)
 CARGO_BUILD_FLAGS =$(if $(RELEASE),--release,)
 
 IMAGE_NAME=polecatworks/sample-rust
-IMAGE_TAG=0.1.0
+TAG ?= 0.1.0
 
 REGISTRY_URL=dockerreg.k8s:5000
 
@@ -26,5 +26,14 @@ docker-run: docker-build
 	@docker run -it $(IMAGE_NAME)
 
 docker-push: docker-build
-	@docker tag $(IMAGE_NAME) $(REGISTRY_URL)/$(IMAGE_NAME):$(IMAGE_TAG)
-	@docker push $(REGISTRY_URL)/$(IMAGE_NAME):$(IMAGE_TAG)
+	@docker tag $(IMAGE_NAME) $(REGISTRY_URL)/$(IMAGE_NAME):$(TAG)
+	@docker push $(REGISTRY_URL)/$(IMAGE_NAME):$(TAG)
+
+helm-upgrade:
+	helm upgrade -i rust-sample ../helm/hams-sample -f helm-values.yaml --set image.tag=$(TAG)
+
+helm-template:
+	helm template rust-sample ../helm/hams-sample -f helm-values.yaml --set image.tag=$(TAG) | less
+
+alpine-shell:
+	kubectl run -i --tty alpine-$(USER) --image=alpine:latest --rm --restart=Never -- sh -c "until apk add curl bind-tools; do echo waiting for sidecar; sleep 3; done;sh"

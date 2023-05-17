@@ -15,6 +15,7 @@ spec:
     metadata:
       {{- with .Values.podAnnotations }}
       annotations:
+        checksum/config: {{ toYaml .Values.config | sha256sum }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
@@ -27,26 +28,69 @@ spec:
       serviceAccountName: {{ include "hams-sample.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.init }}
+      initContainers: # TODO: Work out how to do this with Istio: https://github.com/istio/istio/issues/11130, https://github.com/istio/istio/issues/20069
+        - name: {{ .Chart.Name }}-init
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.init.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.init.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+          - mountPath: /config
+            name: config
+        {{- end }}{{/* if .Values.init */}}
       containers:
         - name: {{ .Chart.Name }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          lifecycle:
+            # postStart:
+            #   exec:
+            #     command: ["/bin/sh", "-c", "echo Hello from the postStart handler > /usr/share/message"]
+            preStop:
+              httpGet:
+                path: /health/shutdown
+                port: health-http
           ports:
             - name: http
-              containerPort: {{ .Values.service.port }}
+              containerPort: {{ .Values.service.internalPort }}
+              protocol: TCP
+            - name: health-http
+              containerPort: {{ .Values.health.port }}
               protocol: TCP
           livenessProbe:
             httpGet:
-              path: /
-              port: http
+              path: /health/alive
+              port: health-http
           readinessProbe:
             httpGet:
-              path: /
-              port: http
+              path: /health/ready
+              port: health-http
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+          - mountPath: /config
+            name: config
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "hams-sample.fullname" . }}-config
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
