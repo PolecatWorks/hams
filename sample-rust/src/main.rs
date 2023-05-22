@@ -64,6 +64,8 @@ pub fn main() {
         .extract()
         .expect("Config file loaded");
 
+    info!("Loaded config as {:?}", config);
+
     match cli.debug {
         0 => println!("Debug mode is off"),
         1 => println!("Debug mode is kind of on"),
