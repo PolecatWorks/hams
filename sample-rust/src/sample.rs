@@ -93,7 +93,7 @@ pub async fn service_listen<'a>(
     // TODO:  use a direct clone not temp
     let api = warp_filters::sample_service(temp_hams);
 
-    let routes = api.with(warp::log("hams"));
+    let routes = api.with(warp::log("sample"));
 
     let (_addr, server) =
         warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], sample.port), async move {
