@@ -1,9 +1,10 @@
 //! HealthChecks in Hams
 
+use std::ops;
 use std::time::Instant;
 
 use serde::Serialize;
-use std::fmt::Debug;
+use std::fmt::{Debug, Display};
 
 use std::hash::{Hash, Hasher};
 
@@ -16,12 +17,42 @@ pub struct HealthSystemResult<'a> {
 }
 
 /// Detail structure for replies from ready and alive
-#[derive(Serialize, Debug, PartialEq)]
+#[derive(Serialize, Debug, PartialEq, Clone)]
 pub struct HealthCheckResult<'a> {
     /// Name of health Reply
     pub name: &'a str,
     /// Return value of health Reply
     pub valid: bool,
+}
+
+impl<'a> Display for HealthCheckResult<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.name, self.valid)
+    }
+}
+
+pub struct HealthCheckResults<'a>(pub Vec<HealthCheckResult<'a>>);
+
+impl<'a> Display for HealthCheckResults<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.iter().fold(Ok(()), |result, check| {
+            result.and_then(|_| write!(f, "{}", check))
+        })
+    }
+}
+
+impl<'a> Into<Vec<HealthCheckResult<'a>>> for HealthCheckResults<'a> {
+    fn into(self) -> Vec<HealthCheckResult<'a>> {
+        self.0
+    }
+}
+
+impl<'a> ops::Deref for HealthCheckResults<'a> {
+    type Target = Vec<HealthCheckResult<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
 }
 
 /// Trait to define the health check functionality

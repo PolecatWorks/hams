@@ -10,7 +10,7 @@ use std::{
 
 use crate::{
     error::HamsError,
-    healthcheck::{HealthCheck, HealthCheckWrapper, HealthSystemResult},
+    healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
 
 use libc::c_void;
@@ -25,6 +25,7 @@ struct HamsCallback {
     user_data: *mut c_void,
     cb: unsafe extern "C" fn(*mut c_void),
 }
+
 /// Manually provide the Send impl for HamsCallBack to indicate it is thread safe.
 /// This is required because HamsCallback cannot automatically derive if it can support
 /// Send impl.
@@ -34,9 +35,6 @@ unsafe impl Send for HamsCallback {}
 pub struct Hams {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
-
-    /// Provide the version of the api
-    api_version: String,
 
     /// Provide the version of the release of HaMS
     version: String,
@@ -48,6 +46,7 @@ pub struct Hams {
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
     alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    alive_previous: Arc<AtomicBool>,
     ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
     // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
     kill: Arc<Mutex<Option<Sender<()>>>>,
@@ -74,11 +73,11 @@ impl Hams {
             // channels: Arc::new(Mutex::new(vec![])),
             // handles: Arc::new(Mutex::new(vec![])),
             kill: Arc::new(Mutex::new(None)),
-            api_version: "v1".to_string(),
             version: env!("CARGO_PKG_VERSION").to_string(),
             package: env!("CARGO_PKG_NAME").to_string(),
             port: 8079,
             alive: Arc::new(Mutex::new(HashSet::new())),
+            alive_previous: Arc::new(AtomicBool::new(false)),
             ready: Arc::new(Mutex::new(HashSet::new())),
             shutdown_cb: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
@@ -148,13 +147,21 @@ impl Hams {
             .collect::<Vec<_>>();
 
         let valid = detail.iter().all(|result| result.valid);
-
+        if valid != self.alive_previous.load(Ordering::Relaxed) {
+            info!(
+                "Alive state changed to {} from {}",
+                valid,
+                HealthCheckResults(detail.clone())
+            );
+            self.alive_previous.store(valid, Ordering::Relaxed);
+        }
         (
             valid,
             serde_json::to_string(&HealthSystemResult {
                 name: "alive",
                 valid,
                 detail,
+                // detail: detail.into(),
             })
             .unwrap(),
         )
@@ -323,16 +330,12 @@ pub async fn service_listen<'a>(
     hams: Hams,
     mut kill_recv: Receiver<()>,
 ) -> tokio::task::JoinHandle<()> {
-    use warp::Filter;
-
     let temp_hams = hams.clone();
     // TODO:  use a direct clone not temp
     let api = warp_filters::hams_service(temp_hams);
 
-    let routes = api.with(warp::log("hams"));
-
     let (_addr, server) =
-        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
+        warp::serve(api).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
             kill_recv.recv().await;
         });
 
@@ -414,6 +417,7 @@ mod warp_handlers {
     #[derive(Serialize)]
     struct VersionReply {
         version: String,
+        package: String,
     }
 
     /// Reply structure for Name endpoint
@@ -439,6 +443,7 @@ mod warp_handlers {
     pub async fn version_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         let version_reply = VersionReply {
             version: hams.version,
+            package: hams.package,
         };
         Ok(warp::reply::json(&version_reply))
     }
