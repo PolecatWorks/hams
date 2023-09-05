@@ -11,6 +11,8 @@
 members = [
     "sample-rust",
     "hams",
+    "hams-shared",
+    "playground",
 ]
 # exclude = ["rust_cli"]
 

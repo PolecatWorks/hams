@@ -6,14 +6,14 @@ IMAGE_NAME=polecatworks/sample-rust
 TAG ?= 0.1.0
 
 REGISTRY_URL=dockerreg.k8s:5000
-
+NAMESPACE_ARGS=$(if $(NAMESPACE),-n $(NAMESPACE),)
 
 $(top_build_prefix)$(CARGO_TARGET)/sample-rust:
 	@$(CARGO) build $(CARGO_BUILD_FLAGS)
 
 
 check-local: $(top_build_prefix)$(CARGO_TARGET)/sample-rust
-	@$(top_build_prefix)$(CARGO_TARGET)/sample-rust start
+	@$(top_build_prefix)$(CARGO_TARGET)/sample-rust  --config config.yaml start
 
 clean-local:
 	@$(CARGO) clean $(CARGO_BUILD_FLAGS)
@@ -36,4 +36,4 @@ helm-template:
 	helm template rust-sample ../helm/hams-sample -f helm-values.yaml --set image.tag=$(TAG) | less
 
 alpine-shell:
-	kubectl run -i --tty alpine-$(USER) --image=alpine:latest --rm --restart=Never -- sh -c "until apk add curl bind-tools; do echo waiting for sidecar; sleep 3; done;sh"
+	kubectl $(NAMESPACE_ARGS) run -i --tty alpine-$(USER) --image=alpine:latest --rm --restart=Never -- sh -c "until apk add curl bind-tools; do echo waiting for sidecar; sleep 3; done;sh"
