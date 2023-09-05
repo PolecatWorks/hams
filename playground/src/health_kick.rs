@@ -7,7 +7,12 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::health_check::{HealthCheck, HealthCheckResult};
+use log::info;
+
+use crate::{
+    error::HamsError,
+    health_check::{Health, HealthCheck, HealthCheckResult},
+};
 
 // What is the ideal interface for the HealthCheck.
 // Create the healthCheck object. Then use that to add/remove to probes.
@@ -16,6 +21,7 @@ use crate::health_check::{HealthCheck, HealthCheckResult};
 struct KickInner {
     latest: Instant,
     margin: Duration,
+    previous: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -34,6 +40,7 @@ impl HealthKick {
             inner: Arc::new(Mutex::new(KickInner {
                 latest: Instant::now() - margin, // Set earlier than margin so check will eval to false
                 margin,
+                previous: false,
             })),
         }
     }
@@ -47,25 +54,43 @@ impl HealthKick {
 
 // impl Eq for HealthCheck {}
 
-impl PartialEq<dyn HealthCheck> for dyn HealthCheck {
-    fn eq(&self, other: &dyn HealthCheck) -> bool {
-        println!("IM IN PartialEq");
-        println!("Comparing {} and {}", self.get_name(), other.get_name());
-        self.get_name() == other.get_name()
+// impl PartialEq<dyn HealthCheck> for dyn HealthCheck {
+//     fn eq(&self, other: &dyn HealthCheck) -> bool {
+//         println!("IM IN PartialEq");
+//         println!("Comparing {} and {}", self.get_name(), other.get_name());
+//         self.get_name() == other.get_name()
+//     }
+// }
+
+impl Health for HealthKick {
+    fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError> {
+        let mut me = self.get_inner();
+        let previous = me.previous;
+        let valid = me.latest + me.margin >= time;
+
+        if previous != valid {
+            info!("Health: {} changed to {}", self.name, valid);
+        }
+        me.previous = valid;
+        Ok(HealthCheckResult {
+            name: self.name.clone(),
+            valid: valid,
+        })
+    }
+
+    fn name(&self) -> Result<String, crate::error::HamsError> {
+        Ok(self.name.clone())
+    }
+
+    fn previous(&self) -> Result<bool, crate::error::HamsError> {
+        let me = self.get_inner();
+        Ok(me.previous)
     }
 }
 
-impl HealthCheck for HealthKick {
-    fn get_name(&self) -> &str {
-        &self.name
-    }
-
-    fn check(&self, time: Instant) -> HealthCheckResult {
-        let me = self.get_inner();
-        HealthCheckResult {
-            name: &self.name,
-            valid: me.latest + me.margin >= time,
-        }
+impl Drop for HealthKick {
+    fn drop(&mut self) {
+        println!("Dropping my kick {}", self.name);
     }
 }
 
@@ -102,7 +127,7 @@ mod tests {
     fn kick_check() {
         let hc0 = HealthKick::new("apple", Duration::from_secs(10));
 
-        let check = hc0.check(Instant::now());
+        let check = hc0.check(Instant::now()).unwrap();
 
         println!("check = {}", check);
     }

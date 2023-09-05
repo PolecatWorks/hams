@@ -1,4 +1,5 @@
-use crate::health_check::{HealthCheck, HealthKick};
+use crate::health_check::HealthCheck;
+use crate::health_kick::HealthKick;
 use std::{
     ffi::CStr,
     fs::File,
@@ -25,9 +26,12 @@ mod health_tests {
     use crate::health_check::Health;
 
     use super::*;
-    use std::sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc,
+    use std::{
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+        time::Instant,
     };
 
     struct NotifyOnDrop(Arc<AtomicBool>);
@@ -39,11 +43,18 @@ mod health_tests {
     }
 
     impl Health for NotifyOnDrop {
-        fn name(&self) -> Result<usize, crate::error::HamsError> {
+        fn name(&self) -> Result<String, crate::error::HamsError> {
             todo!()
         }
 
-        fn check(&self) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
+        fn check(
+            &self,
+            time: Instant,
+        ) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
+            todo!()
+        }
+
+        fn previous(&self) -> Result<bool, crate::error::HamsError> {
             todo!()
         }
     }

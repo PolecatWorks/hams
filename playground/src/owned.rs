@@ -3,6 +3,7 @@ use crate::health_check::HealthCheck;
 use crate::health_check::Repr;
 use std::any::TypeId;
 use std::ptr::NonNull;
+use std::time::Instant;
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -99,7 +100,7 @@ impl OwnedHealthCheck {
 }
 
 impl Health for OwnedHealthCheck {
-    fn name(&self) -> Result<usize, crate::error::HamsError> {
+    fn name(&self) -> Result<String, crate::error::HamsError> {
         unsafe {
             let ptr = self.0.as_ptr();
             let name = (*ptr).name;
@@ -107,11 +108,22 @@ impl Health for OwnedHealthCheck {
         }
     }
 
-    fn check(&self) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
+    fn check(
+        &self,
+        time: Instant,
+    ) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
         unsafe {
             let ptr = self.0.as_ptr();
             let check = (*ptr).check;
-            (check)(ptr)
+            (check)(ptr, time)
+        }
+    }
+
+    fn previous(&self) -> Result<bool, crate::error::HamsError> {
+        unsafe {
+            let ptr = self.0.as_ptr();
+            let previous = (*ptr).previous;
+            (previous)(ptr)
         }
     }
 }
@@ -141,10 +153,7 @@ mod tests {
         time::Duration,
     };
 
-    use crate::{
-        error::HamsError,
-        health_check::{HealthCheckResult, HealthKick},
-    };
+    use crate::{error::HamsError, health_check::HealthCheckResult, health_kick::HealthKick};
 
     use super::*;
 
@@ -156,11 +165,11 @@ mod tests {
 
     impl SharedBuffer {
         pub fn new<S: Into<String>>(name: S) -> SharedBuffer {
-            let myString: String = name.into();
+            let my_string: String = name.into();
             SharedBuffer {
-                name: Arc::new(Mutex::new(myString.clone())),
+                name: Arc::new(Mutex::new(my_string.clone())),
                 hcr: Arc::new(Mutex::new(HealthCheckResult {
-                    name: myString.clone(),
+                    name: my_string.clone(),
                     valid: false,
                 })),
             }
@@ -168,14 +177,18 @@ mod tests {
     }
 
     impl Health for SharedBuffer {
-        fn name(&self) -> Result<usize, crate::error::HamsError> {
-            Ok(3)
+        fn name(&self) -> Result<String, crate::error::HamsError> {
+            Ok("3".to_owned())
         }
 
-        fn check(&self) -> Result<HealthCheckResult, crate::error::HamsError> {
+        fn check(&self, time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
             let my_hcr = self.hcr.lock().unwrap();
 
             Ok((*my_hcr).clone())
+        }
+
+        fn previous(&self) -> Result<bool, HamsError> {
+            todo!()
         }
     }
 
@@ -215,12 +228,16 @@ mod tests {
     }
 
     impl Health for Panicking {
-        fn name(&self) -> Result<usize, HamsError> {
+        fn name(&self) -> Result<String, HamsError> {
             panic!()
         }
 
-        fn check(&self) -> Result<HealthCheckResult, HamsError> {
+        fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError> {
             // Err(HamsError::Message("Deliberate panic"))
+            panic!()
+        }
+
+        fn previous(&self) -> Result<bool, HamsError> {
             panic!()
         }
     }
@@ -243,7 +260,7 @@ mod tests {
             dropped: Arc::clone(&was_dropped),
         });
 
-        let got = checker.check();
+        let got = checker.check(Instant::now());
 
         assert!(got.is_err());
 

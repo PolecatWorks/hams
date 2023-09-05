@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::fmt;
 
 use crate::health_check::Poisoned;

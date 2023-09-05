@@ -30,8 +30,9 @@ impl<'a> Display for HealthCheckResult {
 }
 
 pub trait Health {
-    fn name(&self) -> Result<usize, HamsError>;
-    fn check(&self) -> Result<HealthCheckResult, HamsError>;
+    fn name(&self) -> Result<String, HamsError>;
+    fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError>;
+    fn previous(&self) -> Result<bool, HamsError>;
 }
 
 // What about creating HealthCheck just like FileHandle is created.
@@ -43,8 +44,10 @@ pub struct HealthCheck {
     pub(crate) type_id: TypeId,
     pub(crate) poisoned: bool,
     pub(crate) destroy: unsafe fn(*mut HealthCheck),
-    pub(crate) name: unsafe fn(*mut HealthCheck) -> Result<usize, HamsError>,
-    pub(crate) check: unsafe fn(*mut HealthCheck) -> Result<HealthCheckResult, HamsError>,
+    pub(crate) name: unsafe fn(*mut HealthCheck) -> Result<String, HamsError>,
+    pub(crate) check:
+        unsafe fn(*mut HealthCheck, time: Instant) -> Result<HealthCheckResult, HamsError>,
+    pub(crate) previous: unsafe fn(*mut HealthCheck) -> Result<bool, HamsError>,
 }
 
 impl HealthCheck {
@@ -72,6 +75,7 @@ impl HealthCheck {
             destroy: destroy::<W>,
             name: name::<W>,
             check: check::<W>,
+            previous: previous::<W>,
         }
     }
 }
@@ -121,17 +125,27 @@ macro_rules! auto_poison {
     }};
 }
 
-unsafe fn name<W: Health>(handle: *mut HealthCheck) -> Result<usize, HamsError> {
+unsafe fn name<W: Health>(handle: *mut HealthCheck) -> Result<String, HamsError> {
     auto_poison!(handle, {
         let repr = &mut *(handle as *mut Repr<W>);
         repr.health_check.name()
     })
 }
 
-unsafe fn check<W: Health>(handle: *mut HealthCheck) -> Result<HealthCheckResult, HamsError> {
+unsafe fn check<W: Health>(
+    handle: *mut HealthCheck,
+    time: Instant,
+) -> Result<HealthCheckResult, HamsError> {
     auto_poison!(handle, {
         let repr = &mut *(handle as *mut Repr<W>);
-        repr.health_check.check()
+        repr.health_check.check(time)
+    })
+}
+
+unsafe fn previous<W: Health>(handle: *mut HealthCheck) -> Result<bool, HamsError> {
+    auto_poison!(handle, {
+        let repr = &mut *(handle as *mut Repr<W>);
+        repr.health_check.previous()
     })
 }
 
@@ -166,133 +180,4 @@ pub(crate) struct Repr<W> {
     // *mut Repr<W> and *mut HealthCheck
     pub(crate) base: HealthCheck,
     pub(crate) health_check: W,
-}
-
-struct HealthProbe {
-    /// vector that is shared across clones AND the objects it refers to can also be independantly shared
-    detail: Arc<Mutex<HashSet<HealthCheck>>>,
-    /// Previous assignment of alive to allow state change operations
-    previous: Arc<AtomicBool>,
-    /// enable alive reply or disable (for debug use)
-    enabled: Arc<AtomicBool>,
-}
-
-impl HealthProbe {
-    fn new() -> HealthProbe {
-        info!("Constructing HealthProbe");
-
-        HealthProbe {
-            detail: Arc::new(Mutex::new(HashSet::new())),
-            previous: Arc::new(AtomicBool::new(false)),
-            enabled: Arc::new(AtomicBool::new(false)),
-        }
-    }
-
-    fn insert(&self, hc: HealthCheck) -> Result<(), HamsError> {
-        println!("implement this");
-        // self.detail
-        //     .lock()
-        //     .unwrap()
-        //     .insert(hc);
-        Ok(())
-    }
-    fn remove(&self, hc: &HealthCheck) -> Result<(), HamsError> {
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct HealthKick {
-    pub name: String,
-}
-
-impl Health for HealthKick {
-    fn name(&self) -> Result<usize, HamsError> {
-        Ok(3)
-    }
-
-    fn check(&self) -> Result<HealthCheckResult, HamsError> {
-        Ok(HealthCheckResult {
-            name: self.name.clone(),
-            valid: true,
-        })
-    }
-}
-
-impl HealthKick {
-    /// Create an alive kicked object providing name and duration of time before triggering failure
-    pub fn new<S: Into<String>>(name: S, margin: Duration) -> Self {
-        Self { name: name.into() }
-    }
-    pub fn kick(&self) {
-        println!("Kicking my {}", self.name);
-    }
-}
-
-impl Drop for HealthKick {
-    fn drop(&mut self) {
-        println!("Dropping my kick {}", self.name);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::{collections::HashSet, time::Duration};
-
-    // #[test]
-    // fn health_create() {
-
-    //     let kick = HealthKick::new("black", Duration::from_secs(3));
-
-    //     let hc0 = HealthCheck::for_hc(kick);
-
-    //     // let ben = (*hc0).name;
-
-    // }
-
-    #[test]
-    fn kick_create_and_destroy() {
-        let probe = HealthProbe::new();
-    }
-
-    #[test]
-    fn kick_sample_usage() {
-        let hc = HealthKick::new("banana", Duration::from_secs(10));
-        hc.kick();
-    }
-
-    #[test]
-    fn construct_probe_and_populate() {
-        let probe = HealthProbe::new();
-
-        let hc0 = HealthKick::new("banana0", Duration::from_secs(10));
-        let hc1 = HealthKick::new("banana1", Duration::from_secs(10));
-        let hc2 = HealthKick::new("banana2", Duration::from_secs(10));
-
-        let mut myvec = Vec::new();
-
-        hc0.kick();
-        myvec.push(&hc0);
-        myvec.push(&hc1);
-        myvec.push(&hc2);
-
-        println!("myvec = {:?}", myvec);
-
-        // probe.insert(&hc);
-
-        hc0.kick();
-
-        println!("myvec = {:?}", myvec);
-        // probe.remove(&hc);
-        let me = myvec.remove(0);
-        drop(me);
-        drop(myvec);
-        drop(hc0);
-        // println!("myvec = {:?}", myvec);
-
-        // probe.insert(&hc);
-
-        // let hc = HealthCheck::new();
-    }
 }

@@ -2,6 +2,7 @@
 mod error;
 mod ffi;
 mod health_check;
+mod health_kick;
 mod owned;
 
 // mod health_kick;
