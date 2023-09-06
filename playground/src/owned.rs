@@ -1,9 +1,5 @@
-use crate::health_check::Health;
-use crate::health_check::HealthCheck;
-use crate::health_check::Repr;
-use std::any::TypeId;
-use std::ptr::NonNull;
-use std::time::Instant;
+use crate::health_check::{Health, HealthCheck, Repr};
+use std::{any::TypeId, ptr::NonNull, time::Instant};
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -153,7 +149,12 @@ mod tests {
         time::Duration,
     };
 
-    use crate::{error::HamsError, health_check::HealthCheckResult, health_kick::HealthKick};
+    use crate::{
+        error::HamsError,
+        health_check::HealthCheckResult,
+        health_kick::HealthKick,
+        // health_kick::HealthKick,
+    };
 
     use super::*;
 

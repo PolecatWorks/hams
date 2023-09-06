@@ -1,9 +1,5 @@
 use std::{
-    collections::HashSet,
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
 
@@ -11,7 +7,7 @@ use log::info;
 
 use crate::{
     error::HamsError,
-    health_check::{Health, HealthCheck, HealthCheckResult},
+    health_check::{Health, HealthCheckResult},
 };
 
 // What is the ideal interface for the HealthCheck.
@@ -97,7 +93,6 @@ impl Drop for HealthKick {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashSet;
 
     #[test]
     fn kick_create_and_destroy() {

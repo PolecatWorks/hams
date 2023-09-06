@@ -1,12 +1,6 @@
-use crate::health_check::HealthCheck;
-use crate::health_kick::HealthKick;
-use std::{
-    ffi::CStr,
-    fs::File,
-    os::raw::{c_char, c_int},
-    ptr,
-    time::Duration,
-};
+use std::time::Duration;
+
+use crate::{health_check::HealthCheck, health_kick::HealthKick};
 
 #[no_mangle]
 pub unsafe extern "C" fn new_kick() -> *mut HealthCheck {

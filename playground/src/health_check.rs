@@ -1,16 +1,11 @@
-use log::{error, info};
 use serde::Serialize;
-use std::alloc::Layout;
-use std::any::{Any, TypeId};
-use std::collections::HashSet;
-use std::fmt::Display;
-use std::fmt::{Debug, Formatter};
-use std::hash::{Hash, Hasher};
-use std::io::{Error, ErrorKind};
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use std::time::Instant;
+use std::{
+    alloc::Layout,
+    any::{Any, TypeId},
+    fmt::{Debug, Display, Formatter},
+    sync::Mutex,
+    time::Instant,
+};
 
 use crate::error::HamsError;
 

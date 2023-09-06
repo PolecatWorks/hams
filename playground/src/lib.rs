@@ -5,8 +5,6 @@ mod health_check;
 mod health_kick;
 mod owned;
 
-// mod health_kick;
-
 pub use ffi::*;
 pub use health_check::HealthCheck;
 pub use owned::OwnedHealthCheck;
