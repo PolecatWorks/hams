@@ -280,4 +280,23 @@ mod tests {
             drop(other_arc);
         }
     }
+
+    #[test]
+    fn typical_usage() {
+        println!("Starting my usage of readyness here");
+
+        let my_kick = HealthKick::new("Hello", Duration::from_secs(30));
+
+        my_kick.kick();
+
+        let my_health = OwnedHealthCheck::new(my_kick.clone());
+
+        let my_check = my_health.check(Instant::now()).unwrap();
+
+        my_kick.kick();
+
+        println!("Got my healthCheck as {}", my_check);
+
+        println!("ending my typical usage");
+    }
 }

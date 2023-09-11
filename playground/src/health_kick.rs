@@ -18,12 +18,18 @@ struct KickInner {
     latest: Instant,
     margin: Duration,
     previous: bool,
+    /// Name of the alive check for human reading
+    pub name: String,
+}
+
+impl Drop for KickInner {
+    fn drop(&mut self) {
+        println!("Dropping Inner kick {}", self.name);
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct HealthKick {
-    /// Name of the alive check for human reading
-    pub name: String,
     /// An object representing the actual content behind an Arc<Mutex>>
     inner: Arc<Mutex<KickInner>>,
 }
@@ -32,8 +38,8 @@ impl HealthKick {
     /// Create an alive kicked object providing name and duration of time before triggering failure
     pub fn new<S: Into<String>>(name: S, margin: Duration) -> Self {
         Self {
-            name: name.into(),
             inner: Arc::new(Mutex::new(KickInner {
+                name: name.into(),
                 latest: Instant::now() - margin, // Set earlier than margin so check will eval to false
                 margin,
                 previous: false,
@@ -43,6 +49,8 @@ impl HealthKick {
     fn get_inner(&self) -> std::sync::MutexGuard<KickInner> {
         self.inner.lock().unwrap()
     }
+
+    // Update the Health Check timestamp to indicate it is still alive
     pub fn kick(&self) {
         self.get_inner().latest = Instant::now();
     }
@@ -65,17 +73,18 @@ impl Health for HealthKick {
         let valid = me.latest + me.margin >= time;
 
         if previous != valid {
-            info!("Health: {} changed to {}", self.name, valid);
+            info!("Health: {} changed to {}", me.name, valid);
         }
         me.previous = valid;
         Ok(HealthCheckResult {
-            name: self.name.clone(),
+            name: me.name.clone(),
             valid: valid,
         })
     }
 
     fn name(&self) -> Result<String, crate::error::HamsError> {
-        Ok(self.name.clone())
+        let me = self.get_inner();
+        Ok(me.name.clone())
     }
 
     fn previous(&self) -> Result<bool, crate::error::HamsError> {
@@ -86,7 +95,8 @@ impl Health for HealthKick {
 
 impl Drop for HealthKick {
     fn drop(&mut self) {
-        println!("Dropping my kick {}", self.name);
+        let me = self.get_inner();
+        println!("Dropping my kick {}", me.name);
     }
 }
 

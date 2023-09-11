@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    ffi::{c_char, c_int, CString},
+    time::Duration,
+};
 
 use crate::{health_check::HealthCheck, health_kick::HealthKick};
 
@@ -13,6 +16,29 @@ pub unsafe extern "C" fn new_kick() -> *mut HealthCheck {
 pub unsafe extern "C" fn health_destroy(handle: *mut HealthCheck) {
     let destructor = (*handle).destroy;
     destructor(handle);
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn health_name(handle: *mut HealthCheck) -> *mut c_char {
+    let name = (*handle).name;
+
+    match name(handle) {
+        Ok(my_name) => {
+            let c_str_name = CString::new(my_name).unwrap();
+            c_str_name.into_raw()
+        }
+        Err(_) => todo!(),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn health_name_free(s: *mut c_char) {
+    unsafe {
+        if s.is_null() {
+            return;
+        }
+        CString::from_raw(s)
+    };
 }
 
 #[cfg(test)]
@@ -65,4 +91,31 @@ mod health_tests {
 
         assert!(was_dropped.load(Ordering::SeqCst));
     }
+
+    #[test]
+    fn create_kick_and_destroy_it() {
+        unsafe {
+            let handle = new_kick();
+            assert!(!handle.is_null());
+
+            health_destroy(handle);
+        }
+    }
+
+    #[test]
+    fn create_kick_and_get_name() {
+        unsafe {
+            let handle = new_kick();
+            assert!(!handle.is_null());
+
+            let name = health_name(handle);
+
+            health_name_free(name);
+
+            health_destroy(handle);
+        }
+    }
+
+    #[test]
+    fn get_health_name_and_release() {}
 }
