@@ -78,7 +78,7 @@ impl Health for HealthKick {
         me.previous = valid;
         Ok(HealthCheckResult {
             name: me.name.clone(),
-            valid: valid,
+            valid,
         })
     }
 
@@ -141,7 +141,7 @@ mod tests {
     fn kick_eq() {
         let hc0 = HealthKick::new("apple", Duration::from_secs(10));
 
-        let hc0_clone = hc0.clone();
+        let _hc0_clone = hc0;
 
         // let hc0_boxed = HealthCheckWrapper(Box::new(hc0.clone()));
         // let hc0_clone_boxed: HealthCheckWrapper = HealthCheckWrapper(Box::new(hc0_clone.clone()));

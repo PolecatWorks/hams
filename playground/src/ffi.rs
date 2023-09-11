@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_char, c_int, CString},
+    ffi::{c_char, CString},
     time::Duration,
 };
 
@@ -69,7 +69,7 @@ mod health_tests {
 
         fn check(
             &self,
-            time: Instant,
+            _time: Instant,
         ) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
             todo!()
         }

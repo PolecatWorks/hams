@@ -11,7 +11,7 @@ use std::{
 
 use log::info;
 
-use crate::{error::HamsError, health_check::HealthCheckResult};
+use crate::health_check::HealthCheckResult;
 
 /** Health trait requires that the object implements the check function that returns a HealthCheckResult
  ** suitable for inclusion in a k8s health probe (eg ready or alive)
@@ -109,7 +109,7 @@ where
 
     pub fn check_all(&self, time: Instant) -> (bool, Vec<HealthCheckResult>) {
         let my_lock = self.detail.lock().unwrap();
-        let mut detail = my_lock.iter().map(|health| health.check(time));
+        let detail = my_lock.iter().map(|health| health.check(time));
         println!("enableds are {:?} from {:?}", self.enabled, self.detail);
         let valid =
             !self.enabled.load(Ordering::Relaxed) || detail.clone().all(|result| result.valid);
@@ -171,13 +171,13 @@ mod tests {
     fn probe_add_remove() {
         let my_probe = HealthProbe::new(true);
 
-        let mut my_hc0 = HealthWrapper::new(HealthManual::new("blue0", false));
-        let mut my_hc1 = HealthWrapper::new(HealthManual::new("blue1", false));
-        let mut my_hc2 = HealthWrapper::new(HealthManual::new("blue2", false));
+        let my_hc0 = HealthWrapper::new(HealthManual::new("blue0", false));
+        let my_hc1 = HealthWrapper::new(HealthManual::new("blue1", false));
+        let my_hc2 = HealthWrapper::new(HealthManual::new("blue2", false));
 
-        my_probe.insert(my_hc0.clone());
+        my_probe.insert(my_hc0);
         my_probe.insert(my_hc1.clone());
-        my_probe.insert(my_hc2.clone());
+        my_probe.insert(my_hc2);
 
         assert!(my_probe.check_all(Instant::now()).1.len() == 3);
 

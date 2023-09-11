@@ -49,14 +49,14 @@ mod tests {
 
     #[test]
     fn construct_destruct() {
-        let my_hams = Hams::<u32>::new("me");
+        let _my_hams = Hams::<u32>::new("me");
     }
 
     #[test]
     fn add_remove_alive() {
-        let my_hams = Hams::<u32>::new("me");
+        let _my_hams = Hams::<u32>::new("me");
 
-        let my_hk = 32;
+        let _my_hk = 32;
 
         // my_hams.insert(&my_hk);
 

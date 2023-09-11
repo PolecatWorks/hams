@@ -170,7 +170,7 @@ mod tests {
             SharedBuffer {
                 name: Arc::new(Mutex::new(my_string.clone())),
                 hcr: Arc::new(Mutex::new(HealthCheckResult {
-                    name: my_string.clone(),
+                    name: my_string,
                     valid: false,
                 })),
             }
@@ -182,7 +182,7 @@ mod tests {
             Ok("3".to_owned())
         }
 
-        fn check(&self, time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
+        fn check(&self, _time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
             let my_hcr = self.hcr.lock().unwrap();
 
             Ok((*my_hcr).clone())
@@ -233,7 +233,7 @@ mod tests {
             panic!()
         }
 
-        fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError> {
+        fn check(&self, _time: Instant) -> Result<HealthCheckResult, HamsError> {
             // Err(HamsError::Message("Deliberate panic"))
             panic!()
         }
@@ -257,7 +257,7 @@ mod tests {
     #[test]
     fn owned_handle_poisons_on_panic() {
         let was_dropped = Arc::new(AtomicBool::new(false));
-        let mut checker = OwnedHealthCheck::new(Panicking {
+        let checker = OwnedHealthCheck::new(Panicking {
             dropped: Arc::clone(&was_dropped),
         });
 
