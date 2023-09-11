@@ -4,6 +4,7 @@ mod ffi;
 mod hams;
 mod health_check;
 mod health_kick;
+mod health_manual;
 mod health_probe;
 mod owned;
 

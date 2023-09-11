@@ -16,7 +16,7 @@ use crate::{error::HamsError, health_check::HealthCheckResult};
 /** Health trait requires that the object implements the check function that returns a HealthCheckResult
  ** suitable for inclusion in a k8s health probe (eg ready or alive)
  */
-trait Health {
+pub trait Health {
     fn check(&self, time: Instant) -> HealthCheckResult;
 }
 
@@ -119,43 +119,10 @@ where
     }
 }
 
-/** Manual Health check that uses enable/disable to set liveness */
-#[derive(Debug)]
-struct HealthManual {
-    name: String,
-    state: bool,
-}
-
-impl Health for HealthManual {
-    fn check(&self, _time: Instant) -> HealthCheckResult {
-        HealthCheckResult {
-            name: self.name.clone(),
-            valid: self.state,
-        }
-    }
-}
-
-impl HealthManual {
-    pub fn new<S: Into<String>>(name: S, state: bool) -> Self {
-        Self {
-            name: name.into(),
-            state,
-        }
-    }
-
-    pub fn enable(&mut self) {
-        self.set(true)
-    }
-    pub fn disable(&mut self) {
-        self.set(false)
-    }
-    pub fn set(&mut self, state: bool) {
-        self.state = state
-    }
-}
-
 #[cfg(test)]
 mod tests {
+
+    use crate::health_manual::HealthManual;
 
     use super::*;
 
