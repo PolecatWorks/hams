@@ -2,6 +2,7 @@
 mod error;
 mod ffi;
 mod hams;
+mod health;
 mod health_check;
 mod health_kick;
 mod health_manual;

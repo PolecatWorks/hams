@@ -1,72 +1,17 @@
 use std::hash::Hash;
 use std::{
     collections::HashSet,
-    hash::Hasher,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, Mutex, MutexGuard,
+        Arc, Mutex,
     },
     time::Instant,
 };
 
 use log::info;
 
+use crate::health::Health;
 use crate::health_check::HealthCheckResult;
-
-/** Health trait requires that the object implements the check function that returns a HealthCheckResult
- ** suitable for inclusion in a k8s health probe (eg ready or alive)
- */
-pub trait Health {
-    fn check(&self, time: Instant) -> HealthCheckResult;
-}
-
-#[derive(Debug)]
-struct HealthWrapper<MyType>
-// where MyType: Health
-{
-    inner: Arc<Mutex<MyType>>,
-}
-
-impl<MyType> HealthWrapper<MyType> {
-    fn new(value: MyType) -> Self {
-        HealthWrapper {
-            inner: Arc::new(Mutex::new(value)),
-        }
-    }
-
-    pub fn lock(&mut self) -> MutexGuard<MyType> {
-        self.inner.lock().unwrap()
-    }
-}
-
-impl<MyType> Clone for HealthWrapper<MyType> {
-    fn clone(&self) -> Self {
-        Self {
-            inner: self.inner.clone(),
-        }
-    }
-}
-
-impl<MyType> Health for HealthWrapper<MyType>
-where
-    MyType: Health,
-{
-    fn check(&self, time: Instant) -> HealthCheckResult {
-        self.inner.lock().unwrap().check(time)
-    }
-}
-
-impl<MyType> PartialEq for HealthWrapper<MyType> {
-    fn eq(&self, other: &Self) -> bool {
-        std::ptr::eq(self.inner.as_ref(), other.inner.as_ref())
-    }
-}
-impl<MyType> Hash for HealthWrapper<MyType> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        std::ptr::hash(self.inner.as_ref(), state);
-    }
-}
-impl<MyType> Eq for HealthWrapper<MyType> {}
 
 /** HealthProbe describes a list of health checks each of which contributes to the outcome and content of the probe */
 #[derive(Debug)]
@@ -110,11 +55,10 @@ where
     pub fn check_all(&self, time: Instant) -> (bool, Vec<HealthCheckResult>) {
         let my_lock = self.detail.lock().unwrap();
         let detail = my_lock.iter().map(|health| health.check(time));
-        println!("enableds are {:?} from {:?}", self.enabled, self.detail);
+
         let valid =
             !self.enabled.load(Ordering::Relaxed) || detail.clone().all(|result| result.valid);
-        let xxx = detail.collect();
-        (valid, xxx)
+        (valid, detail.collect())
         // (valid, detail.collect())
     }
 }
@@ -122,7 +66,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::health_manual::HealthManual;
+    use crate::{health::HealthWrapper, health_manual::HealthManual};
 
     use super::*;
 
