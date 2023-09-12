@@ -15,9 +15,8 @@ pub trait Health {
     fn previous(&self) -> Result<bool, HamsError>;
 }
 
-// What about creating HealthCheck just like FileHandle is created.
-//  That way we can also create a valid health check element from outside our package
-
+/// What about creating HealthCheck just like FileHandle is created.
+///  That way we can also create a valid health check element from outside our package
 #[repr(C)]
 pub struct HealthCheck {
     pub(crate) layout: Layout,

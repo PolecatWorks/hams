@@ -9,7 +9,7 @@ use std::{any::TypeId, ptr::NonNull, time::Instant};
 pub struct OwnedHealthCheck(NonNull<HealthCheck>);
 
 impl OwnedHealthCheck {
-    /// Create a new [`OwnedFileHandle`] which wraps some [`Write`]r.
+    /// Create a new [`OwnedHealthCheck`] which wraps some [`Health`]r.
     pub fn new<W>(hc: W) -> Self
     where
         W: Health + Send + Sync + 'static,
