@@ -1,6 +1,6 @@
-use std::hash::Hash;
 use std::{
     collections::HashSet,
+    hash::Hash,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
@@ -10,8 +10,7 @@ use std::{
 
 use log::info;
 
-use crate::health::Health;
-use crate::health_check::HealthCheckResult;
+use crate::health::{Health, HealthCheckResult};
 
 /** HealthProbe describes a list of health checks each of which contributes to the outcome and content of the probe */
 #[derive(Debug)]

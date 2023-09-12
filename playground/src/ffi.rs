@@ -43,7 +43,7 @@ pub extern "C" fn health_name_free(s: *mut c_char) {
 
 #[cfg(test)]
 mod health_tests {
-    use crate::health_check::Health;
+    use crate::{health::HealthCheckResult, health_check::Health};
 
     use super::*;
     use std::{
@@ -67,10 +67,7 @@ mod health_tests {
             todo!()
         }
 
-        fn check(
-            &self,
-            _time: Instant,
-        ) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
+        fn check(&self, _time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
             todo!()
         }
 

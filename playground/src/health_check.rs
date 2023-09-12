@@ -7,22 +7,7 @@ use std::{
     time::Instant,
 };
 
-use crate::error::HamsError;
-
-/// Detail structure for replies from ready and alive
-#[derive(Serialize, Debug, PartialEq, Clone)]
-pub struct HealthCheckResult {
-    /// Name of health Reply
-    pub name: String,
-    /// Return value of health Reply
-    pub valid: bool,
-}
-
-impl<'a> Display for HealthCheckResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name, self.valid)
-    }
-}
+use crate::{error::HamsError, health::HealthCheckResult};
 
 pub trait Health {
     fn name(&self) -> Result<String, HamsError>;

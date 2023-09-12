@@ -5,10 +5,7 @@ use std::{
 
 use log::info;
 
-use crate::{
-    error::HamsError,
-    health_check::{Health, HealthCheckResult},
-};
+use crate::{error::HamsError, health::HealthCheckResult, health_check::Health};
 
 // What is the ideal interface for the HealthCheck.
 // Create the healthCheck object. Then use that to add/remove to probes.

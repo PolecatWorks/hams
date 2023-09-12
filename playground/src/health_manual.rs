@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use crate::{health::Health, health_check::HealthCheckResult};
+use crate::health::{Health, HealthCheckResult};
 
 /** Manual Health check that uses enable/disable to set liveness */
 #[derive(Debug)]

@@ -1,4 +1,7 @@
-use crate::health_check::{Health, HealthCheck, Repr};
+use crate::{
+    health::HealthCheckResult,
+    health_check::{Health, HealthCheck, Repr},
+};
 use std::{any::TypeId, ptr::NonNull, time::Instant};
 
 #[derive(Debug)]
@@ -104,10 +107,7 @@ impl Health for OwnedHealthCheck {
         }
     }
 
-    fn check(
-        &self,
-        time: Instant,
-    ) -> Result<crate::health_check::HealthCheckResult, crate::error::HamsError> {
+    fn check(&self, time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
         unsafe {
             let ptr = self.0.as_ptr();
             let check = (*ptr).check;
@@ -151,7 +151,7 @@ mod tests {
 
     use crate::{
         error::HamsError,
-        health_check::HealthCheckResult,
+        health::HealthCheckResult,
         health_kick::HealthKick,
         // health_kick::HealthKick,
     };
