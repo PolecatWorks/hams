@@ -1,10 +1,6 @@
 use std::fmt::Display;
 
-use std::{
-    hash::Hasher,
-    sync::{Arc, Mutex, MutexGuard},
-    time::Instant,
-};
+use std::time::Instant;
 
 use serde::Serialize;
 
