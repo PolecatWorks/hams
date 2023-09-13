@@ -65,7 +65,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{health::HealthWrapper, health_manual::HealthManual};
+    use crate::{health_manual::HealthManual, health_wrapper::HealthWrapper};
 
     use super::*;
 
