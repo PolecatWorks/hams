@@ -1,6 +1,6 @@
 use crate::{
-    health::HealthCheckResult,
-    health_check::{Health, HealthCheck, Repr},
+    health::{Health, HealthCheckResult},
+    health_check::{HealthCheck, Repr},
 };
 use std::{any::TypeId, ptr::NonNull, time::Instant};
 
@@ -99,13 +99,13 @@ impl OwnedHealthCheck {
 }
 
 impl Health for OwnedHealthCheck {
-    fn name(&self) -> Result<String, crate::error::HamsError> {
-        unsafe {
-            let ptr = self.0.as_ptr();
-            let name = (*ptr).name;
-            (name)(ptr)
-        }
-    }
+    // fn name(&self) -> Result<String, crate::error::HamsError> {
+    //     unsafe {
+    //         let ptr = self.0.as_ptr();
+    //         let name = (*ptr).name;
+    //         (name)(ptr)
+    //     }
+    // }
 
     fn check(&self, time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
         unsafe {
@@ -115,13 +115,13 @@ impl Health for OwnedHealthCheck {
         }
     }
 
-    fn previous(&self) -> Result<bool, crate::error::HamsError> {
-        unsafe {
-            let ptr = self.0.as_ptr();
-            let previous = (*ptr).previous;
-            (previous)(ptr)
-        }
-    }
+    // fn previous(&self) -> Result<bool, crate::error::HamsError> {
+    //     unsafe {
+    //         let ptr = self.0.as_ptr();
+    //         let previous = (*ptr).previous;
+    //         (previous)(ptr)
+    //     }
+    // }
 }
 
 impl Drop for OwnedHealthCheck {
@@ -178,9 +178,9 @@ mod tests {
     }
 
     impl Health for SharedBuffer {
-        fn name(&self) -> Result<String, crate::error::HamsError> {
-            Ok("3".to_owned())
-        }
+        // fn name(&self) -> Result<String, crate::error::HamsError> {
+        //     Ok("3".to_owned())
+        // }
 
         fn check(&self, _time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
             let my_hcr = self.hcr.lock().unwrap();
@@ -188,9 +188,9 @@ mod tests {
             Ok((*my_hcr).clone())
         }
 
-        fn previous(&self) -> Result<bool, HamsError> {
-            todo!()
-        }
+        // fn previous(&self) -> Result<bool, HamsError> {
+        //     todo!()
+        // }
     }
 
     #[test]
@@ -229,18 +229,18 @@ mod tests {
     }
 
     impl Health for Panicking {
-        fn name(&self) -> Result<String, HamsError> {
-            panic!()
-        }
+        // fn name(&self) -> Result<String, HamsError> {
+        //     panic!()
+        // }
 
         fn check(&self, _time: Instant) -> Result<HealthCheckResult, HamsError> {
             // Err(HamsError::Message("Deliberate panic"))
             panic!()
         }
 
-        fn previous(&self) -> Result<bool, HamsError> {
-            panic!()
-        }
+        // fn previous(&self) -> Result<bool, HamsError> {
+        //     panic!()
+        // }
     }
 
     impl Drop for Panicking {

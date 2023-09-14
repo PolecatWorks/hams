@@ -4,7 +4,10 @@ use std::{
     time::Instant,
 };
 
-use crate::health::{Health, HealthCheckResult};
+use crate::{
+    error::HamsError,
+    health::{Health, HealthCheckResult},
+};
 
 #[derive(Debug)]
 pub struct HealthWrapper<MyType>
@@ -37,7 +40,7 @@ impl<MyType> Health for HealthWrapper<MyType>
 where
     MyType: Health,
 {
-    fn check(&self, time: Instant) -> HealthCheckResult {
+    fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError> {
         self.inner.lock().unwrap().check(time)
     }
 }

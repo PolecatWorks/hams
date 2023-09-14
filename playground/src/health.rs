@@ -4,6 +4,8 @@ use std::time::Instant;
 
 use serde::Serialize;
 
+use crate::error::HamsError;
+
 /// Detail structure for replies from ready and alive
 #[derive(Serialize, Debug, PartialEq, Clone)]
 pub struct HealthCheckResult {
@@ -23,5 +25,5 @@ impl<'a> Display for HealthCheckResult {
  ** suitable for inclusion in a k8s health probe (eg ready or alive)
  */
 pub trait Health {
-    fn check(&self, time: Instant) -> HealthCheckResult;
+    fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError>;
 }

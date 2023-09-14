@@ -5,7 +5,10 @@ use std::{
 
 use log::info;
 
-use crate::{error::HamsError, health::HealthCheckResult, health_check::Health};
+use crate::{
+    error::HamsError,
+    health::{Health, HealthCheckResult},
+};
 
 // What is the ideal interface for the HealthCheck.
 // Create the healthCheck object. Then use that to add/remove to probes.
@@ -79,15 +82,15 @@ impl Health for HealthKick {
         })
     }
 
-    fn name(&self) -> Result<String, crate::error::HamsError> {
-        let me = self.get_inner();
-        Ok(me.name.clone())
-    }
+    // fn name(&self) -> Result<String, crate::error::HamsError> {
+    //     let me = self.get_inner();
+    //     Ok(me.name.clone())
+    // }
 
-    fn previous(&self) -> Result<bool, crate::error::HamsError> {
-        let me = self.get_inner();
-        Ok(me.previous)
-    }
+    // fn previous(&self) -> Result<bool, crate::error::HamsError> {
+    //     let me = self.get_inner();
+    //     Ok(me.previous)
+    // }
 }
 
 impl Drop for HealthKick {

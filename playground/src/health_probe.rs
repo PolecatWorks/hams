@@ -53,7 +53,7 @@ where
 
     pub fn check_all(&self, time: Instant) -> (bool, Vec<HealthCheckResult>) {
         let my_lock = self.detail.lock().unwrap();
-        let detail = my_lock.iter().map(|health| health.check(time));
+        let detail = my_lock.iter().map(|health| health.check(time).unwrap());
 
         let valid =
             !self.enabled.load(Ordering::Relaxed) || detail.clone().all(|result| result.valid);
@@ -130,8 +130,11 @@ mod tests {
 
         let reply = my_probe.check_all(Instant::now());
         println!("reply was {:?}", my_probe.check_all(Instant::now()));
-        assert!(reply.1[0].name == "blue0");
-        assert!(reply.1[1].name == "blue2");
+
+        let reply_names = reply.1.iter().map(|hr| hr.name.clone()).collect::<Vec<_>>();
+
+        assert!(reply_names.contains(&"blue0".to_owned()));
+        assert!(reply_names.contains(&"blue2".to_owned()));
     }
 
     // #[test]

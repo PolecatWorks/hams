@@ -1,6 +1,9 @@
 use std::time::Instant;
 
-use crate::health::{Health, HealthCheckResult};
+use crate::{
+    error::HamsError,
+    health::{Health, HealthCheckResult},
+};
 
 /** Manual Health check that uses enable/disable to set liveness */
 #[derive(Debug)]
@@ -10,11 +13,11 @@ pub struct HealthManual {
 }
 
 impl Health for HealthManual {
-    fn check(&self, _time: Instant) -> HealthCheckResult {
-        HealthCheckResult {
+    fn check(&self, _time: Instant) -> Result<HealthCheckResult, HamsError> {
+        Ok(HealthCheckResult {
             name: self.name.clone(),
             valid: self.state,
-        }
+        })
     }
 }
 

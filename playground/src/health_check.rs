@@ -1,4 +1,3 @@
-use serde::Serialize;
 use std::{
     alloc::Layout,
     any::{Any, TypeId},
@@ -7,13 +6,10 @@ use std::{
     time::Instant,
 };
 
-use crate::{error::HamsError, health::HealthCheckResult};
-
-pub trait Health {
-    fn name(&self) -> Result<String, HamsError>;
-    fn check(&self, time: Instant) -> Result<HealthCheckResult, HamsError>;
-    fn previous(&self) -> Result<bool, HamsError>;
-}
+use crate::{
+    error::HamsError,
+    health::{Health, HealthCheckResult},
+};
 
 /// What about creating HealthCheck just like FileHandle is created.
 ///  That way we can also create a valid health check element from outside our package
@@ -23,10 +19,10 @@ pub struct HealthCheck {
     pub(crate) type_id: TypeId,
     pub(crate) poisoned: bool,
     pub(crate) destroy: unsafe fn(*mut HealthCheck),
-    pub(crate) name: unsafe fn(*mut HealthCheck) -> Result<String, HamsError>,
+    // pub(crate) name: unsafe fn(*mut HealthCheck) -> Result<String, HamsError>,
     pub(crate) check:
         unsafe fn(*mut HealthCheck, time: Instant) -> Result<HealthCheckResult, HamsError>,
-    pub(crate) previous: unsafe fn(*mut HealthCheck) -> Result<bool, HamsError>,
+    // pub(crate) previous: unsafe fn(*mut HealthCheck) -> Result<bool, HamsError>,
 }
 
 impl HealthCheck {
@@ -52,9 +48,9 @@ impl HealthCheck {
             type_id,
             poisoned: false,
             destroy: destroy::<W>,
-            name: name::<W>,
+            // name: name::<W>,
             check: check::<W>,
-            previous: previous::<W>,
+            // previous: previous::<W>,
         }
     }
 }
@@ -63,10 +59,7 @@ impl Eq for HealthCheck {}
 
 impl PartialEq for HealthCheck {
     fn eq(&self, other: &Self) -> bool {
-        self.type_id == other.type_id
-            && self.destroy == other.destroy
-            && self.name == other.name
-            && self.check == other.check
+        self.type_id == other.type_id && self.destroy == other.destroy && self.check == other.check
     }
 }
 
@@ -104,12 +97,12 @@ macro_rules! auto_poison {
     }};
 }
 
-unsafe fn name<W: Health>(handle: *mut HealthCheck) -> Result<String, HamsError> {
-    auto_poison!(handle, {
-        let repr = &mut *(handle as *mut Repr<W>);
-        repr.health_check.name()
-    })
-}
+// unsafe fn name<W: Health>(handle: *mut HealthCheck) -> Result<String, HamsError> {
+//     auto_poison!(handle, {
+//         let repr = &mut *(handle as *mut Repr<W>);
+//         repr.health_check.name()
+//     })
+// }
 
 unsafe fn check<W: Health>(
     handle: *mut HealthCheck,
@@ -121,12 +114,12 @@ unsafe fn check<W: Health>(
     })
 }
 
-unsafe fn previous<W: Health>(handle: *mut HealthCheck) -> Result<bool, HamsError> {
-    auto_poison!(handle, {
-        let repr = &mut *(handle as *mut Repr<W>);
-        repr.health_check.previous()
-    })
-}
+// unsafe fn previous<W: Health>(handle: *mut HealthCheck) -> Result<bool, HamsError> {
+//     auto_poison!(handle, {
+//         let repr = &mut *(handle as *mut Repr<W>);
+//         repr.health_check.previous()
+//     })
+// }
 
 #[derive(Debug)]
 pub struct Poisoned(Mutex<Box<dyn Any + Send + 'static>>);

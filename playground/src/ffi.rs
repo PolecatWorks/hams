@@ -18,32 +18,32 @@ pub unsafe extern "C" fn health_destroy(handle: *mut HealthCheck) {
     destructor(handle);
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn health_name(handle: *mut HealthCheck) -> *mut c_char {
-    let name = (*handle).name;
+// #[no_mangle]
+// pub unsafe extern "C" fn health_name(handle: *mut HealthCheck) -> *mut c_char {
+//     let name = (*handle).name;
 
-    match name(handle) {
-        Ok(my_name) => {
-            let c_str_name = CString::new(my_name).unwrap();
-            c_str_name.into_raw()
-        }
-        Err(_) => todo!(),
-    }
-}
+//     match name(handle) {
+//         Ok(my_name) => {
+//             let c_str_name = CString::new(my_name).unwrap();
+//             c_str_name.into_raw()
+//         }
+//         Err(_) => todo!(),
+//     }
+// }
 
-#[no_mangle]
-pub extern "C" fn health_name_free(s: *mut c_char) {
-    unsafe {
-        if s.is_null() {
-            return;
-        }
-        CString::from_raw(s)
-    };
-}
+// #[no_mangle]
+// pub extern "C" fn health_name_free(s: *mut c_char) {
+//     unsafe {
+//         if s.is_null() {
+//             return;
+//         }
+//         CString::from_raw(s)
+//     };
+// }
 
 #[cfg(test)]
 mod health_tests {
-    use crate::{health::HealthCheckResult, health_check::Health};
+    use crate::health::{Health, HealthCheckResult};
 
     use super::*;
     use std::{
@@ -63,17 +63,17 @@ mod health_tests {
     }
 
     impl Health for NotifyOnDrop {
-        fn name(&self) -> Result<String, crate::error::HamsError> {
-            todo!()
-        }
+        // fn name(&self) -> Result<String, crate::error::HamsError> {
+        //     todo!()
+        // }
 
         fn check(&self, _time: Instant) -> Result<HealthCheckResult, crate::error::HamsError> {
             todo!()
         }
 
-        fn previous(&self) -> Result<bool, crate::error::HamsError> {
-            todo!()
-        }
+        // fn previous(&self) -> Result<bool, crate::error::HamsError> {
+        //     todo!()
+        // }
     }
 
     #[test]
@@ -99,19 +99,19 @@ mod health_tests {
         }
     }
 
-    #[test]
-    fn create_kick_and_get_name() {
-        unsafe {
-            let handle = new_kick();
-            assert!(!handle.is_null());
+    // #[test]
+    // fn create_kick_and_get_name() {
+    //     unsafe {
+    //         let handle = new_kick();
+    //         assert!(!handle.is_null());
 
-            let name = health_name(handle);
+    //         let name = health_name(handle);
 
-            health_name_free(name);
+    //         health_name_free(name);
 
-            health_destroy(handle);
-        }
-    }
+    //         health_destroy(handle);
+    //     }
+    // }
 
     #[test]
     fn get_health_name_and_release() {}
