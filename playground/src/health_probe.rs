@@ -65,7 +65,12 @@ where
 #[cfg(test)]
 mod tests {
 
-    use crate::{health_manual::HealthManual, health_wrapper::HealthWrapper};
+    use std::time::Duration;
+
+    use crate::{
+        health_kick::HealthKick, health_manual::HealthManual, health_wrapper::HealthWrapper,
+        OwnedHealthCheck,
+    };
 
     use super::*;
 
@@ -136,6 +141,20 @@ mod tests {
         assert!(reply_names.contains(&"blue0".to_owned()));
         assert!(reply_names.contains(&"blue2".to_owned()));
     }
+
+    // #[test]
+    // fn probe_mixed_probes() {
+    //     let my_probe = HealthProbe::new(true);
+
+    //     let my_hc0 = HealthWrapper::new(HealthManual::new("blue0", false));
+    //     let my_hc1 = HealthWrapper::new(HealthKick::new("blue1", Duration::from_secs(30)));
+
+    //     let my_owned0 = OwnedHealthCheck::new(my_hc0);
+    //     // let my_owned1 = HealthWrapper::new(OwnedHealthCheck::new(HealthManual::new("blue2", false)));
+
+    //     my_probe.insert(my_hc0.clone());
+    //     my_probe.insert(my_hc1.clone());
+    // }
 
     // #[test]
     // fn health_create() {

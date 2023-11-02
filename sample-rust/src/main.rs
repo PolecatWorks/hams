@@ -27,10 +27,6 @@ struct Cli {
     #[arg(short, long, value_name = "FILE")]
     config: PathBuf,
 
-    /// Turn debugging information on
-    #[arg(short, long, action = clap::ArgAction::Count)]
-    debug: u8,
-
     #[command(subcommand)]
     command: Option<Commands>,
 }
@@ -65,13 +61,6 @@ pub fn main() {
         .expect("Config file loaded");
 
     info!("Loaded config as {:?}", config);
-
-    match cli.debug {
-        0 => println!("Debug mode is off"),
-        1 => println!("Debug mode is kind of on"),
-        2 => println!("Debug mode is on"),
-        _ => println!("Don't be crazy"),
-    }
 
     match &cli.command {
         Some(Commands::Test { list }) => {

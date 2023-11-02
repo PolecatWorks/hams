@@ -56,3 +56,19 @@ impl<MyType> Hash for HealthWrapper<MyType> {
     }
 }
 impl<MyType> Eq for HealthWrapper<MyType> {}
+
+#[cfg(test)]
+mod wrapped_tests {
+    use crate::health_manual::HealthManual;
+
+    use super::*;
+
+    #[test]
+    fn create_wrapped_health() {
+        let mut my_hc = HealthWrapper::new(HealthManual::new("bue0", false));
+
+        println!("my hc = {:?}", my_hc);
+
+        my_hc.lock().disable();
+    }
+}

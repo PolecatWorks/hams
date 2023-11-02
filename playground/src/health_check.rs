@@ -153,3 +153,31 @@ pub(crate) struct Repr<W> {
     pub(crate) base: HealthCheck,
     pub(crate) health_check: W,
 }
+
+#[cfg(test)]
+mod tests {
+    use std::{collections::HashSet, hash::Hash, time::Duration};
+
+    use crate::{health_kick::HealthKick, health_manual::HealthManual, HealthCheck};
+
+    use super::*;
+
+    #[test]
+    fn healthcheck_in_hash() {
+        let my_hk0 = HealthKick::new("blue0", Duration::from_secs(30));
+
+        let my_hc0 = HealthCheck::for_hc(my_hk0);
+
+        let my_km1 = HealthManual::new("blue1", false);
+        let my_hc1 = HealthCheck::for_hc(my_km1);
+
+        let mut my_hash = HashSet::new();
+        my_hash.insert(my_hc0);
+        my_hash.insert(my_hc1);
+
+        println!("hash = {my_hash:?}");
+
+        unsafe { destroy::<HealthKick>(my_hc0) };
+        unsafe { destroy::<HealthManual>(my_hc1) };
+    }
+}

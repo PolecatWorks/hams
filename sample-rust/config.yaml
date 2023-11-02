@@ -1,2 +1,4 @@
 webservice:
   prefix: hellothere
+  version: v0
+  address: 127.0.0.1:8079

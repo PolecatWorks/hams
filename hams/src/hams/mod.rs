@@ -335,7 +335,7 @@ pub async fn service_listen<'a>(
     let api = warp_filters::hams_service(temp_hams);
 
     let (_addr, server) =
-        warp::serve(api).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
+        warp::serve(api).bind_with_graceful_shutdown(([127, 0, 0, 1], hams.port), async move {
             kill_recv.recv().await;
         });
 
@@ -395,7 +395,7 @@ mod warp_filters {
             .and(with_hams(hams.clone()))
             .and_then(warp_handlers::version_handler);
 
-        warp::path("health").and(name.or(version).or(alive).or(ready).or(shutdown))
+        warp::path("hams").and(name.or(version).or(alive).or(ready).or(shutdown))
     }
 
     fn with_hams(

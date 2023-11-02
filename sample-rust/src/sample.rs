@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::{
     mem,
     path::Path,
@@ -35,6 +36,8 @@ const TRACE_HEADERS: [&str; 7] = [
 #[derive(Debug, PartialEq, Deserialize, Clone)]
 pub struct WebServiceConfig {
     prefix: String,
+    version: String,
+    address: SocketAddr,
 }
 
 #[derive(Debug, PartialEq, Deserialize, Clone)]
