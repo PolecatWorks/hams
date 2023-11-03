@@ -10,6 +10,7 @@ use libc::c_void;
 pub mod error;
 pub mod healthcheck;
 pub mod healthkicked;
+mod tokio_tools;
 
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");

@@ -14,6 +14,8 @@ pub enum HamsError {
     NulError,
     /// An error with unknown source
     Unknown,
+    /// Cancelled triggered
+    Cancelled,
 }
 
 impl fmt::Display for HamsError {
@@ -22,6 +24,7 @@ impl fmt::Display for HamsError {
             HamsError::Message(msg) => write!(f, "Custom error: {}", msg),
             HamsError::NulError => write!(f, "Null was retuned"),
             HamsError::Unknown => todo!(),
+            HamsError::Cancelled => todo!(),
         }
     }
 }

@@ -20,6 +20,7 @@ use std::mem;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::{signal::unix::SignalKind, sync::mpsc};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 struct HamsCallback {
@@ -65,6 +66,8 @@ pub struct Hams {
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
     /// Value to indicate if service is running
     running: Arc<AtomicBool>,
+    /// Cancellation token to enable easy shutdown
+    ct: CancellationToken,
 }
 
 impl Hams {
@@ -91,6 +94,7 @@ impl Hams {
             ready: Arc::new(Mutex::new(HashSet::new())),
             shutdown_cb: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
+            ct: CancellationToken::new(),
         }
     }
 
@@ -183,10 +187,8 @@ impl Hams {
 
         let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
         *self.kill.lock().unwrap() = Some(channel_kill);
-        // *self.kill = Some(Mutex::new(channel_kill));
 
-        // let (thread_tx, thread_rx) = sync::mpsc::channel::<()>();
-        // *self.thread_tx.lock().unwrap()=Some(thread_tx);
+        let ct = CancellationToken::new();
 
         // Create a clone of self to be owned by the thread
         let mut thread_self = self.clone();
@@ -226,19 +228,17 @@ impl Hams {
         // ben.send(()).expect("Sent close message");
         info!("Close sent");
 
-        let mut tempval = self.thread_jh.lock().expect("got thread");
-        let old_thread = mem::replace(&mut *tempval, None);
-
-        let mut temp_kill = self.kill.as_ref().lock().expect("got the kill");
-        let old_kill = mem::replace(&mut *temp_kill, None);
+        let thread = self.thread_jh.lock().expect("got thread").take();
+        // let kill = self.kill.lock().expect("got kill").take();
 
         info!("Sending soft KILL signal");
-        old_kill
-            .unwrap()
-            .blocking_send(())
-            .expect("Send close to async");
+        self.ct.cancel();
+        // kill
+        //     .unwrap()
+        //     .blocking_send(())
+        //     .expect("Send close to async");
 
-        match old_thread {
+        match thread {
             Some(jh) => {
                 println!("have found a thread joinhandle");
                 jh.join().expect("Thread is joined");
@@ -275,10 +275,13 @@ impl Hams {
         while my_running.load(Ordering::Relaxed) {
             info!("Waiting on signal handlers");
             tokio::select! {
+                    _ = self.ct.cancelled() => {
+                        info!("Received Cancellation token: {:?}", my_shutdown_cb);
+                        my_running.store(false, Ordering::Relaxed);
+                    },
                     _ = tokio::signal::ctrl_c() => {
                         info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
                         Hams::tigger_callback(my_shutdown_cb.clone());
-                        // self.tigger_callback();
                     },
                     _ = kill_signal.recv() => {
                         info!("Received kill from library");
