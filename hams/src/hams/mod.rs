@@ -386,24 +386,27 @@ mod warp_filters {
         let name = warp::path("name")
             .and(warp::get())
             .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::name_handler);
-
-        let shutdown = warp::path("shutdown")
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::shutdown);
-
-        let alive = warp::path("alive")
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::alive_handler);
-
-        let ready = warp::path("ready")
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::ready_handler);
+            .and_then(warp_handlers::name);
 
         let version = warp::path("version")
             .and(warp::get())
             .and(with_hams(hams.clone()))
             .and_then(warp_handlers::version);
+
+        let alive = warp::path("alive")
+            .and(warp::get())
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::alive_handler);
+
+        let ready = warp::path("ready")
+            .and(warp::get())
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::ready_handler);
+
+        let shutdown = warp::path("shutdown")
+            .and(warp::post())
+            .and(with_hams(hams.clone()))
+            .and_then(warp_handlers::shutdown);
 
         warp::path("hams").and(name.or(version).or(alive).or(ready).or(shutdown))
     }
@@ -439,7 +442,7 @@ mod warp_handlers {
     }
 
     /// Handler for name endpoint
-    pub async fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn name(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         Ok(NameReply { name: hams.name })
     }
 
