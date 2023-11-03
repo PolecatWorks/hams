@@ -11,6 +11,7 @@ use std::{
 use crate::{
     error::HamsError,
     healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
+    tokio_tools::run_in_tokio,
 };
 
 use libc::c_void;
@@ -185,37 +186,16 @@ impl Hams {
         info!("started hams {}", self.name);
         self.running.store(true, Ordering::Relaxed);
 
-        let ct = CancellationToken::new();
-
         // Create a clone of self to be owned by the thread
         let mut thread_self = self.clone();
-        info!("Original thread: {:?}", thread::current().id());
 
         let new_hams_thread = thread::spawn(move || {
-            println!("Hello from thread");
-            println!("Have thread_self here {:?}", thread_self);
-            thread_self.start_tokio();
-
-            info!("Thread loop is complete");
+            run_in_tokio(thread_self.start_async()).unwrap();
         });
 
         *self.thread_jh.lock().unwrap() = Some(new_hams_thread);
 
         Ok(())
-    }
-
-    fn start_tokio(&mut self) {
-        info!("starting Tokio");
-
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("Runtime created in current thread");
-        let _guard = rt.enter();
-
-        rt.block_on(self.start_async());
-
-        info!("Tokio ended");
     }
 
     pub fn stop(&mut self) -> Result<(), HamsError> {
@@ -234,7 +214,7 @@ impl Hams {
         Ok(())
     }
 
-    async fn start_async(&mut self) {
+    async fn start_async(&mut self) -> Result<(), HamsError> {
         info!("Starting ASYNC");
 
         // Put code here to spawn the service parts (ie hams service)
@@ -290,6 +270,7 @@ impl Hams {
 
         health_listen.await.expect("health_listen is complete");
         info!("start_async is now complete for health");
+        Ok(())
     }
 
     fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {

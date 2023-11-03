@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 /// run async function inside tokio instance on current thread
 pub fn run_in_tokio<F, T>(my_function: F) -> F::Output
 where
-    F: Future<Output = Result<T, HamsError>>,
+    F: Future<Output = T>,
 {
     info!("starting Tokio");
 
