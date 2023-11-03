@@ -185,9 +185,6 @@ impl Hams {
         info!("started hams {}", self.name);
         self.running.store(true, Ordering::Relaxed);
 
-        let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
-        *self.kill.lock().unwrap() = Some(channel_kill);
-
         let ct = CancellationToken::new();
 
         // Create a clone of self to be owned by the thread
@@ -197,7 +194,7 @@ impl Hams {
         let new_hams_thread = thread::spawn(move || {
             println!("Hello from thread");
             println!("Have thread_self here {:?}", thread_self);
-            thread_self.start_tokio(rx_kill);
+            thread_self.start_tokio();
 
             info!("Thread loop is complete");
         });
@@ -207,7 +204,7 @@ impl Hams {
         Ok(())
     }
 
-    fn start_tokio(&mut self, rx_kill: Receiver<()>) {
+    fn start_tokio(&mut self) {
         info!("starting Tokio");
 
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -216,40 +213,28 @@ impl Hams {
             .expect("Runtime created in current thread");
         let _guard = rt.enter();
 
-        rt.block_on(self.start_async(rx_kill));
+        rt.block_on(self.start_async());
 
         info!("Tokio ended");
     }
 
     pub fn stop(&mut self) -> Result<(), HamsError> {
-        info!("stopped hams {}", self.name);
-
-        // let ben = self.thread_tx.lock().unwrap().as_ref().unwrap().clone();
-        // ben.send(()).expect("Sent close message");
-        info!("Close sent");
+        info!("Stop sent");
 
         let thread = self.thread_jh.lock().expect("got thread").take();
-        // let kill = self.kill.lock().expect("got kill").take();
 
-        info!("Sending soft KILL signal");
         self.ct.cancel();
-        // kill
-        //     .unwrap()
-        //     .blocking_send(())
-        //     .expect("Send close to async");
 
         match thread {
             Some(jh) => {
-                println!("have found a thread joinhandle");
                 jh.join().expect("Thread is joined");
             }
             None => println!("Thread not started"),
         }
-
         Ok(())
     }
 
-    async fn start_async(&mut self, mut kill_signal: Receiver<()>) {
+    async fn start_async(&mut self) {
         info!("Starting ASYNC");
 
         // Put code here to spawn the service parts (ie hams service)
@@ -283,11 +268,6 @@ impl Hams {
                         info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
                         Hams::tigger_callback(my_shutdown_cb.clone());
                     },
-                    _ = kill_signal.recv() => {
-                        info!("Received kill from library");
-                        my_running.store(false, Ordering::Relaxed);
-                    },
-                    // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
                     _ = sig_terminate.recv() => {
                         info!("Received TERM signal");
                         Hams::tigger_callback(my_shutdown_cb.clone());
