@@ -15,6 +15,7 @@ use crate::{
 
 use libc::c_void;
 use log::{error, info};
+use serde::Serialize;
 use std::mem;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
@@ -31,15 +32,22 @@ struct HamsCallback {
 /// Send impl.
 unsafe impl Send for HamsCallback {}
 
+/// Define the version and package as an object that can be returned via health
+#[derive(Serialize, Clone, Debug)]
+pub struct HamsVersion {
+    /// version from hams package in Cargo.toml
+    version: String,
+    /// version from package name in Cargo.toml
+    package: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Hams {
     /// A HaMS has a nmae which is used for distinguishing it on APIs
     pub name: String,
 
-    /// Provide the version of the release of HaMS
-    version: String,
-    /// Provide the name of the package
-    package: String,
+    /// Version of hams being used
+    version: HamsVersion,
 
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
@@ -73,8 +81,10 @@ impl Hams {
             // channels: Arc::new(Mutex::new(vec![])),
             // handles: Arc::new(Mutex::new(vec![])),
             kill: Arc::new(Mutex::new(None)),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            package: env!("CARGO_PKG_NAME").to_string(),
+            version: HamsVersion {
+                version: env!("CARGO_PKG_VERSION").to_string(),
+                package: env!("CARGO_PKG_NAME").to_string(),
+            },
             port: 8079,
             alive: Arc::new(Mutex::new(HashSet::new())),
             alive_previous: Arc::new(AtomicBool::new(false)),
@@ -380,7 +390,7 @@ mod warp_filters {
 
         let shutdown = warp::path("shutdown")
             .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::shutdown_handler);
+            .and_then(warp_handlers::shutdown);
 
         let alive = warp::path("alive")
             .and(with_hams(hams.clone()))
@@ -393,7 +403,7 @@ mod warp_filters {
         let version = warp::path("version")
             .and(warp::get())
             .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::version_handler);
+            .and_then(warp_handlers::version);
 
         warp::path("hams").and(name.or(version).or(alive).or(ready).or(shutdown))
     }
@@ -407,17 +417,14 @@ mod warp_filters {
 
 #[cfg(feature = "warp")]
 mod warp_handlers {
+    use super::{Hams, HamsVersion};
+    use serde::Serialize;
     use std::convert::Infallible;
 
-    use serde::Serialize;
-
-    use super::Hams;
-
-    /// Reply structure for Version endpoint
-    #[derive(Serialize)]
-    struct VersionReply {
-        version: String,
-        package: String,
+    impl warp::Reply for HamsVersion {
+        fn into_response(self) -> warp::reply::Response {
+            warp::reply::json(&self).into_response()
+        }
     }
 
     /// Reply structure for Name endpoint
@@ -425,39 +432,27 @@ mod warp_handlers {
     struct NameReply {
         name: String,
     }
-
-    /// Reply structure for Name endpoint
-    #[derive(Serialize)]
-    struct VersionNameReply {
-        name: String,
-        version: String,
+    impl warp::Reply for NameReply {
+        fn into_response(self) -> warp::reply::Response {
+            warp::reply::json(&self).into_response()
+        }
     }
 
     /// Handler for name endpoint
     pub async fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let name_reply = NameReply { name: hams.name };
-        Ok(warp::reply::json(&name_reply))
+        Ok(NameReply { name: hams.name })
     }
 
     /// Handler for version endpoint
-    pub async fn version_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let version_reply = VersionReply {
-            version: hams.version,
-            package: hams.package,
-        };
-        Ok(warp::reply::json(&version_reply))
+    pub async fn version(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+        Ok(hams.version)
     }
 
     /// Handler for shutdown endpoint
-    pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn shutdown(hams: Hams) -> Result<impl warp::Reply, Infallible> {
         Hams::tigger_callback(hams.shutdown_cb.clone());
 
-        let shutdown_reply = VersionNameReply {
-            version: hams.version,
-            name: hams.name,
-        };
-
-        Ok(warp::reply::json(&shutdown_reply))
+        Ok(hams.version)
     }
 
     /// Handler for alive endpoint

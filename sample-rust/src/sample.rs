@@ -98,10 +98,12 @@ pub async fn service_listen<'a>(
 
     let routes = api.with(warp::log("sample"));
 
-    let (_addr, server) =
-        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], sample.port), async move {
+    let (_addr, server) = warp::serve(routes).bind_with_graceful_shutdown(
+        sample.config.webservice.address,
+        async move {
             kill_recv.recv().await;
-        });
+        },
+    );
 
     info!("Serving service ({}) on port {}", sample.name, sample.port);
     tokio::task::spawn(server)
