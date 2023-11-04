@@ -199,18 +199,17 @@ impl Hams {
     }
 
     pub fn stop(&mut self) -> Result<(), HamsError> {
-        info!("Stop sent");
-
-        let thread = self.thread_jh.lock().expect("got thread").take();
+        info!("Stopping HaMS");
 
         self.ct.cancel();
+        self.thread_jh
+            .lock()
+            .expect("Lock JH")
+            .take()
+            .expect("take JH")
+            .join()
+            .expect("Join thread");
 
-        match thread {
-            Some(jh) => {
-                jh.join().expect("Thread is joined");
-            }
-            None => println!("Thread not started"),
-        }
         Ok(())
     }
 
