@@ -1,41 +1,28 @@
 //! describe errors in Hams
 
-use std::{error::Error, ffi::NulError, fmt};
+use std::{backtrace::Backtrace, ffi::NulError, fmt};
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
+use thiserror::Error;
 
 /// Error type for handling errors on FFI calls
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum HamsError {
-    /// A standard error with configurable message
+    /// Generic error with custom message (Dynamic String)
+    #[error("Generic error with message: {0}")]
     Message(String),
-    /// A Nul was found
-    NulError,
-    /// An error with unknown source
+    /// Nul Error
+    #[error(transparent)]
+    NulError(#[from] std::ffi::NulError),
+    /// Unknown error
+    #[error("Unknown error")]
     Unknown,
-    /// Cancelled triggered
+    /// Cancellation error (eg CancellationToken)
+    #[error("CancellationToken cancellation")]
     Cancelled,
 }
 
-impl fmt::Display for HamsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            HamsError::Message(msg) => write!(f, "Custom error: {}", msg),
-            HamsError::NulError => write!(f, "Null was retuned"),
-            HamsError::Unknown => todo!(),
-            HamsError::Cancelled => todo!(),
-        }
-    }
-}
-
-impl Error for HamsError {}
-
-impl From<NulError> for HamsError {
-    fn from(_: NulError) -> HamsError {
-        HamsError::NulError
-    }
-}
 /// Convert FFI error messages to Result
 ///
 /// When functions set error_msg during FFI calls the calling function can then use this

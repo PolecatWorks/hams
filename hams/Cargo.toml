@@ -14,22 +14,23 @@ axum = ["dep:axum"]
 [dependencies]
 log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
-ffi_helpers = "~0.3"
-libc = "~0.2"
-tokio = { version = "~1.27", features = ["full"] }
-tokio-util = "~0.7"
+ffi_helpers = { version = "~0.3" }
+libc = { version = "~0.2" }
+tokio = { version = "~1.33", features = ["full"] }
+tokio-util = { version = "~0.7" }
 
-futures = "~0.3"
+futures = { version = "~0.3" }
 serde = { version = "~1.0", features = ['std', 'derive'] }
 serde_json = { version="~1.0" }
-aquamarine = { version =  "~0.1" }
+aquamarine = { version =  "~0.3" }
+thiserror = { version = "~1.0" }
 
 warp = { version = "^0.3", optional = true }
 axum = { version = "0.6.7", optional= true }
 
 
 [build-dependencies]
-cbindgen = "~0.24"
+cbindgen = { version = "~0.26" }
 
 
 [profile.release]
@@ -44,8 +45,8 @@ codegen-units = 1
 crate-type = [ "cdylib" ]
 
 [dev-dependencies]
-cargo-tarpaulin = "~0.22"
-criterion = { version = "~0.3", features = ["html_reports"] }
+cargo-tarpaulin = "~0.27"
+criterion = { version = "~0.5", features = ["html_reports"] }
 
 [[bench]]
 name = "access"

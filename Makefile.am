@@ -60,3 +60,6 @@ cargo-criterion:
 
 git-mergedbranch-delete:
 	@git branch --merged | egrep -v "(^\*|master|main|dev)" | xargs git branch -d
+
+watch-run:
+	cargo watch -x "run -- --config sample-rust/config.yaml start"
