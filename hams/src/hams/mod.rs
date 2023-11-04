@@ -203,12 +203,12 @@ impl Hams {
 
         self.ct.cancel();
         self.thread_jh
-            .lock()
-            .expect("Lock JH")
+            .lock()?
             .take()
-            .expect("take JH")
-            .join()
-            .expect("Join thread");
+            .expect("take JH") // Uses Yeet which is unstable
+            .join().map_err(HamsError::JoinError)?
+            // .expect("Join thread")
+            ;
 
         Ok(())
     }

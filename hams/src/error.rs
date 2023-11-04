@@ -1,6 +1,6 @@
 //! describe errors in Hams
 
-use std::{backtrace::Backtrace, ffi::NulError, fmt};
+use std::{any::Any, backtrace::Backtrace, ffi::NulError, fmt};
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
@@ -15,12 +15,26 @@ pub enum HamsError {
     /// Nul Error
     #[error(transparent)]
     NulError(#[from] std::ffi::NulError),
+
+    /// JoinError from joining a thread
+    #[error("Thread join error")]
+    JoinError(Box<dyn Any + Send>),
+
+    /// Poison Error
+    #[error("Thread has bene poisoned")]
+    PoisonError,
     /// Unknown error
     #[error("Unknown error")]
     Unknown,
     /// Cancellation error (eg CancellationToken)
     #[error("CancellationToken cancellation")]
     Cancelled,
+}
+
+impl<T> From<std::sync::PoisonError<T>> for HamsError {
+    fn from(_value: std::sync::PoisonError<T>) -> Self {
+        Self::PoisonError
+    }
 }
 
 /// Convert FFI error messages to Result
