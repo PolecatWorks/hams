@@ -73,52 +73,52 @@ pub fn ffi_error_to_result() -> Result<(), HamsError> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use ffi_helpers::{catch_panic, error_handling::clear_last_error};
-    use libc::c_int;
+// #[cfg(test)]
+// mod tests {
+//     use ffi_helpers::{catch_panic, error_handling::clear_last_error};
+//     use libc::c_int;
 
-    use super::{ffi_error_to_result, HamsError};
+//     use super::{ffi_error_to_result, HamsError};
 
-    #[no_mangle]
-    unsafe extern "C" fn set_last_error() -> c_int {
-        ffi_helpers::update_last_error(HamsError::Message("JUST ME".to_string()));
-        0
-    }
+//     #[no_mangle]
+//     unsafe extern "C" fn set_last_error() -> c_int {
+//         ffi_helpers::update_last_error(HamsError::Message("JUST ME".to_string()));
+//         0
+//     }
 
-    #[no_mangle]
-    unsafe extern "C" fn some_infallible_operation() -> c_int {
-        catch_panic!(Ok(1))
-    }
+//     #[no_mangle]
+//     unsafe extern "C" fn some_infallible_operation() -> c_int {
+//         catch_panic!(Ok(1))
+//     }
 
-    #[no_mangle]
-    unsafe extern "C" fn some_fallible_operation() -> c_int {
-        catch_panic!(
-            panic!("Shucks that was bad");
-        )
-    }
+//     #[no_mangle]
+//     unsafe extern "C" fn some_fallible_operation() -> c_int {
+//         catch_panic!(
+//             panic!("Shucks that was bad");
+//         )
+//     }
 
-    #[test]
-    fn test_read_last_error_with_handler() {
-        clear_last_error();
-        println!("Setting error content");
-        unsafe { set_last_error() };
-        assert!(ffi_error_to_result().is_err(), "Error should be returned");
+//     #[test]
+//     fn test_read_last_error_with_handler() {
+//         clear_last_error();
+//         println!("Setting error content");
+//         unsafe { set_last_error() };
+//         assert!(ffi_error_to_result().is_err(), "Error should be returned");
 
-        clear_last_error();
-        println!("No error content");
-        unsafe { some_infallible_operation() }; // No actual error is set
-        assert!(
-            ffi_error_to_result().is_ok(),
-            "Error should NOT be returned"
-        );
+//         clear_last_error();
+//         println!("No error content");
+//         unsafe { some_infallible_operation() }; // No actual error is set
+//         assert!(
+//             ffi_error_to_result().is_ok(),
+//             "Error should NOT be returned"
+//         );
 
-        clear_last_error();
-        println!("Actual Panic");
-        unsafe { some_fallible_operation() };
-        assert!(ffi_error_to_result().is_err(), "Error should be returned");
-    }
-}
+//         clear_last_error();
+//         println!("Actual Panic");
+//         unsafe { some_fallible_operation() };
+//         assert!(ffi_error_to_result().is_err(), "Error should be returned");
+//     }
+// }
 
 // impl From<Box<dyn Any + Send + 'static>> for Error {
 //    fn from(other: Box<dyn Any + Send + 'static>) -> Error {

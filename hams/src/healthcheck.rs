@@ -1,66 +1,16 @@
 //! HealthChecks in Hams
 
-use std::ops;
-use std::time::Instant;
-
-use serde::Serialize;
-use std::fmt::{Debug, Display};
-
+use crate::health::HealthProbeResult;
+use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
-
-/// Result from whole HealthSystem
-#[derive(Debug, Serialize)]
-pub struct HealthSystemResult<'a> {
-    pub(crate) name: &'a str,
-    pub(crate) valid: bool,
-    pub(crate) detail: Vec<HealthCheckResult<'a>>,
-}
-
-/// Detail structure for replies from ready and alive
-#[derive(Serialize, Debug, PartialEq, Clone)]
-pub struct HealthCheckResult<'a> {
-    /// Name of health Reply
-    pub name: &'a str,
-    /// Return value of health Reply
-    pub valid: bool,
-}
-
-impl<'a> Display for HealthCheckResult<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name, self.valid)
-    }
-}
-
-pub struct HealthCheckResults<'a>(pub Vec<HealthCheckResult<'a>>);
-
-impl<'a> Display for HealthCheckResults<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.iter().fold(Ok(()), |result, check| {
-            result.and_then(|_| write!(f, "{}", check))
-        })
-    }
-}
-
-impl<'a> Into<Vec<HealthCheckResult<'a>>> for HealthCheckResults<'a> {
-    fn into(self) -> Vec<HealthCheckResult<'a>> {
-        self.0
-    }
-}
-
-impl<'a> ops::Deref for HealthCheckResults<'a> {
-    type Target = Vec<HealthCheckResult<'a>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
+use std::time::Instant;
 
 /// Trait to define the health check functionality
 pub trait HealthCheck: Debug + Send {
     /// Get name of HealthCheck
     fn get_name(&self) -> &str;
     /// Check if the HealthCheck is valid
-    fn check(&self, time: Instant) -> HealthCheckResult;
+    fn check(&self, time: Instant) -> HealthProbeResult;
 }
 
 /// Wrapper around health check to give it a type
@@ -73,7 +23,7 @@ impl HealthCheckWrapper {
         self.0.get_name()
     }
     /// Check if the HealthCheck is valid
-    pub fn check(&self, time: Instant) -> HealthCheckResult {
+    pub fn check(&self, time: Instant) -> HealthProbeResult {
         self.0.check(time)
     }
 }
@@ -124,7 +74,7 @@ mod tests {
             &self.name
         }
 
-        fn check(&self, time: std::time::Instant) -> HealthCheckResult {
+        fn check(&self, time: std::time::Instant) -> HealthProbeResult {
             todo!()
         }
     }

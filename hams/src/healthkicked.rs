@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::healthcheck::{HealthCheck, HealthCheckResult};
+use crate::{health::HealthProbeResult, healthcheck::HealthCheck};
 
 #[derive(Debug)]
 struct AliveCheckKickedInner {
@@ -50,9 +50,9 @@ impl HealthCheck for AliveCheckKicked {
         &self.name
     }
 
-    fn check(&self, time: Instant) -> HealthCheckResult {
+    fn check(&self, time: Instant) -> HealthProbeResult {
         let me = self.get_inner();
-        HealthCheckResult {
+        HealthProbeResult {
             name: &self.name,
             valid: me.latest + me.margin >= time,
         }
