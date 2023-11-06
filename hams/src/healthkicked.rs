@@ -5,7 +5,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::{health::HealthProbeResult, healthcheck::HealthCheck};
+use crate::health::{health_probe::HealthProbe, HealthProbeResult};
 
 #[derive(Debug)]
 struct AliveCheckKickedInner {
@@ -45,7 +45,7 @@ impl AliveCheckKicked {
     }
 }
 
-impl HealthCheck for AliveCheckKicked {
+impl HealthProbe for AliveCheckKicked {
     fn get_name(&self) -> &str {
         &self.name
     }

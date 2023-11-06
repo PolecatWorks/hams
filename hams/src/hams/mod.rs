@@ -10,8 +10,10 @@ use std::{
 
 use crate::{
     error::HamsError,
-    health::{HealthCheckReply, HealthCheckResults},
-    healthcheck::{HealthCheck, HealthCheckWrapper},
+    health::{
+        health_probe::{HealthProbe, HealthProbeWrapper},
+        HealthCheckReply, HealthCheckResults,
+    },
     tokio_tools::run_in_tokio,
 };
 
@@ -56,9 +58,9 @@ pub struct Hams {
     port: u16,
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    alive: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
     alive_previous: Arc<AtomicBool>,
-    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
+    ready: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
 
     /// Callback to be called on shutdown
     shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
@@ -100,16 +102,16 @@ impl Hams {
         *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
     }
 
-    pub fn add_ready(&self, newval: Box<dyn HealthCheck>) {
+    pub fn add_ready(&self, newval: Box<dyn HealthProbe>) {
         self.ready
             .lock()
             .unwrap()
-            .insert(HealthCheckWrapper(newval));
+            .insert(HealthProbeWrapper(newval));
     }
 
-    pub fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
+    pub fn remove_ready(&mut self, ready: Box<dyn HealthProbe>) -> bool {
         let mut readys = self.ready.lock().unwrap();
-        readys.remove(&HealthCheckWrapper(ready))
+        readys.remove(&HealthProbeWrapper(ready))
     }
 
     pub fn check_ready(&self) -> (bool, String) {
@@ -135,16 +137,16 @@ impl Hams {
         )
     }
 
-    pub fn add_alive(&self, newval: Box<dyn HealthCheck>) {
+    pub fn add_alive(&self, newval: Box<dyn HealthProbe>) {
         self.alive
             .lock()
             .unwrap()
-            .insert(HealthCheckWrapper(newval));
+            .insert(HealthProbeWrapper(newval));
     }
 
-    pub fn remove_alive(&mut self, alive: Box<dyn HealthCheck>) -> bool {
+    pub fn remove_alive(&mut self, alive: Box<dyn HealthProbe>) -> bool {
         let mut alives = self.alive.lock().unwrap();
-        alives.remove(&HealthCheckWrapper(alive))
+        alives.remove(&HealthProbeWrapper(alive))
     }
 
     pub fn check_alive(&self) -> (bool, String) {

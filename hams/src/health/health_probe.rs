@@ -5,19 +5,19 @@ use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::time::Instant;
 
-/// Trait to define the health check functionality
-pub trait HealthCheck: Debug + Send {
+pub trait HealthProbe: Debug + Send {
     /// Get name of HealthCheck
     fn get_name(&self) -> &str;
     /// Check if the HealthCheck is valid
     fn check(&self, time: Instant) -> HealthProbeResult;
 }
 
+/// Trait to define the health check functionality
 /// Wrapper around health check to give it a type
 #[derive(Debug)]
-pub struct HealthCheckWrapper(pub Box<dyn HealthCheck>);
+pub struct HealthProbeWrapper(pub Box<dyn HealthProbe>);
 
-impl HealthCheckWrapper {
+impl HealthProbeWrapper {
     /// get the name of HealthCheck
     pub fn get_name(&self) -> &str {
         self.0.get_name()
@@ -27,15 +27,15 @@ impl HealthCheckWrapper {
         self.0.check(time)
     }
 }
-impl Eq for HealthCheckWrapper {}
+impl Eq for HealthProbeWrapper {}
 
-impl PartialEq for HealthCheckWrapper {
+impl PartialEq for HealthProbeWrapper {
     fn eq(&self, other: &Self) -> bool {
         std::ptr::eq(self.0.as_ref(), other.0.as_ref())
     }
 }
 
-impl Hash for HealthCheckWrapper {
+impl Hash for HealthProbeWrapper {
     fn hash<H: Hasher>(&self, state: &mut H) {
         std::ptr::hash(self.0.as_ref(), state);
     }
@@ -44,15 +44,15 @@ impl Hash for HealthCheckWrapper {
 /// Comparison function for equality of two HealthChecks
 /// We can only use the methods available in the HealthCheck for
 /// implementation of equality so that limits us to name for comparison
-impl PartialEq<dyn HealthCheck> for dyn HealthCheck {
-    fn eq(&self, other: &dyn HealthCheck) -> bool {
+impl PartialEq<dyn HealthProbe> for dyn HealthProbe {
+    fn eq(&self, other: &dyn HealthProbe) -> bool {
         println!("IM IN PartialEq");
         println!("Comparing {} and {}", self.get_name(), other.get_name());
         self.get_name() == other.get_name()
     }
 }
 
-impl Hash for dyn HealthCheck {
+impl Hash for dyn HealthProbe {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.get_name().hash(state);
     }
@@ -68,7 +68,7 @@ mod tests {
         count: i64,
     }
 
-    impl HealthCheck for I {
+    impl HealthProbe for I {
         fn get_name(&self) -> &str {
             println!("HealthCheck for I {}", self.name);
             &self.name
@@ -95,19 +95,19 @@ mod tests {
         let hc2 = hc0.clone();
         // assert_eq!(hc0, hc2);
 
-        assert_eq!(&hc0 as &dyn HealthCheck, &hc2 as &dyn HealthCheck);
-        assert_ne!(&hc0 as &dyn HealthCheck, &hc1 as &dyn HealthCheck);
+        assert_eq!(&hc0 as &dyn HealthProbe, &hc2 as &dyn HealthProbe);
+        assert_ne!(&hc0 as &dyn HealthProbe, &hc1 as &dyn HealthProbe);
 
-        let hclist: Vec<Box<dyn HealthCheck>> = vec![Box::new(hc0), Box::new(hc1), Box::new(hc2)];
+        let hclist: Vec<Box<dyn HealthProbe>> = vec![Box::new(hc0), Box::new(hc1), Box::new(hc2)];
 
         let ben = *hclist[0] == *hclist[1];
 
         assert_eq!(*hclist[0], *hclist[2]);
         assert_ne!(*hclist[0], *hclist[1]);
 
-        let hc0_ref: *const dyn HealthCheck = hclist[0].as_ref();
-        let hc1_ref: *const dyn HealthCheck = hclist[1].as_ref();
-        let hc2_ref: *const dyn HealthCheck = hclist[2].as_ref();
+        let hc0_ref: *const dyn HealthProbe = hclist[0].as_ref();
+        let hc1_ref: *const dyn HealthProbe = hclist[1].as_ref();
+        let hc2_ref: *const dyn HealthProbe = hclist[2].as_ref();
 
         assert_ne!(hc0_ref, hc1_ref);
         assert_ne!(hc0_ref, hc2_ref);

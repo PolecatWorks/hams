@@ -27,6 +27,14 @@ impl<'a> HealthCheckResults<'a> {
     }
 }
 
+impl<'a> Deref for HealthCheckResults<'a> {
+    type Target = Vec<HealthProbeResult<'a>>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl<'a> From<HealthCheckResults<'a>> for Vec<HealthProbeResult<'a>> {
     fn from(val: HealthCheckResults<'a>) -> Self {
         val.0
@@ -50,14 +58,6 @@ impl<'a> Display for HealthCheckResults<'a> {
 
         write!(f, "]")?;
         Ok(())
-    }
-}
-
-impl<'a> Deref for HealthCheckResults<'a> {
-    type Target = Vec<HealthProbeResult<'a>>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
     }
 }
 

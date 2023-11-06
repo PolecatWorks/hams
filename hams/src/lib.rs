@@ -9,7 +9,6 @@ use libc::c_void;
 // pub mod ffi;
 pub mod error;
 pub mod health;
-pub mod healthcheck;
 pub mod healthkicked;
 mod tokio_tools;
 
