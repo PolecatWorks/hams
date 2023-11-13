@@ -11,6 +11,7 @@ pub mod error;
 pub mod health;
 pub mod healthkicked;
 mod tokio_tools;
+mod utils;
 
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");

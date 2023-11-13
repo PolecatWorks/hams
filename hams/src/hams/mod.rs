@@ -11,7 +11,7 @@ use std::{
 use crate::{
     error::HamsError,
     health::{
-        health_probe::{HealthProbe, HealthProbeWrapper},
+        health_probe::{HealthProbeInner, HealthProbeWrapper},
         HealthCheckReply, HealthCheckResults,
     },
     tokio_tools::run_in_tokio,
@@ -102,14 +102,14 @@ impl Hams {
         *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
     }
 
-    pub fn add_ready(&self, newval: Box<dyn HealthProbe>) {
+    pub fn add_ready(&self, newval: Box<dyn HealthProbeInner>) {
         self.ready
             .lock()
             .unwrap()
             .insert(HealthProbeWrapper(newval));
     }
 
-    pub fn remove_ready(&mut self, ready: Box<dyn HealthProbe>) -> bool {
+    pub fn remove_ready(&mut self, ready: Box<dyn HealthProbeInner>) -> bool {
         let mut readys = self.ready.lock().unwrap();
         readys.remove(&HealthProbeWrapper(ready))
     }
@@ -137,14 +137,14 @@ impl Hams {
         )
     }
 
-    pub fn add_alive(&self, newval: Box<dyn HealthProbe>) {
+    pub fn add_alive(&self, newval: Box<dyn HealthProbeInner>) {
         self.alive
             .lock()
             .unwrap()
             .insert(HealthProbeWrapper(newval));
     }
 
-    pub fn remove_alive(&mut self, alive: Box<dyn HealthProbe>) -> bool {
+    pub fn remove_alive(&mut self, alive: Box<dyn HealthProbeInner>) -> bool {
         let mut alives = self.alive.lock().unwrap();
         alives.remove(&HealthProbeWrapper(alive))
     }
