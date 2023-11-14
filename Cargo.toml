@@ -8,6 +8,7 @@
 
 
 [workspace]
+resolver = "2"
 members = [
     "sample-rust",
     "hams",
