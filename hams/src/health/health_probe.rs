@@ -4,7 +4,6 @@ use crate::health::HealthProbeResult;
 use crate::utils::{AsAny, DynEq, DynHash};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
-use std::ops::Deref;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
@@ -50,17 +49,51 @@ impl Hash for HealthProbeWrapper {
 struct HpW<T> {
     inner: Arc<Mutex<T>>,
 }
-impl<T: HealthProbeInner> HpW<T> {
+
+impl<T> HpW<T> {
     pub fn new(value: T) -> Self {
         Self {
             inner: Arc::new(Mutex::new(value)),
         }
     }
+}
+
+impl<T> Clone for HpW<T> {
+    fn clone(&self) -> Self {
+        HpW {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
+impl<T: HealthProbeInner> HpW<T> {
     /// Get the name (as String)
     ///
     /// This is a copy of string so NOT cheap
     pub fn name(&self) -> String {
         self.inner.lock().unwrap().get_name().to_owned()
+    }
+}
+
+impl<T: Hash> Hash for HpW<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.inner.lock().unwrap().hash(state);
+    }
+}
+impl<T: Eq> PartialEq for HpW<T> {
+    fn eq(&self, other: &Self) -> bool {
+        *self.inner.lock().unwrap() == *other.inner.lock().unwrap()
+    }
+}
+impl<T: Eq> Eq for HpW<T> {}
+
+impl<T: Eq + Hash + 'static> HealthProbe for HpW<T> {
+    fn name(&self) -> &str {
+        todo!()
+    }
+
+    fn check(&self) -> bool {
+        todo!()
     }
 }
 
@@ -71,29 +104,27 @@ impl<T> HpW<T> {
     /// to access the &T and hides that there is a Mutex lock in the call.
     /// Better to be explicit than implict here.
     /// Some close examples: https://stackoverflow.com/questions/68138511/why-cant-i-implement-deref-for-a-specific-lifetime
-
     pub fn inner_through_lock(&self) -> MutexGuard<T> {
         self.inner.lock().unwrap()
     }
 }
 
-// https://stackoverflow.com/questions/68138511/why-cant-i-implement-deref-for-a-specific-lifetime
-// impl<T> Deref for HpW<T> {
-//     type Target<'ret>=MutexGuard<'ret, T> where T: 'ret;
+// impl<T: Hash> Hash for HpW<T> {
+//     fn hash<H: Hasher>(&self, state: &mut H) {
+//         self.inner.lock().unwrap().hash(state);
+//     }
+// }
+// impl<T: Eq> Eq for HpW<T> {}
 
-//     fn deref(&self) -> &Self::Target {
+// impl<T: Hash + Eq> HealthProbe for HpW<T> {
+//     fn name(&self) -> &str {
 //         todo!()
 //     }
 
+//     fn check(&self) -> bool {
+//         todo!()
+//     }
 // }
-
-impl<T> Deref for HpW<T> {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        todo!()
-    }
-}
 
 /// Comparison function for equality of two HealthChecks
 /// We can only use the methods available in the HealthCheck for
@@ -139,29 +170,99 @@ mod tests {
 
     use super::*;
 
-    #[derive(Debug)]
-    struct InnerI {
-        name: String,
-        count: u32,
-    }
-    impl InnerI {
-        pub fn kick(&mut self) {
-            self.count += 1
-        }
-    }
+    // Create a HealthProbe that is a HpW<T> of a couple of Inners and then load them into a HashSet
 
-    impl HealthProbeInner for InnerI {
-        fn get_name(&self) -> &str {
-            &self.name
+    #[test]
+    fn try_out_healthprobe_of_hpw() {
+        #[derive(Debug, Hash, PartialEq)]
+        struct InnerI {
+            name: String,
+            count: u32,
+        }
+        impl Eq for InnerI {}
+
+        impl InnerI {
+            pub fn kick(&mut self) {
+                self.count += 1
+            }
         }
 
-        fn check(&self, time: Instant) -> HealthProbeResult {
-            todo!()
+        impl HealthProbeInner for InnerI {
+            fn get_name(&self) -> &str {
+                &self.name
+            }
+
+            fn check(&self, time: Instant) -> HealthProbeResult {
+                todo!()
+            }
         }
+
+        #[derive(Debug, Hash, PartialEq)]
+        struct InnerJ {
+            name: String,
+            count: u32,
+        }
+        impl Eq for InnerJ {}
+
+        impl InnerJ {
+            pub fn kick(&mut self) {
+                self.count += 1
+            }
+        }
+
+        impl HealthProbeInner for InnerJ {
+            fn get_name(&self) -> &str {
+                &self.name
+            }
+
+            fn check(&self, time: Instant) -> HealthProbeResult {
+                todo!()
+            }
+        }
+
+        let mut hpi0 = InnerI {
+            name: "Hpi0".to_owned(),
+            count: 3,
+        };
+        let mut hpj0 = InnerJ {
+            name: "Hpj0".to_owned(),
+            count: 2,
+        };
+
+        println!("{:?} is called {}", hpi0, hpi0.get_name());
+
+        let hw0 = HpW::new(hpi0);
+        let hw1 = HpW::new(hpj0);
+
+        let mut hc0: HashSet<Box<dyn HealthProbe>> = HashSet::new();
+
+        hc0.insert(Box::new(hw0.clone()));
+        hc0.insert(Box::new(hw1.clone()));
     }
 
     #[test]
     fn try_out_healthprobeinner() {
+        #[derive(Debug)]
+        struct InnerI {
+            name: String,
+            count: u32,
+        }
+        impl InnerI {
+            pub fn kick(&mut self) {
+                self.count += 1
+            }
+        }
+
+        impl HealthProbeInner for InnerI {
+            fn get_name(&self) -> &str {
+                &self.name
+            }
+
+            fn check(&self, time: Instant) -> HealthProbeResult {
+                todo!()
+            }
+        }
+
         let mut hpi0 = InnerI {
             name: "Hpi0".to_owned(),
             count: 3,
@@ -178,42 +279,40 @@ mod tests {
         println!("hw {:?} is called {}", hw0, hw0.name());
         hw0.inner_through_lock().kick();
         println!("hw {:?} is called {}", hw0, hw0.name());
-
-        assert!(false);
-    }
-
-    #[derive(Hash, PartialEq, Debug)]
-    struct ExampleI {
-        name: String,
-        count: i64,
-    }
-    impl Eq for ExampleI {}
-    impl HealthProbe for ExampleI {
-        fn check(&self) -> bool {
-            self.count < 10
-        }
-        fn name(&self) -> &str {
-            &self.name
-        }
-    }
-
-    #[derive(Hash, PartialEq, Debug)]
-    struct ExampleJ {
-        name: String,
-        count: i64,
-    }
-    impl Eq for ExampleJ {}
-    impl HealthProbe for ExampleJ {
-        fn check(&self) -> bool {
-            self.count < 10
-        }
-        fn name(&self) -> &str {
-            &self.name
-        }
     }
 
     #[test]
     fn try_out_healthprobe() {
+        #[derive(Hash, PartialEq, Debug)]
+        struct ExampleI {
+            name: String,
+            count: i64,
+        }
+        impl Eq for ExampleI {}
+        impl HealthProbe for ExampleI {
+            fn check(&self) -> bool {
+                self.count < 10
+            }
+            fn name(&self) -> &str {
+                &self.name
+            }
+        }
+
+        #[derive(Hash, PartialEq, Debug)]
+        struct ExampleJ {
+            name: String,
+            count: i64,
+        }
+        impl Eq for ExampleJ {}
+        impl HealthProbe for ExampleJ {
+            fn check(&self) -> bool {
+                self.count < 10
+            }
+            fn name(&self) -> &str {
+                &self.name
+            }
+        }
+
         let i0 = ExampleI {
             name: "I0".to_owned(),
             count: 2,
