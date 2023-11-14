@@ -1,21 +1,7 @@
 use std::{fmt::Display, ops::Deref};
 
+use crate::health::HealthProbeResult;
 use serde::Serialize;
-
-/// Detail structure for replies from ready and alive for a single probe
-#[derive(Serialize, Debug, PartialEq, Clone)]
-pub struct HealthProbeResult<'a> {
-    /// Name of health Reply
-    pub name: &'a str,
-    /// Return value of health Reply
-    pub valid: bool,
-}
-
-impl<'a> Display for HealthProbeResult<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name, self.valid)
-    }
-}
 
 /// reply for a health check summarising a vec of probes
 pub struct HealthCheckResults<'a>(pub Vec<HealthProbeResult<'a>>);

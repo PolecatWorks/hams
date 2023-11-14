@@ -1,11 +1,27 @@
 //! HealthChecks in Hams
 
-use crate::health::HealthProbeResult;
 use crate::utils::{AsAny, DynEq, DynHash};
+use serde::Serialize;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
+
+/// Detail structure for replies from ready and alive for a single probe
+#[derive(Serialize, Debug, PartialEq, Clone)]
+pub struct HealthProbeResult<'a> {
+    /// Name of health Reply
+    pub name: &'a str,
+    /// Return value of health Reply
+    pub valid: bool,
+}
+
+impl<'a> Display for HealthProbeResult<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.name, self.valid)
+    }
+}
 
 /// A HealthProbeInner requires a get_name and check method are implemented.
 ///
