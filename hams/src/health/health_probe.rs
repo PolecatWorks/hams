@@ -7,6 +7,10 @@ use std::hash::{Hash, Hasher};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
+/// A HealthProbeInner requires a get_name and check method are implemented.
+///
+/// check returns true if the probe is valid else false
+/// get_name returns the name of the probe
 pub trait HealthProbeInner: Debug + Send {
     /// Get name of HealthCheck
     fn get_name(&self) -> &str;
@@ -45,6 +49,9 @@ impl Hash for HealthProbeWrapper {
 
 // ============= HpW ================
 
+/// Health Probe Wrapper provides a wrapper around the [HealthProbeInner] to create a
+/// Arc<Mutex<T>> for it and to provide some methods.
+/// It also implements the interface to allwo it to used in a HashSet
 #[derive(Debug)]
 struct HpW<T> {
     inner: Arc<Mutex<T>>,
@@ -108,23 +115,6 @@ impl<T> HpW<T> {
         self.inner.lock().unwrap()
     }
 }
-
-// impl<T: Hash> Hash for HpW<T> {
-//     fn hash<H: Hasher>(&self, state: &mut H) {
-//         self.inner.lock().unwrap().hash(state);
-//     }
-// }
-// impl<T: Eq> Eq for HpW<T> {}
-
-// impl<T: Hash + Eq> HealthProbe for HpW<T> {
-//     fn name(&self) -> &str {
-//         todo!()
-//     }
-
-//     fn check(&self) -> bool {
-//         todo!()
-//     }
-// }
 
 /// Comparison function for equality of two HealthChecks
 /// We can only use the methods available in the HealthCheck for
