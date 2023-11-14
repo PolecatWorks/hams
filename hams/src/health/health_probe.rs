@@ -4,6 +4,8 @@ use crate::health::HealthProbeResult;
 use crate::utils::{AsAny, DynEq, DynHash};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
+use std::ops::Deref;
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Instant;
 
 pub trait HealthProbeInner: Debug + Send {
@@ -42,6 +44,57 @@ impl Hash for HealthProbeWrapper {
     }
 }
 
+// ============= HpW ================
+
+#[derive(Debug)]
+struct HpW<T> {
+    inner: Arc<Mutex<T>>,
+}
+impl<T: HealthProbeInner> HpW<T> {
+    pub fn new(value: T) -> Self {
+        Self {
+            inner: Arc::new(Mutex::new(value)),
+        }
+    }
+    /// Get the name (as String)
+    ///
+    /// This is a copy of string so NOT cheap
+    pub fn name(&self) -> String {
+        self.inner.lock().unwrap().get_name().to_owned()
+    }
+}
+
+impl<T> HpW<T> {
+    /// Access the inner via a lock so that we can all methods on it.
+    ///
+    /// We cannot/should not add a Deref here as it would be too simplistic
+    /// to access the &T and hides that there is a Mutex lock in the call.
+    /// Better to be explicit than implict here.
+    /// Some close examples: https://stackoverflow.com/questions/68138511/why-cant-i-implement-deref-for-a-specific-lifetime
+
+    pub fn inner_through_lock(&self) -> MutexGuard<T> {
+        self.inner.lock().unwrap()
+    }
+}
+
+// https://stackoverflow.com/questions/68138511/why-cant-i-implement-deref-for-a-specific-lifetime
+// impl<T> Deref for HpW<T> {
+//     type Target<'ret>=MutexGuard<'ret, T> where T: 'ret;
+
+//     fn deref(&self) -> &Self::Target {
+//         todo!()
+//     }
+
+// }
+
+impl<T> Deref for HpW<T> {
+    type Target = str;
+
+    fn deref(&self) -> &Self::Target {
+        todo!()
+    }
+}
+
 /// Comparison function for equality of two HealthChecks
 /// We can only use the methods available in the HealthCheck for
 /// implementation of equality so that limits us to name for comparison
@@ -54,6 +107,8 @@ impl PartialEq<dyn HealthProbeInner> for dyn HealthProbeInner {
 }
 
 /// Trait to describe the external interface of the HealthProbe
+///
+/// This trait is object safe so can be used in a Box to be stored in HashSet
 pub trait HealthProbe: DynEq + DynHash + AsAny {
     /// return the name of the [HealthProbe]
     fn name(&self) -> &str;
@@ -83,6 +138,49 @@ mod tests {
     use std::collections::HashSet;
 
     use super::*;
+
+    #[derive(Debug)]
+    struct InnerI {
+        name: String,
+        count: u32,
+    }
+    impl InnerI {
+        pub fn kick(&mut self) {
+            self.count += 1
+        }
+    }
+
+    impl HealthProbeInner for InnerI {
+        fn get_name(&self) -> &str {
+            &self.name
+        }
+
+        fn check(&self, time: Instant) -> HealthProbeResult {
+            todo!()
+        }
+    }
+
+    #[test]
+    fn try_out_healthprobeinner() {
+        let mut hpi0 = InnerI {
+            name: "Hpi0".to_owned(),
+            count: 3,
+        };
+
+        println!("{:?} is called {}", hpi0, hpi0.get_name());
+
+        let hw0 = HpW::new(hpi0);
+
+        println!("hw {:?} is called {}", hw0, hw0.name());
+        hw0.inner_through_lock().kick();
+        println!("hw {:?} is called {}", hw0, hw0.name());
+        hw0.inner_through_lock().kick();
+        println!("hw {:?} is called {}", hw0, hw0.name());
+        hw0.inner_through_lock().kick();
+        println!("hw {:?} is called {}", hw0, hw0.name());
+
+        assert!(false);
+    }
 
     #[derive(Hash, PartialEq, Debug)]
     struct ExampleI {
