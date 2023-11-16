@@ -4,7 +4,16 @@ use std::{
     time::Instant,
 };
 
+use log::info;
+use serde::Serialize;
+
 use super::health_probe::HealthProbe;
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct HealthCheckReply<'a> {
+    pub(crate) name: &'a str,
+    pub(crate) valid: bool,
+}
 
 #[derive(Debug)]
 struct HealthCheck {
@@ -30,6 +39,18 @@ impl HealthCheck {
             .unwrap()
             .iter()
             .all(|probe| probe.check(now))
+    }
+
+    pub fn check_reply(&self) -> HealthCheckReply {
+        let valid = self.check();
+        if !valid {
+            // TODO: Build a better view of state of failed check
+            info!("Invalid: {} = {}", self.name, false)
+        }
+        HealthCheckReply {
+            name: &self.name,
+            valid: self.check(),
+        }
     }
 
     pub fn insert_boxed(&self, newval: Box<dyn HealthProbe>) -> bool {
@@ -102,18 +123,53 @@ mod tests {
         let check = HealthCheck::new("ready");
 
         assert!(check.check());
+        assert_eq!(
+            check.check_reply(),
+            HealthCheckReply {
+                name: "ready",
+                valid: true
+            }
+        );
 
         check.insert_boxed(Box::new(hw_true));
         assert!(check.check());
+        assert_eq!(
+            check.check_reply(),
+            HealthCheckReply {
+                name: "ready",
+                valid: true
+            }
+        );
 
         check.insert_boxed(Box::new(hw_changing.clone()));
         assert!(check.check());
+        assert_eq!(
+            check.check_reply(),
+            HealthCheckReply {
+                name: "ready",
+                valid: true
+            }
+        );
 
         hw_changing.inner_through_lock().toggle();
         assert!(!check.check());
+        assert_eq!(
+            check.check_reply(),
+            HealthCheckReply {
+                name: "ready",
+                valid: false
+            }
+        );
 
         hw_changing.inner_through_lock().toggle();
         assert!(check.check());
+        assert_eq!(
+            check.check_reply(),
+            HealthCheckReply {
+                name: "ready",
+                valid: true
+            }
+        );
     }
 
     // #[ignore]
