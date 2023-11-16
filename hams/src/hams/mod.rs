@@ -12,7 +12,7 @@ use crate::{
     error::HamsError,
     health::{
         health_probe::{HealthProbeInner, HealthProbeWrapper},
-        HealthCheckReply, HealthCheckResults,
+        HealthCheck, HealthCheckReply, HealthCheckResults,
     },
     tokio_tools::run_in_tokio,
 };
@@ -61,6 +61,8 @@ pub struct Hams {
     alive: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
     alive_previous: Arc<AtomicBool>,
     ready: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
+    alive2: HealthCheck,
+    ready2: HealthCheck,
 
     /// Callback to be called on shutdown
     shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
@@ -91,6 +93,8 @@ impl Hams {
             alive: Arc::new(Mutex::new(HashSet::new())),
             alive_previous: Arc::new(AtomicBool::new(false)),
             ready: Arc::new(Mutex::new(HashSet::new())),
+            alive2: HealthCheck::new("alive"),
+            ready2: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
             ct: CancellationToken::new(),

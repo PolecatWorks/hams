@@ -71,6 +71,7 @@ impl Hash for HealthProbeWrapper {
 /// Health Probe Wrapper provides a wrapper around the [HealthProbeInner] to create a
 /// Arc<Mutex<T>> for it and to provide some methods.
 /// It also implements the interface to allwo it to used in a HashSet
+///
 #[derive(Debug)]
 pub struct HpW<T> {
     inner: Arc<Mutex<T>>,
@@ -119,7 +120,7 @@ impl<T: Eq> PartialEq for HpW<T> {
 }
 impl<T: Eq> Eq for HpW<T> {}
 
-impl<T: HealthProbeInner + Eq + Hash + 'static> HealthProbe for HpW<T> {
+impl<'a, T: HealthProbeInner + Eq + Hash + 'static> HealthProbe for HpW<T> {
     fn name(&self) -> &str {
         // self.inner.lock().unwrap().name()
         todo!()
@@ -157,7 +158,7 @@ impl PartialEq<dyn HealthProbeInner> for dyn HealthProbeInner {
 /// Trait to describe the external interface of the HealthProbe
 ///
 /// This trait is object safe so can be used in a Box to be stored in HashSet
-pub trait HealthProbe: DynEq + DynHash + AsAny {
+pub trait HealthProbe: DynEq + DynHash + AsAny + Send {
     /// return the name of the [HealthProbe]
     fn name(&self) -> &str;
 

@@ -16,13 +16,24 @@ pub struct HealthCheckReply<'a> {
     pub(crate) valid: bool,
 }
 
-#[derive(Debug)]
-struct HealthCheck {
+impl<'a> warp::Reply for HealthCheckReply<'a> {
+    fn into_response(self) -> warp::reply::Response {
+        warp::reply::json(&self).into_response()
+    }
+}
+
+/// Represent the [HealthCheck] which collects [HealthProbe]s and replies to a check with a struct that can use returned as
+/// a kubernetes readyness or liveness probe
+///
+/// Problems when creating this as the 'static lifetime required for dyn causes issues making this struct Send safe
+/// This seems to capture the issue: https://users.rust-lang.org/t/why-this-impl-type-lifetime-may-not-live-long-enough/67855
+#[derive(Debug, Clone)]
+pub struct HealthCheck {
     name: String,
     probes: Arc<Mutex<HashSet<Box<dyn HealthProbe>>>>,
 }
 
-impl HealthCheck {
+impl<'a> HealthCheck {
     pub fn new<S: Into<String>>(name: S) -> HealthCheck {
         HealthCheck {
             name: name.into(),
@@ -62,7 +73,7 @@ impl HealthCheck {
     }
 }
 
-impl Display for HealthCheck {
+impl<'a> Display for HealthCheck {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: ", self.name)?;
         // TODO: Build a better view of state of failed check
