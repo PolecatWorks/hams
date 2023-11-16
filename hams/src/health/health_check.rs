@@ -1,5 +1,6 @@
 use std::{
     collections::HashSet,
+    fmt::Display,
     sync::{Arc, Mutex},
     time::Instant,
 };
@@ -44,8 +45,7 @@ impl HealthCheck {
     pub fn check_reply(&self) -> HealthCheckReply {
         let valid = self.check();
         if !valid {
-            // TODO: Build a better view of state of failed check
-            info!("Invalid: {} = {}", self.name, false)
+            info!("Invalid check: {}", self);
         }
         HealthCheckReply {
             name: &self.name,
@@ -59,6 +59,15 @@ impl HealthCheck {
 
     pub fn remove_boxed(&self, value: Box<dyn HealthProbe>) -> bool {
         self.probes.lock().unwrap().remove(&value)
+    }
+}
+
+impl Display for HealthCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}: ", self.name)?;
+        // TODO: Build a better view of state of failed check
+
+        Ok(())
     }
 }
 
