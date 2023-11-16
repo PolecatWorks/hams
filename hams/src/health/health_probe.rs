@@ -1,4 +1,4 @@
-//! HealthChecks in Hams
+//! HealthProbe traits and functions for k8s health checks
 
 use crate::utils::{AsAny, DynEq, DynHash};
 use serde::Serialize;

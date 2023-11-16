@@ -57,11 +57,12 @@ pub struct Hams {
     port: u16,
 
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
+    alive_old: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
     alive_previous: Arc<AtomicBool>,
-    ready: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
-    alive2: HealthCheck,
-    ready2: HealthCheck,
+    ready_old: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
+
+    alive: HealthCheck,
+    ready: HealthCheck,
 
     /// Callback to be called on shutdown
     shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
@@ -89,11 +90,11 @@ impl Hams {
                 package: env!("CARGO_PKG_NAME").to_string(),
             },
             port: 8079,
-            alive: Arc::new(Mutex::new(HashSet::new())),
+            alive_old: Arc::new(Mutex::new(HashSet::new())),
             alive_previous: Arc::new(AtomicBool::new(false)),
-            ready: Arc::new(Mutex::new(HashSet::new())),
-            alive2: HealthCheck::new("alive"),
-            ready2: HealthCheck::new("ready"),
+            ready_old: Arc::new(Mutex::new(HashSet::new())),
+            alive: HealthCheck::new("alive"),
+            ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
             ct: CancellationToken::new(),
@@ -106,21 +107,21 @@ impl Hams {
     }
 
     pub fn add_ready(&self, newval: Box<dyn HealthProbeInner>) {
-        self.ready
+        self.ready_old
             .lock()
             .unwrap()
             .insert(HealthProbeWrapper(newval));
     }
 
     pub fn remove_ready(&mut self, ready: Box<dyn HealthProbeInner>) -> bool {
-        let mut readys = self.ready.lock().unwrap();
+        let mut readys = self.ready_old.lock().unwrap();
         readys.remove(&HealthProbeWrapper(ready))
     }
 
     pub fn check_ready(&self) -> (bool, String) {
         let my_now = Instant::now();
 
-        let my_lock = self.ready.lock().unwrap();
+        let my_lock = self.ready_old.lock().unwrap();
 
         let detail = my_lock
             .iter()
@@ -141,21 +142,21 @@ impl Hams {
     }
 
     pub fn add_alive(&self, newval: Box<dyn HealthProbeInner>) {
-        self.alive
+        self.alive_old
             .lock()
             .unwrap()
             .insert(HealthProbeWrapper(newval));
     }
 
     pub fn remove_alive(&mut self, alive: Box<dyn HealthProbeInner>) -> bool {
-        let mut alives = self.alive.lock().unwrap();
+        let mut alives = self.alive_old.lock().unwrap();
         alives.remove(&HealthProbeWrapper(alive))
     }
 
     pub fn check_alive(&self) -> (bool, String) {
         let my_now = Instant::now();
 
-        let my_lock = self.alive.lock().unwrap();
+        let my_lock = self.alive_old.lock().unwrap();
 
         let detail = my_lock
             .iter()
@@ -421,11 +422,11 @@ mod warp_handlers {
     }
     /// Call ready check and return result as HealthCheckReply
     pub async fn ready(hams: Hams) -> Result<HealthCheckReply, Infallible> {
-        Ok(hams.ready2.check_reply())
+        Ok(hams.ready.check_reply())
     }
     /// Call alive check and return result as HealthCheckReply
     pub async fn alive(hams: Hams) -> Result<HealthCheckReply, Infallible> {
-        Ok(hams.alive2.check_reply())
+        Ok(hams.alive.check_reply())
     }
 }
 
