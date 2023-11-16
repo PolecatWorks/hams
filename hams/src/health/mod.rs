@@ -1,3 +1,4 @@
+pub mod health_check;
 pub mod health_probe;
 pub mod health_result;
 

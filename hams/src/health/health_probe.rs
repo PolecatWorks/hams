@@ -29,9 +29,12 @@ impl<'a> Display for HealthProbeResult<'a> {
 /// get_name returns the name of the probe
 pub trait HealthProbeInner: Debug + Send {
     /// Get name of HealthCheck
-    fn get_name(&self) -> &str;
+    fn name(&self) -> &str;
+
+    fn name_owned(&self) -> String;
     /// Check if the HealthCheck is valid
-    fn check(&self, time: Instant) -> HealthProbeResult;
+    fn check_reply(&self, time: Instant) -> HealthProbeResult;
+    fn check(&self, time: Instant) -> bool;
 }
 
 /// Trait to define the health check functionality
@@ -42,11 +45,11 @@ pub struct HealthProbeWrapper(pub Box<dyn HealthProbeInner>);
 impl HealthProbeWrapper {
     /// get the name of HealthCheck
     pub fn get_name(&self) -> &str {
-        self.0.get_name()
+        self.0.name()
     }
     /// Check if the HealthCheck is valid
     pub fn check(&self, time: Instant) -> HealthProbeResult {
-        self.0.check(time)
+        self.0.check_reply(time)
     }
 }
 impl Eq for HealthProbeWrapper {}
@@ -69,7 +72,7 @@ impl Hash for HealthProbeWrapper {
 /// Arc<Mutex<T>> for it and to provide some methods.
 /// It also implements the interface to allwo it to used in a HashSet
 #[derive(Debug)]
-struct HpW<T> {
+pub struct HpW<T> {
     inner: Arc<Mutex<T>>,
 }
 
@@ -94,7 +97,7 @@ impl<T: HealthProbeInner> HpW<T> {
     ///
     /// This is a copy of string so NOT cheap
     pub fn name(&self) -> String {
-        self.inner.lock().unwrap().get_name().to_owned()
+        self.inner.lock().unwrap().name().to_owned()
     }
 }
 
@@ -105,18 +108,28 @@ impl<T: Hash> Hash for HpW<T> {
 }
 impl<T: Eq> PartialEq for HpW<T> {
     fn eq(&self, other: &Self) -> bool {
-        *self.inner.lock().unwrap() == *other.inner.lock().unwrap()
+        // If we just compare on content then we get a mutex deadlock when we compare an object with itself.
+        // This occurs when we are trying to remove a value from a HashSet
+        if Arc::ptr_eq(&self.inner, &other.inner) {
+            true
+        } else {
+            *self.inner.lock().unwrap() == *other.inner.lock().unwrap()
+        }
     }
 }
 impl<T: Eq> Eq for HpW<T> {}
 
-impl<T: Eq + Hash + 'static> HealthProbe for HpW<T> {
+impl<T: HealthProbeInner + Eq + Hash + 'static> HealthProbe for HpW<T> {
     fn name(&self) -> &str {
+        // self.inner.lock().unwrap().name()
         todo!()
     }
+    fn name_owned(&self) -> String {
+        self.inner.lock().unwrap().name_owned()
+    }
 
-    fn check(&self) -> bool {
-        todo!()
+    fn check(&self, time: Instant) -> bool {
+        self.inner.lock().unwrap().check(time)
     }
 }
 
@@ -137,9 +150,7 @@ impl<T> HpW<T> {
 /// implementation of equality so that limits us to name for comparison
 impl PartialEq<dyn HealthProbeInner> for dyn HealthProbeInner {
     fn eq(&self, other: &dyn HealthProbeInner) -> bool {
-        println!("IM IN PartialEq");
-        println!("Comparing {} and {}", self.get_name(), other.get_name());
-        self.get_name() == other.get_name()
+        self.name() == other.name()
     }
 }
 
@@ -149,8 +160,10 @@ impl PartialEq<dyn HealthProbeInner> for dyn HealthProbeInner {
 pub trait HealthProbe: DynEq + DynHash + AsAny {
     /// return the name of the [HealthProbe]
     fn name(&self) -> &str;
+
+    fn name_owned(&self) -> String;
     /// check if the healthCheck is valid. True is valid
-    fn check(&self) -> bool;
+    fn check(&self, now: Instant) -> bool;
 }
 /// Implement PartialEq for HealthProbe to allow Eq to derive the PartialEq for this trait
 impl PartialEq for dyn HealthProbe {
@@ -166,7 +179,7 @@ impl Hash for dyn HealthProbe {
 impl Eq for dyn HealthProbe {}
 impl std::fmt::Debug for dyn HealthProbe {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name(), self.check())
+        write!(f, "{}/{}", self.name_owned(), self.check(Instant::now()))
     }
 }
 
@@ -177,6 +190,43 @@ mod tests {
     use super::*;
 
     // Create a HealthProbe that is a HpW<T> of a couple of Inners and then load them into a HashSet
+
+    #[test]
+    fn equality_for_inner() {
+        #[derive(Debug, Hash, PartialEq)]
+        struct InnerI {
+            name: String,
+            count: u32,
+        }
+        impl Eq for InnerI {}
+
+        let mut hpi0 = InnerI {
+            name: "Hpi0".to_owned(),
+            count: 3,
+        };
+        let mut hpi1 = InnerI {
+            name: "Hpi1".to_owned(),
+            count: 2,
+        };
+        let mut hpi2 = InnerI {
+            name: "Hpi0".to_owned(),
+            count: 3,
+        };
+
+        assert_ne!(hpi0, hpi1);
+        assert_eq!(hpi0, hpi2);
+
+        assert_eq!(hpi0, hpi0);
+
+        let hpw0 = HpW::new(hpi0);
+        let hpw1 = HpW::new(hpi1);
+        let hpw2 = HpW::new(hpi2);
+
+        assert_ne!(hpw0, hpw1);
+        assert_eq!(hpw0, hpw2);
+
+        assert_eq!(hpw0, hpw0);
+    }
 
     #[test]
     fn try_out_healthprobe_of_hpw() {
@@ -194,12 +244,18 @@ mod tests {
         }
 
         impl HealthProbeInner for InnerI {
-            fn get_name(&self) -> &str {
+            fn name(&self) -> &str {
                 &self.name
             }
-
-            fn check(&self, time: Instant) -> HealthProbeResult {
+            fn name_owned(&self) -> String {
+                self.name.clone()
+            }
+            fn check_reply(&self, time: Instant) -> HealthProbeResult {
                 todo!()
+            }
+
+            fn check(&self, time: Instant) -> bool {
+                self.count < 10
             }
         }
 
@@ -217,12 +273,18 @@ mod tests {
         }
 
         impl HealthProbeInner for InnerJ {
-            fn get_name(&self) -> &str {
+            fn name(&self) -> &str {
                 &self.name
             }
-
-            fn check(&self, time: Instant) -> HealthProbeResult {
+            fn name_owned(&self) -> String {
+                self.name.clone()
+            }
+            fn check_reply(&self, time: Instant) -> HealthProbeResult {
                 todo!()
+            }
+
+            fn check(&self, time: Instant) -> bool {
+                self.count < 10
             }
         }
 
@@ -235,10 +297,13 @@ mod tests {
             count: 2,
         };
 
-        println!("{:?} is called {}", hpi0, hpi0.get_name());
+        println!("{:?} is called {}", hpi0, hpi0.name());
 
         let hw0 = HpW::new(hpi0);
         let hw1 = HpW::new(hpj0);
+
+        println!("Getting hw0 check {}", hw0.check(Instant::now()));
+        println!("Getting hw1 check {}", hw1.check(Instant::now()));
 
         let mut hc0: HashSet<Box<dyn HealthProbe>> = HashSet::new();
 
@@ -260,11 +325,17 @@ mod tests {
         }
 
         impl HealthProbeInner for InnerI {
-            fn get_name(&self) -> &str {
+            fn name(&self) -> &str {
                 &self.name
             }
+            fn name_owned(&self) -> String {
+                self.name.clone()
+            }
+            fn check_reply(&self, time: Instant) -> HealthProbeResult {
+                todo!()
+            }
 
-            fn check(&self, time: Instant) -> HealthProbeResult {
+            fn check(&self, time: Instant) -> bool {
                 todo!()
             }
         }
@@ -274,7 +345,7 @@ mod tests {
             count: 3,
         };
 
-        println!("{:?} is called {}", hpi0, hpi0.get_name());
+        println!("{:?} is called {}", hpi0, hpi0.name());
 
         let hw0 = HpW::new(hpi0);
 
@@ -296,11 +367,14 @@ mod tests {
         }
         impl Eq for ExampleI {}
         impl HealthProbe for ExampleI {
-            fn check(&self) -> bool {
+            fn check(&self, now: Instant) -> bool {
                 self.count < 10
             }
             fn name(&self) -> &str {
                 &self.name
+            }
+            fn name_owned(&self) -> String {
+                self.name.clone()
             }
         }
 
@@ -311,11 +385,14 @@ mod tests {
         }
         impl Eq for ExampleJ {}
         impl HealthProbe for ExampleJ {
-            fn check(&self) -> bool {
+            fn check(&self, now: Instant) -> bool {
                 self.count < 10
             }
             fn name(&self) -> &str {
                 &self.name
+            }
+            fn name_owned(&self) -> String {
+                self.name.clone()
             }
         }
 
@@ -353,12 +430,18 @@ mod tests {
     }
 
     impl HealthProbeInner for I {
-        fn get_name(&self) -> &str {
+        fn name(&self) -> &str {
             println!("HealthCheck for I {}", self.name);
             &self.name
         }
+        fn name_owned(&self) -> String {
+            self.name.clone()
+        }
+        fn check_reply(&self, time: std::time::Instant) -> HealthProbeResult {
+            todo!()
+        }
 
-        fn check(&self, time: std::time::Instant) -> HealthProbeResult {
+        fn check(&self, time: Instant) -> bool {
             todo!()
         }
     }

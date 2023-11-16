@@ -46,16 +46,23 @@ impl AliveCheckKicked {
 }
 
 impl HealthProbeInner for AliveCheckKicked {
-    fn get_name(&self) -> &str {
+    fn name(&self) -> &str {
         &self.name
     }
+    fn name_owned(&self) -> String {
+        self.name.clone()
+    }
 
-    fn check(&self, time: Instant) -> HealthProbeResult {
+    fn check_reply(&self, time: Instant) -> HealthProbeResult {
         let me = self.get_inner();
         HealthProbeResult {
             name: &self.name,
             valid: me.latest + me.margin >= time,
         }
+    }
+
+    fn check(&self, time: Instant) -> bool {
+        todo!()
     }
 }
 
@@ -119,7 +126,7 @@ mod tests {
 
         assert!(health.get_inner().latest > orig);
 
-        println!("all done with {}", health.get_name());
+        println!("all done with {}", health.name());
     }
 
     #[test]
@@ -137,7 +144,7 @@ mod tests {
     fn test_check() {
         let health = AliveCheckKicked::new("hello", Duration::from_secs(10));
 
-        let reply = health.check(Instant::now());
+        let reply = health.check_reply(Instant::now());
 
         println!("reply = {:?}", reply);
     }
