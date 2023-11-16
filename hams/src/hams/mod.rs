@@ -11,8 +11,7 @@ use std::{
 use crate::{
     error::HamsError,
     health::{
-        health_probe::{HealthProbeInner, HealthProbeWrapper},
-        HealthCheck, HealthCheckReply, HealthCheckResults,
+        HealthCheck, HealthCheckReply, HealthCheckResults, HealthProbeInner, HealthProbeWrapper,
     },
     tokio_tools::run_in_tokio,
 };
@@ -133,9 +132,9 @@ impl Hams {
         (
             valid,
             serde_json::to_string(&HealthCheckReply {
-                name: "ready",
+                name: "ready".to_owned(),
                 valid,
-                detail,
+                // detail,
             })
             .unwrap(),
         )
@@ -175,9 +174,9 @@ impl Hams {
         (
             valid,
             serde_json::to_string(&HealthCheckReply {
-                name: "alive",
+                name: "alive".to_owned(),
                 valid,
-                detail,
+                // detail,
                 // detail: detail.into(),
             })
             .unwrap(),
@@ -347,11 +346,6 @@ mod warp_filters {
     pub fn hams_service(
         hams: Hams,
     ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        let name = warp::path("name")
-            .and(warp::get())
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::name);
-
         let version = warp::path("version")
             .and(warp::get())
             .and(with_hams(hams.clone()))
@@ -360,19 +354,19 @@ mod warp_filters {
         let alive = warp::path("alive")
             .and(warp::get())
             .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::alive_handler);
+            .and_then(warp_handlers::alive);
 
         let ready = warp::path("ready")
             .and(warp::get())
             .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::ready_handler);
+            .and_then(warp_handlers::ready);
 
         let shutdown = warp::path("shutdown")
             .and(warp::post())
             .and(with_hams(hams.clone()))
             .and_then(warp_handlers::shutdown);
 
-        warp::path("hams").and(name.or(version).or(alive).or(ready).or(shutdown))
+        warp::path("hams").and(version.or(alive).or(ready).or(shutdown))
     }
 
     fn with_hams(
@@ -384,6 +378,8 @@ mod warp_filters {
 
 #[cfg(feature = "warp")]
 mod warp_handlers {
+    use crate::health::HealthCheckReply;
+
     use super::{Hams, HamsVersion};
     use serde::Serialize;
     use std::convert::Infallible;
@@ -396,58 +392,40 @@ mod warp_handlers {
 
     /// Reply structure for Name endpoint
     #[derive(Serialize)]
-    struct NameReply {
+    pub struct NameVersionReply {
         name: String,
+        version: HamsVersion,
     }
-    impl warp::Reply for NameReply {
+    impl warp::Reply for NameVersionReply {
         fn into_response(self) -> warp::reply::Response {
             warp::reply::json(&self).into_response()
         }
     }
 
     /// Handler for name endpoint
-    pub async fn name(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        Ok(NameReply { name: hams.name })
-    }
-
-    /// Handler for version endpoint
-    pub async fn version(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        Ok(hams.version)
+    pub async fn version(hams: Hams) -> Result<NameVersionReply, Infallible> {
+        Ok(NameVersionReply {
+            name: hams.name,
+            version: hams.version,
+        })
     }
 
     /// Handler for shutdown endpoint
-    pub async fn shutdown(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn shutdown(hams: Hams) -> Result<NameVersionReply, Infallible> {
         Hams::tigger_callback(hams.shutdown_cb.clone());
 
-        Ok(hams.version)
+        Ok(NameVersionReply {
+            name: hams.name,
+            version: hams.version,
+        })
     }
-
-    /// Handler for alive endpoint
-    pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let (valid, content) = hams.check_alive();
-
-        Ok(warp::reply::with_status(
-            content,
-            if valid {
-                warp::http::StatusCode::OK
-            } else {
-                warp::http::StatusCode::NOT_ACCEPTABLE
-            },
-        ))
+    /// Call ready check and return result as HealthCheckReply
+    pub async fn ready(hams: Hams) -> Result<HealthCheckReply, Infallible> {
+        Ok(hams.ready2.check_reply())
     }
-
-    /// Handler for ready endpoint
-    pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let (valid, content) = hams.check_ready();
-
-        Ok(warp::reply::with_status(
-            content,
-            if valid {
-                warp::http::StatusCode::OK
-            } else {
-                warp::http::StatusCode::NOT_ACCEPTABLE
-            },
-        ))
+    /// Call alive check and return result as HealthCheckReply
+    pub async fn alive(hams: Hams) -> Result<HealthCheckReply, Infallible> {
+        Ok(hams.alive2.check_reply())
     }
 }
 

@@ -11,14 +11,22 @@ use serde::Serialize;
 use super::health_probe::HealthProbe;
 
 #[derive(Debug, Eq, PartialEq, Serialize)]
-pub struct HealthCheckReply<'a> {
-    pub(crate) name: &'a str,
+pub struct HealthCheckReply {
+    pub(crate) name: String,
     pub(crate) valid: bool,
 }
 
-impl<'a> warp::Reply for HealthCheckReply<'a> {
+impl<'a> warp::Reply for HealthCheckReply {
     fn into_response(self) -> warp::reply::Response {
-        warp::reply::json(&self).into_response()
+        warp::reply::with_status(
+            warp::reply::json(&self),
+            if self.valid {
+                warp::http::StatusCode::OK
+            } else {
+                warp::http::StatusCode::NOT_ACCEPTABLE
+            },
+        )
+        .into_response()
     }
 }
 
@@ -59,7 +67,7 @@ impl<'a> HealthCheck {
             info!("Invalid check: {}", self);
         }
         HealthCheckReply {
-            name: &self.name,
+            name: self.name.clone(),
             valid: self.check(),
         }
     }
@@ -146,7 +154,7 @@ mod tests {
         assert_eq!(
             check.check_reply(),
             HealthCheckReply {
-                name: "ready",
+                name: "ready".to_string(),
                 valid: true
             }
         );
@@ -156,7 +164,7 @@ mod tests {
         assert_eq!(
             check.check_reply(),
             HealthCheckReply {
-                name: "ready",
+                name: "ready".to_string(),
                 valid: true
             }
         );
@@ -166,7 +174,7 @@ mod tests {
         assert_eq!(
             check.check_reply(),
             HealthCheckReply {
-                name: "ready",
+                name: "ready".to_string(),
                 valid: true
             }
         );
@@ -176,7 +184,7 @@ mod tests {
         assert_eq!(
             check.check_reply(),
             HealthCheckReply {
-                name: "ready",
+                name: "ready".to_string(),
                 valid: false
             }
         );
@@ -186,7 +194,7 @@ mod tests {
         assert_eq!(
             check.check_reply(),
             HealthCheckReply {
-                name: "ready",
+                name: "ready".to_string(),
                 valid: true
             }
         );
