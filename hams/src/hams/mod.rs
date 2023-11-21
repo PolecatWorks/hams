@@ -11,7 +11,8 @@ use std::{
 use crate::{
     error::HamsError,
     health::{
-        HealthCheck, HealthCheckReply, HealthCheckResults, HealthProbeInner, HealthProbeWrapper,
+        health_probe::HealthProbe, HealthCheck, HealthCheckReply, HealthCheckResults,
+        HealthProbeInner, HealthProbeWrapper,
     },
     tokio_tools::run_in_tokio,
 };
@@ -42,7 +43,12 @@ pub struct HamsVersion {
     /// version from hams package in Cargo.toml
     version: String,
     /// version from package name in Cargo.toml
-    package: String,
+    name: String,
+}
+impl warp::Reply for HamsVersion {
+    fn into_response(self) -> warp::reply::Response {
+        warp::reply::json(&self).into_response()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -87,7 +93,7 @@ impl Hams {
 
             version: HamsVersion {
                 version: env!("CARGO_PKG_VERSION").to_string(),
-                package: env!("CARGO_PKG_NAME").to_string(),
+                name: env!("CARGO_PKG_NAME").to_string(),
             },
             port: 8079,
             alive_old: Arc::new(Mutex::new(HashSet::new())),
@@ -104,6 +110,25 @@ impl Hams {
     pub fn register_shutdown(&self, user_data: *mut c_void, cb: unsafe extern "C" fn(*mut c_void)) {
         println!("Add shutdown to {}", self.name);
         *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
+    }
+
+    pub fn ready_insert(&self, newval: Box<dyn HealthProbe>) -> bool {
+        self.ready.insert_boxed(newval)
+    }
+    pub fn ready_remove(&self, value: Box<dyn HealthProbe>) -> bool {
+        self.ready.remove_boxed(value)
+    }
+    pub fn ready_check(&self, now: Instant) -> HealthCheckReply {
+        self.ready.check_reply(now)
+    }
+    pub fn alive_insert(&self, newval: Box<dyn HealthProbe>) -> bool {
+        self.alive.insert_boxed(newval)
+    }
+    pub fn alive_remove(&self, value: Box<dyn HealthProbe>) -> bool {
+        self.alive.remove_boxed(value)
+    }
+    pub fn alive_check(&self, now: Instant) -> HealthCheckReply {
+        self.alive.check_reply(now)
     }
 
     pub fn add_ready(&self, newval: Box<dyn HealthProbeInner>) {
@@ -383,50 +408,28 @@ mod warp_handlers {
 
     use super::{Hams, HamsVersion};
     use serde::Serialize;
-    use std::convert::Infallible;
-
-    impl warp::Reply for HamsVersion {
-        fn into_response(self) -> warp::reply::Response {
-            warp::reply::json(&self).into_response()
-        }
-    }
-
-    /// Reply structure for Name endpoint
-    #[derive(Serialize)]
-    pub struct NameVersionReply {
-        name: String,
-        version: HamsVersion,
-    }
-    impl warp::Reply for NameVersionReply {
-        fn into_response(self) -> warp::reply::Response {
-            warp::reply::json(&self).into_response()
-        }
-    }
+    use std::{convert::Infallible, time::Instant};
 
     /// Handler for name endpoint
-    pub async fn version(hams: Hams) -> Result<NameVersionReply, Infallible> {
-        Ok(NameVersionReply {
-            name: hams.name,
-            version: hams.version,
-        })
+    pub async fn version(hams: Hams) -> Result<HamsVersion, Infallible> {
+        Ok(hams.version)
     }
 
     /// Handler for shutdown endpoint
-    pub async fn shutdown(hams: Hams) -> Result<NameVersionReply, Infallible> {
+    pub async fn shutdown(hams: Hams) -> Result<HamsVersion, Infallible> {
         Hams::tigger_callback(hams.shutdown_cb.clone());
 
-        Ok(NameVersionReply {
-            name: hams.name,
-            version: hams.version,
-        })
+        Ok(hams.version)
     }
     /// Call ready check and return result as HealthCheckReply
     pub async fn ready(hams: Hams) -> Result<HealthCheckReply, Infallible> {
-        Ok(hams.ready.check_reply())
+        let now = Instant::now();
+        Ok(hams.ready.check_reply(now))
     }
     /// Call alive check and return result as HealthCheckReply
     pub async fn alive(hams: Hams) -> Result<HealthCheckReply, Infallible> {
-        Ok(hams.alive.check_reply())
+        let now = Instant::now();
+        Ok(hams.alive.check_reply(now))
     }
 }
 

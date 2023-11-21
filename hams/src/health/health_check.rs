@@ -52,8 +52,7 @@ impl<'a> HealthCheck {
     /// Check the status of all probes and return state of check
     ///
     /// State is true if all are true else false
-    pub fn check(&self) -> bool {
-        let now = Instant::now();
+    pub fn check(&self, now: Instant) -> bool {
         self.probes
             .lock()
             .unwrap()
@@ -61,14 +60,14 @@ impl<'a> HealthCheck {
             .all(|probe| probe.check(now))
     }
 
-    pub fn check_reply(&self) -> HealthCheckReply {
-        let valid = self.check();
+    pub fn check_reply(&self, now: Instant) -> HealthCheckReply {
+        let valid = self.check(now);
         if !valid {
             info!("Invalid check: {}", self);
         }
         HealthCheckReply {
             name: self.name.clone(),
-            valid: self.check(),
+            valid,
         }
     }
 
@@ -150,9 +149,10 @@ mod tests {
 
         let check = HealthCheck::new("ready");
 
-        assert!(check.check());
+        let now = Instant::now();
+        assert!(check.check(now));
         assert_eq!(
-            check.check_reply(),
+            check.check_reply(now),
             HealthCheckReply {
                 name: "ready".to_string(),
                 valid: true
@@ -160,9 +160,11 @@ mod tests {
         );
 
         check.insert_boxed(Box::new(hw_true));
-        assert!(check.check());
+
+        let now = Instant::now();
+        assert!(check.check(now));
         assert_eq!(
-            check.check_reply(),
+            check.check_reply(now),
             HealthCheckReply {
                 name: "ready".to_string(),
                 valid: true
@@ -170,9 +172,11 @@ mod tests {
         );
 
         check.insert_boxed(Box::new(hw_changing.clone()));
-        assert!(check.check());
+
+        let now = Instant::now();
+        assert!(check.check(now));
         assert_eq!(
-            check.check_reply(),
+            check.check_reply(now),
             HealthCheckReply {
                 name: "ready".to_string(),
                 valid: true
@@ -180,9 +184,11 @@ mod tests {
         );
 
         hw_changing.inner_through_lock().toggle();
-        assert!(!check.check());
+
+        let now = Instant::now();
+        assert!(!check.check(now));
         assert_eq!(
-            check.check_reply(),
+            check.check_reply(now),
             HealthCheckReply {
                 name: "ready".to_string(),
                 valid: false
@@ -190,9 +196,11 @@ mod tests {
         );
 
         hw_changing.inner_through_lock().toggle();
-        assert!(check.check());
+
+        let now = Instant::now();
+        assert!(check.check(now));
         assert_eq!(
-            check.check_reply(),
+            check.check_reply(now),
             HealthCheckReply {
                 name: "ready".to_string(),
                 valid: true
@@ -245,8 +253,8 @@ mod tests {
         assert!(check.insert_boxed(Box::new(hw0.clone())));
         assert!(!check.insert_boxed(Box::new(hw0.clone())));
         println!("check = {:?}", check);
-
-        assert!(check.check());
+        let now = Instant::now();
+        assert!(check.check(now));
 
         assert!(check.remove_boxed(Box::new(hw0.clone())));
         assert!(!check.remove_boxed(Box::new(hw0.clone())));
