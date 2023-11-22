@@ -57,13 +57,17 @@ mod tests {
         let now_precreate = Instant::now();
         let mut kick = Kick::new("mykick", Duration::from_secs(30));
         let now_postcreate = Instant::now();
+        assert!(now_postcreate > now_precreate);
 
         assert!(kick.check(now_precreate + Duration::from_secs(30)));
         assert!(!kick.check(now_postcreate + Duration::from_secs(30)));
 
         kick.kick();
-        let now_postkick = Instant::now();
         assert!(kick.check(now_postcreate + Duration::from_secs(30)));
+
+        let now_postkick = Instant::now();
+
+        assert!(!kick.check(now_postkick + Duration::from_secs(30)));
 
         let kpw = HpW::new(kick);
 
