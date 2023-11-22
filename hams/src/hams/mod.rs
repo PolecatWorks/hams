@@ -65,7 +65,6 @@ pub struct Hams {
     // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
     alive_old: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
     alive_previous: Arc<AtomicBool>,
-    ready_old: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
 
     alive: HealthCheck,
     ready: HealthCheck,
@@ -98,7 +97,6 @@ impl Hams {
             port: 8079,
             alive_old: Arc::new(Mutex::new(HashSet::new())),
             alive_previous: Arc::new(AtomicBool::new(false)),
-            ready_old: Arc::new(Mutex::new(HashSet::new())),
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
@@ -129,41 +127,6 @@ impl Hams {
     }
     pub fn alive_check(&self, now: Instant) -> HealthCheckReply {
         self.alive.check_reply(now)
-    }
-
-    pub fn add_ready(&self, newval: Box<dyn HealthProbeInner>) {
-        self.ready_old
-            .lock()
-            .unwrap()
-            .insert(HealthProbeWrapper(newval));
-    }
-
-    pub fn remove_ready(&mut self, ready: Box<dyn HealthProbeInner>) -> bool {
-        let mut readys = self.ready_old.lock().unwrap();
-        readys.remove(&HealthProbeWrapper(ready))
-    }
-
-    pub fn check_ready(&self) -> (bool, String) {
-        let my_now = Instant::now();
-
-        let my_lock = self.ready_old.lock().unwrap();
-
-        let detail = my_lock
-            .iter()
-            .map(|health| health.check(my_now))
-            .collect::<Vec<_>>();
-
-        let valid = detail.iter().all(|result| result.valid);
-
-        (
-            valid,
-            serde_json::to_string(&HealthCheckReply {
-                name: "ready".to_owned(),
-                valid,
-                // detail,
-            })
-            .unwrap(),
-        )
     }
 
     pub fn add_alive(&self, newval: Box<dyn HealthProbeInner>) {
@@ -407,7 +370,7 @@ mod warp_handlers {
     use crate::health::HealthCheckReply;
 
     use super::{Hams, HamsVersion};
-    use serde::Serialize;
+
     use std::{convert::Infallible, time::Instant};
 
     /// Handler for name endpoint
