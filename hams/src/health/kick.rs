@@ -48,8 +48,6 @@ impl HealthProbeInner for Kick {
 mod tests {
     use std::thread;
 
-    use libc::sleep;
-
     use crate::health::health_probe::{HealthProbe, HpW};
 
     use super::*;

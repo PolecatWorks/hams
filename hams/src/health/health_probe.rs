@@ -427,7 +427,6 @@ mod tests {
     #[derive(Debug, Clone)]
     struct I {
         name: String,
-        count: i64,
     }
 
     impl HealthProbeInner for I {
@@ -451,11 +450,9 @@ mod tests {
     fn compare_hc_via_trait() {
         let hc0 = I {
             name: "Test0".to_owned(),
-            count: 0,
         };
         let hc1 = I {
             name: "Test1".to_owned(),
-            count: 0,
         };
 
         // assert_ne!(hc0, hc1);
