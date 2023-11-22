@@ -46,6 +46,10 @@ impl HealthProbeInner for Kick {
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
+
+    use libc::sleep;
+
     use crate::health::health_probe::{HealthProbe, HpW};
 
     use super::*;
@@ -55,9 +59,21 @@ mod tests {
         println!("Checking kick");
 
         let now_precreate = Instant::now();
+        // Need to introduce the forced sleep to Guarantee this test to work. OSX Arm is NOT TIER 1. Therefore Instant::now() is NOT GUARANTED to be monatonic incrasing.
+        // In testing is it observed that we get identical values sometimes.
+        thread::sleep(Duration::from_millis(10));
         let mut kick = Kick::new("mykick", Duration::from_secs(30));
+        thread::sleep(Duration::from_millis(10));
         let now_postcreate = Instant::now();
-        assert!(now_postcreate > now_precreate);
+        assert!(kick.latest > now_precreate);
+        println!(
+            "precreate = {:?} kick = {:?}, postcreate = {:?}",
+            now_precreate, kick.latest, now_postcreate
+        );
+        assert!(
+            now_postcreate > kick.latest,
+            "post_create was not greater than latest"
+        );
 
         assert!(kick.check(now_precreate + Duration::from_secs(30)));
         assert!(!kick.check(now_postcreate + Duration::from_secs(30)));
