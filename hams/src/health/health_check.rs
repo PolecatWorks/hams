@@ -83,12 +83,22 @@ impl<'a> HealthCheck {
 impl<'a> Display for HealthCheck {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: ", self.name)?;
-        let now = Instant::now();
+        // TODO: Rewrite this to have time provided outside the function and pass down to probes
 
-        for probe in self.probes.lock().unwrap().iter() {
-            // write!(f, "{}/{}", probe.name(), if probe.check(now) { "valid"} else {"failed"} )?;
-            write!(f, "{}", probe.name())?;
-        }
+        let mut first = true;
+
+        self.probes
+            .lock()
+            .unwrap()
+            .iter()
+            .try_fold((), |result, check| {
+                if first {
+                    first = false;
+                    write!(f, "{:?}", check)
+                } else {
+                    write!(f, ",{:?}", check)
+                }
+            })?;
 
         Ok(())
     }
