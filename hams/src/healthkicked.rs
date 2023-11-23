@@ -49,9 +49,6 @@ impl HealthProbeInner for AliveCheckKicked {
     fn name(&self) -> &str {
         &self.name
     }
-    fn name_owned(&self) -> String {
-        self.name.clone()
-    }
 
     fn check_reply(&self, time: Instant) -> HealthProbeResult {
         let me = self.get_inner();

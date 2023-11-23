@@ -29,9 +29,10 @@ impl<'a> Display for HealthProbeResult<'a> {
 /// get_name returns the name of the probe
 pub trait HealthProbeInner: Debug + Send {
     /// Get name of HealthCheck
+    /// TODO: Can we return &str. Seems we cannot as it is behind a MutexGuard so need to return Owned version.
     fn name(&self) -> &str;
 
-    fn name_owned(&self) -> String;
+    // fn name(&self) -> String;
     /// Check if the HealthCheck is valid
     fn check_reply(&self, time: Instant) -> HealthProbeResult;
     fn check(&self, time: Instant) -> bool;
@@ -121,12 +122,11 @@ impl<T: Eq> PartialEq for HpW<T> {
 impl<T: Eq> Eq for HpW<T> {}
 
 impl<'a, T: HealthProbeInner + Eq + Hash + 'static> HealthProbe for HpW<T> {
-    fn name(&self) -> &str {
-        // self.inner.lock().unwrap().name()
-        todo!()
-    }
-    fn name_owned(&self) -> String {
-        self.inner.lock().unwrap().name_owned()
+    // fn name(&self) -> &str {
+    //     self.inner.lock().unwrap().name()
+    // }
+    fn name(&self) -> String {
+        self.inner.lock().unwrap().name().to_string()
     }
 
     fn check(&self, time: Instant) -> bool {
@@ -160,9 +160,8 @@ impl PartialEq<dyn HealthProbeInner> for dyn HealthProbeInner {
 /// This trait is object safe so can be used in a Box to be stored in HashSet
 pub trait HealthProbe: DynEq + DynHash + AsAny + Send {
     /// return the name of the [HealthProbe]
-    fn name(&self) -> &str;
+    fn name(&self) -> String;
 
-    fn name_owned(&self) -> String;
     /// check if the healthCheck is valid. True is valid
     fn check(&self, now: Instant) -> bool;
 }
@@ -180,7 +179,7 @@ impl Hash for dyn HealthProbe {
 impl Eq for dyn HealthProbe {}
 impl std::fmt::Debug for dyn HealthProbe {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name_owned(), self.check(Instant::now()))
+        write!(f, "{}/{}", self.name(), self.check(Instant::now()))
     }
 }
 
@@ -248,9 +247,7 @@ mod tests {
             fn name(&self) -> &str {
                 &self.name
             }
-            fn name_owned(&self) -> String {
-                self.name.clone()
-            }
+
             fn check_reply(&self, time: Instant) -> HealthProbeResult {
                 todo!()
             }
@@ -277,9 +274,7 @@ mod tests {
             fn name(&self) -> &str {
                 &self.name
             }
-            fn name_owned(&self) -> String {
-                self.name.clone()
-            }
+
             fn check_reply(&self, time: Instant) -> HealthProbeResult {
                 todo!()
             }
@@ -329,9 +324,7 @@ mod tests {
             fn name(&self) -> &str {
                 &self.name
             }
-            fn name_owned(&self) -> String {
-                self.name.clone()
-            }
+
             fn check_reply(&self, time: Instant) -> HealthProbeResult {
                 todo!()
             }
@@ -371,10 +364,7 @@ mod tests {
             fn check(&self, now: Instant) -> bool {
                 self.count < 10
             }
-            fn name(&self) -> &str {
-                &self.name
-            }
-            fn name_owned(&self) -> String {
+            fn name(&self) -> String {
                 self.name.clone()
             }
         }
@@ -389,10 +379,7 @@ mod tests {
             fn check(&self, now: Instant) -> bool {
                 self.count < 10
             }
-            fn name(&self) -> &str {
-                &self.name
-            }
-            fn name_owned(&self) -> String {
+            fn name(&self) -> String {
                 self.name.clone()
             }
         }
@@ -434,9 +421,7 @@ mod tests {
             println!("HealthCheck for I {}", self.name);
             &self.name
         }
-        fn name_owned(&self) -> String {
-            self.name.clone()
-        }
+
         fn check_reply(&self, time: std::time::Instant) -> HealthProbeResult {
             todo!()
         }

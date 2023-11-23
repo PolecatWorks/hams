@@ -83,7 +83,12 @@ impl<'a> HealthCheck {
 impl<'a> Display for HealthCheck {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}: ", self.name)?;
-        // TODO: Build a better view of state of failed check
+        let now = Instant::now();
+
+        for probe in self.probes.lock().unwrap().iter() {
+            // write!(f, "{}/{}", probe.name(), if probe.check(now) { "valid"} else {"failed"} )?;
+            write!(f, "{}", probe.name())?;
+        }
 
         Ok(())
     }
@@ -124,9 +129,7 @@ mod tests {
             fn name(&self) -> &str {
                 &self.name
             }
-            fn name_owned(&self) -> String {
-                self.name.clone()
-            }
+
             fn check(&self, time: Instant) -> bool {
                 self.value
             }
@@ -228,9 +231,7 @@ mod tests {
             fn name(&self) -> &str {
                 &self.name
             }
-            fn name_owned(&self) -> String {
-                self.name.clone()
-            }
+
             fn check(&self, time: Instant) -> bool {
                 true
             }
@@ -253,6 +254,7 @@ mod tests {
         assert!(check.insert_boxed(Box::new(hw0.clone())));
         assert!(!check.insert_boxed(Box::new(hw0.clone())));
         println!("check = {:?}", check);
+        println!("Check display = {}", check);
         let now = Instant::now();
         assert!(check.check(now));
 
