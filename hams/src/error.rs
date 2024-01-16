@@ -5,6 +5,8 @@ use std::{any::Any, backtrace::Backtrace, ffi::NulError, fmt};
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
 use thiserror::Error;
+use crate::health::Poisoned;
+
 
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
@@ -12,6 +14,13 @@ pub enum HamsError {
     /// Generic error with custom message (Dynamic String)
     #[error("Generic error with message: {0}")]
     Message(String),
+
+    #[error("Invalid data")]
+    InvalidData(&'static str),
+
+    #[error("Poisoned")]
+    Poisoned(Poisoned),
+
     /// Nul Error
     #[error(transparent)]
     NulError(#[from] std::ffi::NulError),

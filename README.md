@@ -31,6 +31,9 @@ List of topics that need work
   * [x] Consideration for future: https://openjdk.org/projects/panama/ and https://github.com/openjdk/jextract
 * [x] C/C++ bindings
   * [x] Show usage of C logging from Rust SO
+  * [ ] Enable a HealthProbe to be provided as a vtable to the liveness system
+    * [ ] Reference code in https://github.com/Michael-F-Bryan/thin-trait-objects
+    * [ ] Get working example called HealthProbe2
 * [ ] Support for prometheus
 * [x] Shutdown sequences
   * [*] Should Hams include shutdown or should that be provided ONLY by main loop. HaMS provides the signal handling and raises the shutdown_callback BUT it is up to the app on how to respond.
