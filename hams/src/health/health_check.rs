@@ -10,6 +10,7 @@ use serde::Serialize;
 
 use super::health_probe::HealthProbe;
 
+/// Reply structure to return from a health check
 #[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct HealthCheckReply {
     pub(crate) name: String,

@@ -23,15 +23,14 @@
 /// The [HealthProbe] does not have an opinion on the
 pub mod health_check;
 pub mod health_probe;
+pub mod health_probe2;
 pub mod health_result;
 pub mod kick;
 pub mod manual;
-pub mod health_probe2;
-
 
 pub use health_check::{HealthCheck, HealthCheckReply};
 pub use health_probe::{HealthProbeInner, HealthProbeResult, HealthProbeWrapper};
+pub use health_probe2::Poisoned;
 pub use health_result::HealthCheckResults;
 pub use kick::Kick;
 pub use manual::Manual;
-pub use health_probe2::Poisoned;

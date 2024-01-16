@@ -2,11 +2,10 @@
 
 use std::{any::Any, backtrace::Backtrace, ffi::NulError, fmt};
 
+use crate::health::Poisoned;
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
 use thiserror::Error;
-use crate::health::Poisoned;
-
 
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]

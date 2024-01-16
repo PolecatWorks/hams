@@ -62,10 +62,6 @@ pub struct Hams {
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
-    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive_old: Arc<Mutex<HashSet<HealthProbeWrapper>>>,
-    alive_previous: Arc<AtomicBool>,
-
     alive: HealthCheck,
     ready: HealthCheck,
 
@@ -95,8 +91,6 @@ impl Hams {
                 name: env!("CARGO_PKG_NAME").to_string(),
             },
             port: 8079,
-            alive_old: Arc::new(Mutex::new(HashSet::new())),
-            alive_previous: Arc::new(AtomicBool::new(false)),
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
@@ -127,49 +121,6 @@ impl Hams {
     }
     pub fn alive_check(&self, now: Instant) -> HealthCheckReply {
         self.alive.check_reply(now)
-    }
-
-    pub fn add_alive(&self, newval: Box<dyn HealthProbeInner>) {
-        self.alive_old
-            .lock()
-            .unwrap()
-            .insert(HealthProbeWrapper(newval));
-    }
-
-    pub fn remove_alive(&mut self, alive: Box<dyn HealthProbeInner>) -> bool {
-        let mut alives = self.alive_old.lock().unwrap();
-        alives.remove(&HealthProbeWrapper(alive))
-    }
-
-    pub fn check_alive(&self) -> (bool, String) {
-        let my_now = Instant::now();
-
-        let my_lock = self.alive_old.lock().unwrap();
-
-        let detail = my_lock
-            .iter()
-            .map(|health| health.check(my_now))
-            .collect::<Vec<_>>();
-
-        let valid = detail.iter().all(|result| result.valid);
-        if valid != self.alive_previous.load(Ordering::Relaxed) {
-            info!(
-                "Alive state changed to {} from {}",
-                valid,
-                HealthCheckResults(detail.clone())
-            );
-            self.alive_previous.store(valid, Ordering::Relaxed);
-        }
-        (
-            valid,
-            serde_json::to_string(&HealthCheckReply {
-                name: "alive".to_owned(),
-                valid,
-                // detail,
-                // detail: detail.into(),
-            })
-            .unwrap(),
-        )
     }
 
     pub fn start(&mut self) -> Result<(), HamsError> {

@@ -243,7 +243,8 @@ pub unsafe extern "C" fn hams_add_alive(
         let alive = unsafe {&mut *alive_ptr};
 
         // info!("Kicking {}", kicked.name);
-        hams.add_alive(Box::new(alive.clone()));
+        // FIXME: Upgrade to FFI class to enable
+        // hams.add_alive(Box::new(alive.clone()));
 
         Ok(1)
     )
@@ -265,7 +266,8 @@ pub unsafe extern "C" fn hams_remove_alive(
         let alive = unsafe {&mut *alive_ptr};
 
         // info!("Kicking {}", kicked.name);
-        hams.remove_alive(Box::new(alive.clone()));
+        // FIXME: Update to FFI class to enable
+        // hams.remove_alive(Box::new(alive.clone()));
 
         Ok(1)
     )

@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 
 use super::HealthProbeInner;
 
+/// A liveness check that is manuall controlled. Allowing the developer to manually
+/// enable or disable it as appropriate.
 #[derive(Debug, Hash, PartialEq)]
 pub struct Manual {
     name: String,
@@ -10,24 +12,31 @@ pub struct Manual {
 impl Eq for Manual {}
 
 impl Manual {
+    /// Construct a new Manual health check providing name and initial state
     pub fn new<S: Into<String>>(name: S, enabled: bool) -> Manual {
         Self {
             name: name.into(),
             enabled,
         }
     }
+
+    /// Toggle state of the liveness check
     pub fn toggle(&mut self) -> bool {
         self.enabled = !self.enabled;
         self.enabled
     }
 
+    /// Set the state of the liveness check to a specific state
     pub fn set(&mut self, value: bool) {
         self.enabled = value
     }
 
+    /// Enable the liveness check
     pub fn enable(&mut self) {
         self.enabled = true
     }
+
+    /// Disabel the liveness check
     pub fn disable(&mut self) {
         self.enabled = false
     }

@@ -1,4 +1,3 @@
-
 use std::{
     alloc::Layout,
     any::{Any, TypeId},
@@ -7,11 +6,7 @@ use std::{
     time::Instant,
 };
 
-use crate::{
-    error::HamsError,
-};
-
-
+use crate::error::HamsError;
 
 pub trait XX {
     fn name(&self) -> Result<String, HamsError>;
@@ -32,32 +27,31 @@ impl HealthProbe2 {
     pub fn for_hc<W>(probe: W) -> *mut Self
     where
         W: XX + Send + Sync + 'static,
-        {
-            let repr = Repr {
-                base: Self::vtable::<W>(),
-                probe,
-            };
+    {
+        let repr = Repr {
+            base: Self::vtable::<W>(),
+            probe,
+        };
 
-            let boxed = Box::into_raw(Box::new(repr));
+        let boxed = Box::into_raw(Box::new(repr));
 
-            boxed as *mut _
+        boxed as *mut _
+    }
+
+    fn vtable<W: XX + 'static>() -> Self {
+        let layout = Layout::new::<Repr<W>>();
+        let type_id = TypeId::of::<W>();
+
+        Self {
+            layout,
+            type_id,
+            poisoned: false,
+            destroy: destroy::<W>,
+            name: name::<W>,
+            check: check::<W>,
         }
-
-        fn vtable<W: XX + 'static>() -> Self {
-            let layout = Layout::new::<Repr<W>>();
-            let type_id = TypeId::of::<W>();
-
-            Self {
-                layout,
-                type_id,
-                poisoned: false,
-                destroy: destroy::<W>,
-                name: name::<W>,
-                check: check::<W>,
-            }
-        }
+    }
 }
-
 
 unsafe fn destroy<W>(handle: *mut HealthProbe2) {
     if handle.is_null() {
@@ -74,7 +68,6 @@ unsafe fn destroy<W>(handle: *mut HealthProbe2) {
     }
 }
 
-
 macro_rules! auto_poison {
     ($handle:expr, $body:block) => {{
         if (*$handle).poisoned {
@@ -82,9 +75,7 @@ macro_rules! auto_poison {
                 "A panic occurred and this object is now poisoned",
             ))
         } else {
-            let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(
-                move || $body
-            ));
+            let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || $body));
             match got {
                 Ok(value) => value,
                 Err(payload) => {
@@ -96,20 +87,14 @@ macro_rules! auto_poison {
     }};
 }
 
-
-unsafe fn name<W: XX>(
-    handle: *mut HealthProbe2,
-) -> Result<String, HamsError> {
+unsafe fn name<W: XX>(handle: *mut HealthProbe2) -> Result<String, HamsError> {
     auto_poison!(handle, {
         let repr = &mut *(handle as *mut Repr<W>);
         repr.probe.name()
     })
 }
 
-unsafe fn check<W: XX>(
-    handle: *mut HealthProbe2,
-    time: Instant,
-) -> Result<bool, HamsError> {
+unsafe fn check<W: XX>(handle: *mut HealthProbe2, time: Instant) -> Result<bool, HamsError> {
     auto_poison!(handle, {
         let repr = &mut *(handle as *mut Repr<W>);
         repr.probe.check(time)
@@ -124,7 +109,6 @@ impl From<Box<dyn Any + Send + 'static>> for Poisoned {
         Poisoned(Mutex::new(payload))
     }
 }
-
 
 #[repr(C)]
 pub(crate) struct Repr<W> {

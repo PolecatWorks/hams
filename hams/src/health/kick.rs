@@ -2,6 +2,8 @@ use std::time::{Duration, Instant};
 
 use super::HealthProbeInner;
 
+/// A liveness check that automatically fails when the timer has not been reset before
+/// the duration. Equivalent of a dead mans handle.
 #[derive(Debug, Hash, PartialEq)]
 pub struct Kick {
     name: String,
@@ -11,6 +13,8 @@ pub struct Kick {
 impl Eq for Kick {}
 
 impl Kick {
+    /// Construct a new Kick object providing the name and duration after which it will
+    /// be considered to have failed
     pub fn new<S: Into<String>>(name: S, margin: Duration) -> Kick {
         Self {
             name: name.into(),
@@ -18,6 +22,7 @@ impl Kick {
             margin,
         }
     }
+    /// resets the liveness check timer
     pub fn kick(&mut self) {
         self.latest = Instant::now();
     }
