@@ -27,6 +27,7 @@ pub mod health_probe2;
 pub mod health_result;
 pub mod kick;
 pub mod manual;
+pub mod owned_probe;
 
 pub use health_check::{HealthCheck, HealthCheckReply};
 pub use health_probe::{HealthProbeInner, HealthProbeResult, HealthProbeWrapper};

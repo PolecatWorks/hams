@@ -86,8 +86,8 @@ mod tests {
 
         let kpw = HpW::new(kick);
 
-        assert!(!kpw.check(now_postkick + Duration::from_secs(30)));
+        assert!(!kpw.check(now_postkick + Duration::from_secs(30)).unwrap());
         kpw.inner_through_lock().kick();
-        assert!(kpw.check(now_postkick + Duration::from_secs(30)));
+        assert!(kpw.check(now_postkick + Duration::from_secs(30)).unwrap());
     }
 }

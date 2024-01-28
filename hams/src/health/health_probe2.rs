@@ -8,8 +8,11 @@ use std::{
 
 use crate::error::HamsError;
 
-pub trait XX {
+/// Describe the interface required to be provided for a Health Probe
+pub trait HealthProbeFuncs {
+    /// Return the name of the probe
     fn name(&self) -> Result<String, HamsError>;
+    /// check the state of the probe
     fn check(&self, time: Instant) -> Result<bool, HamsError>;
 }
 
@@ -24,9 +27,10 @@ pub struct HealthProbe2 {
 }
 
 impl HealthProbe2 {
-    pub fn for_hc<W>(probe: W) -> *mut Self
+    /// Constructor for HP2
+    pub fn for_hp<W>(probe: W) -> *mut Self
     where
-        W: XX + Send + Sync + 'static,
+        W: HealthProbeFuncs + Send + Sync + 'static,
     {
         let repr = Repr {
             base: Self::vtable::<W>(),
@@ -38,7 +42,7 @@ impl HealthProbe2 {
         boxed as *mut _
     }
 
-    fn vtable<W: XX + 'static>() -> Self {
+    fn vtable<W: HealthProbeFuncs + 'static>() -> Self {
         let layout = Layout::new::<Repr<W>>();
         let type_id = TypeId::of::<W>();
 
@@ -87,14 +91,17 @@ macro_rules! auto_poison {
     }};
 }
 
-unsafe fn name<W: XX>(handle: *mut HealthProbe2) -> Result<String, HamsError> {
+unsafe fn name<W: HealthProbeFuncs>(handle: *mut HealthProbe2) -> Result<String, HamsError> {
     auto_poison!(handle, {
         let repr = &mut *(handle as *mut Repr<W>);
         repr.probe.name()
     })
 }
 
-unsafe fn check<W: XX>(handle: *mut HealthProbe2, time: Instant) -> Result<bool, HamsError> {
+unsafe fn check<W: HealthProbeFuncs>(
+    handle: *mut HealthProbe2,
+    time: Instant,
+) -> Result<bool, HamsError> {
     auto_poison!(handle, {
         let repr = &mut *(handle as *mut Repr<W>);
         repr.probe.check(time)
@@ -116,4 +123,49 @@ pub(crate) struct Repr<W> {
     // *mut Repr<W> and *mut HealthCheck
     pub(crate) base: HealthProbe2,
     pub(crate) probe: W,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ABC_for_HP2() {
+        struct MyProbe0 {
+            name: String,
+            checker: bool,
+        };
+
+        impl HealthProbeFuncs for MyProbe0 {
+            fn name(&self) -> Result<String, HamsError> {
+                Ok(self.name.clone())
+            }
+
+            fn check(&self, time: Instant) -> Result<bool, HamsError> {
+                Ok(self.checker)
+            }
+        }
+
+        let probe0 = MyProbe0 {
+            name: "probe0".to_owned(),
+            checker: false,
+        };
+
+        let probe1 = MyProbe0 {
+            name: "probe1".to_owned(),
+            checker: false,
+        };
+
+        let my_hp0 = HealthProbe2::for_hp(probe0);
+        let my_hp1 = HealthProbe2::for_hp(probe1);
+
+        let mut my_vec = vec![];
+
+        // let x = unsafe {((*my_hp0).check)()};
+
+        my_vec.push(my_hp0);
+        my_vec.push(my_hp1);
+
+        assert!(false, "Deliberate fail to see progress");
+    }
 }

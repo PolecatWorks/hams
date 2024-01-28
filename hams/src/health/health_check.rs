@@ -8,6 +8,8 @@ use std::{
 use log::info;
 use serde::Serialize;
 
+use crate::error::HamsError;
+
 use super::health_probe::HealthProbe;
 
 /// Reply structure to return from a health check
@@ -53,16 +55,19 @@ impl<'a> HealthCheck {
     /// Check the status of all probes and return state of check
     ///
     /// State is true if all are true else false
-    pub fn check(&self, now: Instant) -> bool {
-        self.probes
+    pub fn check(&self, now: Instant) -> Result<bool, HamsError> {
+        // TODO: Fix this so we correctly do error and not just unwrap
+        Ok(self
+            .probes
             .lock()
             .unwrap()
             .iter()
-            .all(|probe| probe.check(now))
+            .all(|probe| probe.check(now).unwrap()))
     }
 
     pub fn check_reply(&self, now: Instant) -> HealthCheckReply {
-        let valid = self.check(now);
+        // TODO: Remove unwrap
+        let valid = self.check(now).unwrap();
         if !valid {
             info!("Invalid check: {}", self);
         }
@@ -164,7 +169,7 @@ mod tests {
         let check = HealthCheck::new("ready");
 
         let now = Instant::now();
-        assert!(check.check(now));
+        assert!(check.check(now).unwrap());
         assert_eq!(
             check.check_reply(now),
             HealthCheckReply {
@@ -176,7 +181,7 @@ mod tests {
         check.insert_boxed(Box::new(hw_true));
 
         let now = Instant::now();
-        assert!(check.check(now));
+        assert!(check.check(now).unwrap());
         assert_eq!(
             check.check_reply(now),
             HealthCheckReply {
@@ -188,7 +193,7 @@ mod tests {
         check.insert_boxed(Box::new(hw_changing.clone()));
 
         let now = Instant::now();
-        assert!(check.check(now));
+        assert!(check.check(now).unwrap());
         assert_eq!(
             check.check_reply(now),
             HealthCheckReply {
@@ -200,7 +205,7 @@ mod tests {
         hw_changing.inner_through_lock().toggle();
 
         let now = Instant::now();
-        assert!(!check.check(now));
+        assert!(!check.check(now).unwrap());
         assert_eq!(
             check.check_reply(now),
             HealthCheckReply {
@@ -212,7 +217,7 @@ mod tests {
         hw_changing.inner_through_lock().toggle();
 
         let now = Instant::now();
-        assert!(check.check(now));
+        assert!(check.check(now).unwrap());
         assert_eq!(
             check.check_reply(now),
             HealthCheckReply {
@@ -267,7 +272,7 @@ mod tests {
         println!("check = {:?}", check);
         println!("Check display = {}", check);
         let now = Instant::now();
-        assert!(check.check(now));
+        assert!(check.check(now).unwrap());
 
         assert!(check.remove_boxed(Box::new(hw0.clone())));
         assert!(!check.remove_boxed(Box::new(hw0.clone())));

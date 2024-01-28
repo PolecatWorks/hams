@@ -95,9 +95,9 @@ mod tests {
 
         let mpw = HpW::new(manual);
 
-        assert!(mpw.check(now_precreate));
+        assert!(mpw.check(now_precreate).unwrap());
 
         mpw.inner_through_lock().toggle();
-        assert!(!mpw.check(now_precreate));
+        assert!(!mpw.check(now_precreate).unwrap());
     }
 }

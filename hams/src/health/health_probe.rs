@@ -1,5 +1,6 @@
 //! HealthProbe traits and functions for k8s health checks
 
+use crate::error::HamsError;
 use crate::utils::{AsAny, DynEq, DynHash};
 use serde::Serialize;
 use std::fmt::Debug;
@@ -125,12 +126,12 @@ impl<'a, T: HealthProbeInner + Eq + Hash + 'static> HealthProbe for HpW<T> {
     // fn name(&self) -> &str {
     //     self.inner.lock().unwrap().name()
     // }
-    fn name(&self) -> String {
-        self.inner.lock().unwrap().name().to_string()
+    fn name(&self) -> Result<String, HamsError> {
+        Ok(self.inner.lock().unwrap().name().to_string())
     }
 
-    fn check(&self, time: Instant) -> bool {
-        self.inner.lock().unwrap().check(time)
+    fn check(&self, time: Instant) -> Result<bool, HamsError> {
+        Ok(self.inner.lock().unwrap().check(time))
     }
 }
 
@@ -160,10 +161,10 @@ impl PartialEq<dyn HealthProbeInner> for dyn HealthProbeInner {
 /// This trait is object safe so can be used in a Box to be stored in HashSet
 pub trait HealthProbe: DynEq + DynHash + AsAny + Send {
     /// return the name of the [HealthProbe]
-    fn name(&self) -> String;
+    fn name(&self) -> Result<String, HamsError>;
 
     /// check if the healthCheck is valid. True is valid
-    fn check(&self, now: Instant) -> bool;
+    fn check(&self, now: Instant) -> Result<bool, HamsError>;
 }
 /// Implement PartialEq for HealthProbe to allow Eq to derive the PartialEq for this trait
 impl PartialEq for dyn HealthProbe {
@@ -179,7 +180,12 @@ impl Hash for dyn HealthProbe {
 impl Eq for dyn HealthProbe {}
 impl std::fmt::Debug for dyn HealthProbe {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name(), self.check(Instant::now()))
+        write!(
+            f,
+            "{}/{}",
+            self.name().unwrap(),
+            self.check(Instant::now()).unwrap()
+        )
     }
 }
 
@@ -298,8 +304,8 @@ mod tests {
         let hw0 = HpW::new(hpi0);
         let hw1 = HpW::new(hpj0);
 
-        println!("Getting hw0 check {}", hw0.check(Instant::now()));
-        println!("Getting hw1 check {}", hw1.check(Instant::now()));
+        println!("Getting hw0 check {}", hw0.check(Instant::now()).unwrap());
+        println!("Getting hw1 check {}", hw1.check(Instant::now()).unwrap());
 
         let mut hc0: HashSet<Box<dyn HealthProbe>> = HashSet::new();
 
@@ -361,11 +367,11 @@ mod tests {
         }
         impl Eq for ExampleI {}
         impl HealthProbe for ExampleI {
-            fn check(&self, now: Instant) -> bool {
-                self.count < 10
+            fn check(&self, now: Instant) -> Result<bool, HamsError> {
+                Ok(self.count < 10)
             }
-            fn name(&self) -> String {
-                self.name.clone()
+            fn name(&self) -> Result<String, HamsError> {
+                Ok(self.name.clone())
             }
         }
 
@@ -376,11 +382,11 @@ mod tests {
         }
         impl Eq for ExampleJ {}
         impl HealthProbe for ExampleJ {
-            fn check(&self, now: Instant) -> bool {
-                self.count < 10
+            fn check(&self, now: Instant) -> Result<bool, HamsError> {
+                Ok(self.count < 10)
             }
-            fn name(&self) -> String {
-                self.name.clone()
+            fn name(&self) -> Result<String, HamsError> {
+                Ok(self.name.clone())
             }
         }
 
