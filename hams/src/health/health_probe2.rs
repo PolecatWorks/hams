@@ -134,9 +134,24 @@ mod tests {
         struct MyProbe0 {
             name: String,
             checker: bool,
-        };
+        }
 
         impl HealthProbeFuncs for MyProbe0 {
+            fn name(&self) -> Result<String, HamsError> {
+                Ok(self.name.clone())
+            }
+
+            fn check(&self, time: Instant) -> Result<bool, HamsError> {
+                Ok(self.checker)
+            }
+        }
+
+        struct MyProbe1 {
+            name: String,
+            checker: bool,
+        }
+
+        impl HealthProbeFuncs for MyProbe1 {
             fn name(&self) -> Result<String, HamsError> {
                 Ok(self.name.clone())
             }
@@ -155,9 +170,14 @@ mod tests {
             name: "probe1".to_owned(),
             checker: false,
         };
+        let probe2 = MyProbe1 {
+            name: "probe2".to_owned(),
+            checker: false,
+        };
 
         let my_hp0 = HealthProbe2::for_hp(probe0);
         let my_hp1 = HealthProbe2::for_hp(probe1);
+        let my_hp2 = HealthProbe2::for_hp(probe2);
 
         let mut my_vec = vec![];
 
@@ -165,6 +185,13 @@ mod tests {
 
         my_vec.push(my_hp0);
         my_vec.push(my_hp1);
+        my_vec.push(my_hp2);
+
+        for hp in my_vec {
+            let name = unsafe { ((*hp).name)(hp) };
+            println!("name: {:?}", name);
+            // assert_eq!(name.unwrap(), "probe0");
+        }
 
         assert!(false, "Deliberate fail to see progress");
     }

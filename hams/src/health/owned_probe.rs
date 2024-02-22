@@ -100,3 +100,69 @@ impl Drop for OwnedProbe {
 
 unsafe impl Send for OwnedProbe {}
 unsafe impl Sync for OwnedProbe {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        error::HamsError,
+        health::{health_probe2::HealthProbe2, owned_probe},
+    };
+    use std::time::Instant;
+
+    struct TestProbe;
+
+    impl HealthProbeFuncs for TestProbe {
+        fn name(&self) -> Result<String, crate::error::HamsError> {
+            Ok("TestProbe".to_string())
+        }
+
+        fn check(&self, _time: Instant) -> Result<bool, crate::error::HamsError> {
+            Ok(true)
+        }
+    }
+
+    #[test]
+    fn test_owned_probe() {
+        let probe = TestProbe;
+        let owned_probe = OwnedProbe::new(probe);
+        let name = owned_probe.name().unwrap();
+        assert_eq!(name, "TestProbe");
+        let check = owned_probe.check(Instant::now()).unwrap();
+        assert_eq!(check, true);
+    }
+
+    #[test]
+    fn test_from_raw() {
+        struct MyProbe0 {
+            name: String,
+            checker: bool,
+        };
+
+        impl HealthProbeFuncs for MyProbe0 {
+            fn name(&self) -> Result<String, HamsError> {
+                Ok(self.name.clone())
+            }
+
+            fn check(&self, time: Instant) -> Result<bool, HamsError> {
+                Ok(self.checker)
+            }
+        }
+
+        let probe0 = MyProbe0 {
+            name: "probe0".to_owned(),
+            checker: false,
+        };
+
+        // let probe0 = OwnedProbe::new(MyProbe0 {
+        //     name: "MyProbe0".to_string(),
+        //     checker: true,
+        // });
+
+        let my_hp0 = HealthProbe2::for_hp(probe0);
+        // let owned_probe = OwnedProbe::new(my_hp0);
+        // let owned_probe = unsafe { OwnedProbe::from_raw(my_hp0) };
+
+        // assert!(owned_probe.name().unwrap() == "probe0");
+    }
+}
