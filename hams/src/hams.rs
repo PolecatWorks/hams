@@ -1,16 +1,15 @@
 use std::{
-    collections::HashSet,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, Mutex,
     },
     thread::{self, JoinHandle},
-    time::Instant,
 };
 
 use crate::{
     error::HamsError,
-    healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
+    health::check::HealthCheck,
+    // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
 
 use libc::c_void;
@@ -44,11 +43,9 @@ pub struct Hams {
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
-    // Alive is a vector that is shared across clones AND the objects it refers to can also be independantly shared
-    alive: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
-    alive_previous: Arc<AtomicBool>,
-    ready: Arc<Mutex<HashSet<HealthCheckWrapper>>>,
-    // ready: Arc<Mutex<Vec<Box<dyn HealthCheck>>>>,
+    alive: HealthCheck,
+    ready: HealthCheck,
+
     kill: Arc<Mutex<Option<Sender<()>>>>,
 
     /// Callback to be called on shutdown
@@ -76,9 +73,8 @@ impl Hams {
             version: env!("CARGO_PKG_VERSION").to_string(),
             package: env!("CARGO_PKG_NAME").to_string(),
             port: 8079,
-            alive: Arc::new(Mutex::new(HashSet::new())),
-            alive_previous: Arc::new(AtomicBool::new(false)),
-            ready: Arc::new(Mutex::new(HashSet::new())),
+            alive: HealthCheck::new("alive"),
+            ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
             running: Arc::new(AtomicBool::new(false)),
         }
@@ -87,84 +83,6 @@ impl Hams {
     pub fn register_shutdown(&self, user_data: *mut c_void, cb: unsafe extern "C" fn(*mut c_void)) {
         println!("Add shutdown to {}", self.name);
         *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
-    }
-
-    pub fn add_ready(&self, newval: Box<dyn HealthCheck>) {
-        self.ready
-            .lock()
-            .unwrap()
-            .insert(HealthCheckWrapper(newval));
-    }
-
-    pub fn remove_ready(&mut self, ready: Box<dyn HealthCheck>) -> bool {
-        let mut readys = self.ready.lock().unwrap();
-        readys.remove(&HealthCheckWrapper(ready))
-    }
-
-    pub fn check_ready(&self) -> (bool, String) {
-        let my_now = Instant::now();
-
-        let my_lock = self.ready.lock().unwrap();
-
-        let detail = my_lock
-            .iter()
-            .map(|health| health.check(my_now))
-            .collect::<Vec<_>>();
-
-        let valid = detail.iter().all(|result| result.valid);
-
-        (
-            valid,
-            serde_json::to_string(&HealthSystemResult {
-                name: "ready",
-                valid,
-                detail,
-            })
-            .unwrap(),
-        )
-    }
-
-    pub fn add_alive(&self, newval: Box<dyn HealthCheck>) {
-        self.alive
-            .lock()
-            .unwrap()
-            .insert(HealthCheckWrapper(newval));
-    }
-
-    pub fn remove_alive(&mut self, alive: Box<dyn HealthCheck>) -> bool {
-        let mut alives = self.alive.lock().unwrap();
-        alives.remove(&HealthCheckWrapper(alive))
-    }
-
-    pub fn check_alive(&self) -> (bool, String) {
-        let my_now = Instant::now();
-
-        let my_lock = self.alive.lock().unwrap();
-
-        let detail = my_lock
-            .iter()
-            .map(|health| health.check(my_now))
-            .collect::<Vec<_>>();
-
-        let valid = detail.iter().all(|result| result.valid);
-        if valid != self.alive_previous.load(Ordering::Relaxed) {
-            info!(
-                "Alive state changed to {} from {}",
-                valid,
-                HealthCheckResults(detail.clone())
-            );
-            self.alive_previous.store(valid, Ordering::Relaxed);
-        }
-        (
-            valid,
-            serde_json::to_string(&HealthSystemResult {
-                name: "alive",
-                valid,
-                detail,
-                // detail: detail.into(),
-            })
-            .unwrap(),
-        )
     }
 
     pub fn start(&mut self) -> Result<(), HamsError> {
@@ -462,7 +380,8 @@ mod warp_handlers {
 
     /// Handler for alive endpoint
     pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let (valid, content) = hams.check_alive();
+        // let (valid, content) = hams.check_alive();
+        let (valid, content) = (true, "Alive");
 
         Ok(warp::reply::with_status(
             content,
@@ -476,7 +395,8 @@ mod warp_handlers {
 
     /// Handler for ready endpoint
     pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let (valid, content) = hams.check_ready();
+        // let (valid, content) = hams.check_ready();
+        let (valid, content) = (true, "Ready");
 
         Ok(warp::reply::with_status(
             content,
@@ -486,116 +406,5 @@ mod warp_handlers {
                 warp::http::StatusCode::NOT_ACCEPTABLE
             },
         ))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{healthcheck::HealthCheckResult, healthkicked::AliveCheckKicked};
-
-    use super::*;
-    use std::time::Duration;
-
-    #[test]
-    fn hams_add_remove() {
-        let mut hams = Hams::new("apple");
-
-        let hc0 = AliveCheckKicked::new("Howdy", Duration::from_secs(20));
-        hams.add_alive(Box::new(hc0.clone()));
-        hams.print_names_alive();
-
-        let hc1 = AliveCheckKicked::new("Hellow", Duration::from_secs(20));
-        hams.add_alive(Box::new(hc1));
-        hams.print_names_alive();
-
-        assert_eq!(2, hams.alive.lock().unwrap().len());
-
-        println!("Removing {:?}", hc0);
-
-        let reply = hams.remove_alive(Box::new(hc0.clone()) as Box<dyn HealthCheck>);
-        if reply {
-            println!("removed some elements")
-        };
-        // println!("removed {} elements", if reply {"OK"});
-        // assert_eq!(1, reply.len());
-        assert!(reply);
-        assert_eq!(1, hams.alive.lock().unwrap().len());
-        // for removed in reply {
-        //     println!("removed => {:?}", removed.get_name());
-        // }
-        hams.print_names_alive();
-    }
-
-    #[derive(Debug)]
-    struct I {
-        name: String,
-    }
-
-    impl HealthCheck for I {
-        fn get_name(&self) -> &str {
-            println!("HealthCheck for I {}", self.name);
-            &self.name
-        }
-
-        fn check(&self, time: std::time::Instant) -> HealthCheckResult {
-            todo!()
-        }
-    }
-
-    #[derive(Debug)]
-    struct J {
-        name: String,
-    }
-    impl HealthCheck for J {
-        fn get_name(&self) -> &str {
-            println!("HealthCheck for J {}", self.name);
-            &self.name
-        }
-
-        fn check(&self, time: std::time::Instant) -> HealthCheckResult {
-            todo!()
-        }
-    }
-
-    #[test]
-    fn test_vec() {
-        let myvec = Hams::new("test");
-
-        myvec.add_alive(Box::new(AliveCheckKicked::new(
-            "sofa",
-            Duration::from_secs(10),
-        )));
-        myvec.add_alive(Box::new(J {
-            name: "hello".to_owned(),
-        }));
-
-        myvec.add_alive(Box::new(AliveCheckKicked::new(
-            "sofa",
-            Duration::from_secs(10),
-        )));
-
-        {
-            let newby = Box::new(I {
-                name: "hello".to_owned(),
-            });
-
-            myvec.add_alive(newby);
-            myvec.add_alive(Box::new(AliveCheckKicked::new(
-                "sofa",
-                Duration::from_secs(10),
-            )));
-
-            myvec.add_alive(Box::new(AliveCheckKicked::new(
-                "sofa",
-                Duration::from_secs(10),
-            )));
-        }
-
-        myvec.print_names_alive();
-
-        println!(
-            "vecing done wtih size {}",
-            myvec.alive.lock().unwrap().len()
-        );
     }
 }

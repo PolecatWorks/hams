@@ -4,12 +4,12 @@
 
 mod hams;
 // mod wuggle;
-use libc::c_void;
+// use libc::c_void;
 
 // pub mod ffi;
 pub mod error;
-pub mod healthcheck;
-pub mod healthkicked;
+
+pub mod health;
 
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
@@ -17,12 +17,11 @@ compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the s
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
-use healthkicked::AliveCheckKicked;
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
 use std::process;
-use std::time::Duration;
+// use std::time::Duration;
 
 /// Name of the Crate
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -150,124 +149,124 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     )
 }
 
-/// # Safety
-///
-/// Create an alive kicked health check
-#[no_mangle]
-pub unsafe extern "C" fn kicked_create(
-    name: *const libc::c_char,
-    duration_millis: libc::c_ulong,
-) -> *mut AliveCheckKicked {
-    ffi_helpers::null_pointer_check!(name);
+// /// # Safety
+// ///
+// /// Create an alive kicked health check
+// #[no_mangle]
+// pub unsafe extern "C" fn kicked_create(
+//     name: *const libc::c_char,
+//     duration_millis: libc::c_ulong,
+// ) -> *mut AliveCheckKicked {
+//     ffi_helpers::null_pointer_check!(name);
 
-    catch_panic!(
-        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
-        info!("Creating AliveCheckKicked: {}", name_str);
+//     catch_panic!(
+//         let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
+//         info!("Creating AliveCheckKicked: {}", name_str);
 
-        Ok(Box::into_raw(Box::new(AliveCheckKicked::new(name_str, Duration::from_millis(duration_millis)))))
-    )
-}
-/// # Safety
-///
-/// Free the AliveCheckKicked. The object must be created wtih the kicked_create function
-#[no_mangle]
-pub unsafe extern "C" fn kicked_free(ptr: *mut AliveCheckKicked) -> i32 {
-    ffi_helpers::null_pointer_check!(ptr);
+//         Ok(Box::into_raw(Box::new(AliveCheckKicked::new(name_str, Duration::from_millis(duration_millis)))))
+//     )
+// }
+// /// # Safety
+// ///
+// /// Free the AliveCheckKicked. The object must be created wtih the kicked_create function
+// #[no_mangle]
+// pub unsafe extern "C" fn kicked_free(ptr: *mut AliveCheckKicked) -> i32 {
+//     ffi_helpers::null_pointer_check!(ptr);
 
-    catch_panic!(
+//     catch_panic!(
 
-        let kicked = unsafe { Box::from_raw(ptr) };
+//         let kicked = unsafe { Box::from_raw(ptr) };
 
-        let name = &kicked.as_ref().name;
+//         let name = &kicked.as_ref().name;
 
-        info!("Releasing kicked: {}", name);
-        drop(kicked);
-        Ok(1)
-    )
-}
+//         info!("Releasing kicked: {}", name);
+//         drop(kicked);
+//         Ok(1)
+//     )
+// }
 
-/// # Safety
-///
-/// kick the AliveCheckKicked
-#[no_mangle]
-pub unsafe extern "C" fn kicked_kick(ptr: *mut AliveCheckKicked) -> i32 {
-    ffi_helpers::null_pointer_check!(ptr);
+// /// # Safety
+// ///
+// /// kick the AliveCheckKicked
+// #[no_mangle]
+// pub unsafe extern "C" fn kicked_kick(ptr: *mut AliveCheckKicked) -> i32 {
+//     ffi_helpers::null_pointer_check!(ptr);
 
-    catch_panic!(
-        let kicked = unsafe {&mut *ptr};
+//     catch_panic!(
+//         let kicked = unsafe {&mut *ptr};
 
-        // info!("Kicking {}", kicked.name);
-        kicked.kick();
+//         // info!("Kicking {}", kicked.name);
+//         kicked.kick();
 
-        Ok(1)
-    )
-}
+//         Ok(1)
+//     )
+// }
 
-/// # Safety
-///
-/// Register a shutdown function to be called when the health system receives a trigger to shutdown
-/// This could be a kubernetes shutdown hook or a sig event
-#[no_mangle]
-pub unsafe extern "C" fn hams_register_shutdown(
-    hams_ptr: *mut Hams,
-    user_data: *mut c_void,
-    cb: unsafe extern "C" fn(*mut c_void),
-) -> i32 {
-    ffi_helpers::null_pointer_check!(hams_ptr);
-    // ffi_helpers::null_pointer_check!(my_cb);
+// /// # Safety
+// ///
+// /// Register a shutdown function to be called when the health system receives a trigger to shutdown
+// /// This could be a kubernetes shutdown hook or a sig event
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_register_shutdown(
+//     hams_ptr: *mut Hams,
+//     user_data: *mut c_void,
+//     cb: unsafe extern "C" fn(*mut c_void),
+// ) -> i32 {
+//     ffi_helpers::null_pointer_check!(hams_ptr);
+//     // ffi_helpers::null_pointer_check!(my_cb);
 
-    catch_panic!(
-        let hams = unsafe {&mut *hams_ptr};
+//     catch_panic!(
+//         let hams = unsafe {&mut *hams_ptr};
 
-        hams.register_shutdown(user_data, cb);
+//         hams.register_shutdown(user_data, cb);
 
-        Ok(1)
-    )
-}
+//         Ok(1)
+//     )
+// }
 
-/// # Safety
-///
-/// kick the AliveCheckKicked
-#[no_mangle]
-pub unsafe extern "C" fn hams_add_alive(
-    hams_ptr: *mut Hams,
-    alive_ptr: *mut AliveCheckKicked,
-) -> i32 {
-    ffi_helpers::null_pointer_check!(hams_ptr);
-    ffi_helpers::null_pointer_check!(alive_ptr);
+// /// # Safety
+// ///
+// /// kick the AliveCheckKicked
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_add_alive(
+//     hams_ptr: *mut Hams,
+//     alive_ptr: *mut AliveCheckKicked,
+// ) -> i32 {
+//     ffi_helpers::null_pointer_check!(hams_ptr);
+//     ffi_helpers::null_pointer_check!(alive_ptr);
 
-    catch_panic!(
-        let hams = unsafe {&mut *hams_ptr};
-        let alive = unsafe {&mut *alive_ptr};
+//     catch_panic!(
+//         let hams = unsafe {&mut *hams_ptr};
+//         let alive = unsafe {&mut *alive_ptr};
 
-        // info!("Kicking {}", kicked.name);
-        hams.add_alive(Box::new(alive.clone()));
+//         // info!("Kicking {}", kicked.name);
+//         hams.add_alive(Box::new(alive.clone()));
 
-        Ok(1)
-    )
-}
+//         Ok(1)
+//     )
+// }
 
-/// # Safety
-///
-/// kick the AliveCheckKicked
-#[no_mangle]
-pub unsafe extern "C" fn hams_remove_alive(
-    hams_ptr: *mut Hams,
-    alive_ptr: *mut AliveCheckKicked,
-) -> i32 {
-    ffi_helpers::null_pointer_check!(hams_ptr);
-    ffi_helpers::null_pointer_check!(alive_ptr);
+// /// # Safety
+// ///
+// /// kick the AliveCheckKicked
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_remove_alive(
+//     hams_ptr: *mut Hams,
+//     alive_ptr: *mut AliveCheckKicked,
+// ) -> i32 {
+//     ffi_helpers::null_pointer_check!(hams_ptr);
+//     ffi_helpers::null_pointer_check!(alive_ptr);
 
-    catch_panic!(
-        let hams = unsafe {&mut *hams_ptr};
-        let alive = unsafe {&mut *alive_ptr};
+//     catch_panic!(
+//         let hams = unsafe {&mut *hams_ptr};
+//         let alive = unsafe {&mut *alive_ptr};
 
-        // info!("Kicking {}", kicked.name);
-        hams.remove_alive(Box::new(alive.clone()));
+//         // info!("Kicking {}", kicked.name);
+//         hams.remove_alive(Box::new(alive.clone()));
 
-        Ok(1)
-    )
-}
+//         Ok(1)
+//     )
+// }
 
 /// Test the FFI interfaces
 #[cfg(test)]
