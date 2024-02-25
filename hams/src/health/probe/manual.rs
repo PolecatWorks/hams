@@ -1,16 +1,21 @@
+use super::HealthProbe;
+use crate::error::HamsError;
+
+use std::time::Instant;
+
 /// A liveness check that is manuall controlled. Allowing the developer to manually
 /// enable or disable it as appropriate.
 #[derive(Debug, Hash, PartialEq)]
-pub struct Manual {
+pub struct ManualHealthProbe {
     name: String,
     enabled: bool,
 }
 
-impl Manual {
-    pub fn new<S: Into<String>>(name: S) -> Self {
+impl ManualHealthProbe {
+    pub fn new<S: Into<String>>(name: S, enabled: bool) -> Self {
         Self {
             name: name.into(),
-            enabled: true,
+            enabled: enabled,
         }
     }
 
@@ -27,7 +32,7 @@ impl Manual {
     }
 }
 
-impl HealthProbe for Manual {
+impl HealthProbe for ManualHealthProbe {
     fn name(&self) -> Result<String, HamsError> {
         Ok(self.name.clone())
     }
@@ -44,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_manual() {
-        let mut probe = Manual::new("test");
+        let mut probe = ManualHealthProbe::new("test", true);
         assert_eq!(probe.check(Instant::now()).unwrap(), true);
         probe.disable();
         assert_eq!(probe.check(Instant::now()).unwrap(), false);

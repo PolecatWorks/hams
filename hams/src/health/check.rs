@@ -48,8 +48,12 @@ impl HealthCheck {
         }
     }
 
-    pub fn add_probe(&self, probe: BoxedHealthProbe<'static>) {
+    pub fn insert(&self, probe: BoxedHealthProbe<'static>) {
         self.probes.lock().unwrap().insert(probe);
+    }
+
+    pub fn remove(&self, probe: BoxedHealthProbe<'static>) {
+        self.probes.lock().unwrap().remove(&probe);
     }
 
     pub fn check(&self, time: Instant) -> bool {
@@ -70,5 +74,81 @@ impl HealthCheck {
                 valid: probe.check(time).unwrap_or_else(|_err| false),
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::health::probe::manual::ManualHealthProbe;
+    use std::time::Duration;
+
+    #[test]
+    fn test_health_check() {
+        let health_check = HealthCheck::new("test");
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        health_check.insert(probe);
+        assert!(health_check.check(Instant::now()));
+    }
+
+    #[test]
+    fn test_health_probe_remove() {
+        let health_check = HealthCheck::new("test");
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        health_check.insert(probe);
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", true));
+        health_check.insert(probe);
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 2);
+        assert!(health_check.check(Instant::now()));
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        health_check.remove(probe);
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 1);
+        assert!(health_check.check(Instant::now()));
+    }
+
+    #[test]
+    fn test_health_check_reply() {
+        let health_check = HealthCheck::new("test");
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        health_check.insert(probe);
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 1);
+        assert_eq!(replies[0].name, "test_probe");
+        assert_eq!(replies[0].valid, true);
+    }
+
+    #[test]
+    fn test_health_check_reply_fail() {
+        let health_check = HealthCheck::new("test");
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", false));
+        health_check.insert(probe);
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 1);
+        assert_eq!(replies[0].name, "test_probe");
+        assert_eq!(replies[0].valid, false);
+    }
+
+    #[test]
+    fn test_health_check_reply_multiple() {
+        let health_check = HealthCheck::new("test");
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        health_check.insert(probe);
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", false));
+        health_check.insert(probe);
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 2);
+    }
+
+    #[test]
+    fn test_health_check_reply_failures() {
+        let health_check = HealthCheck::new("test");
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        health_check.insert(probe);
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", false));
+        health_check.insert(probe);
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 2);
     }
 }
