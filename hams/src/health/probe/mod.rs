@@ -14,15 +14,15 @@ pub mod manual;
 
 /// Detail structure for replies from ready and alive for a single probe
 #[derive(Serialize, PartialEq, Clone)]
-pub struct HealthProbeResult<'a> {
+pub struct HealthProbeResult {
     /// Name of health Reply
-    pub name: &'a str,
+    pub name: String,
     /// Return value of health Reply
     pub valid: bool,
 }
 unsafe impl Send for BoxedHealthProbe<'_> {}
 
-impl<'a> fmt::Debug for HealthProbeResult<'a> {
+impl fmt::Debug for HealthProbeResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}", self.name, self.valid)
     }
@@ -42,7 +42,7 @@ impl<'a> PartialEq for BoxedHealthProbe<'a> {
 
 impl<'a> Eq for BoxedHealthProbe<'a> {}
 
-impl<'a> Display for HealthProbeResult<'a> {
+impl Display for HealthProbeResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}", self.name, self.valid)
     }
@@ -71,7 +71,7 @@ mod tests {
     #[test]
     fn test_health_probe_result() {
         let hpr = HealthProbeResult {
-            name: "test",
+            name: "test".to_owned(),
             valid: true,
         };
         assert_eq!(hpr.name, "test");

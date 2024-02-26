@@ -2,13 +2,16 @@
 
 //! Provide a FFI interface to health utility funcitons
 
+pub mod error;
+
 mod hams;
+mod webservice;
 // mod wuggle;
 // use libc::c_void;
 
 // pub mod ffi;
-pub mod error;
 
+/// Health checks
 pub mod health;
 
 #[cfg(all(feature = "axum", feature = "warp"))]

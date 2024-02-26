@@ -20,7 +20,7 @@ use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::{signal::unix::SignalKind, sync::mpsc};
 
 #[derive(Debug)]
-struct HamsCallback {
+pub(crate) struct HamsCallback {
     user_data: *mut c_void,
     cb: unsafe extern "C" fn(*mut c_void),
 }
@@ -32,13 +32,14 @@ unsafe impl Send for HamsCallback {}
 
 #[derive(Debug, Clone)]
 pub struct Hams {
-    /// A HaMS has a nmae which is used for distinguishing it on APIs
-    pub name: String,
-
+    /// Name of the application this HaMS is for
+    pub(crate) name: String,
+    /// Provide the version of the application
+    pub(crate) version: String,
     /// Provide the version of the release of HaMS
-    version: String,
+    pub(crate) hams_version: String,
     /// Provide the name of the package
-    package: String,
+    pub(crate) hams_name: String,
 
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
@@ -49,7 +50,7 @@ pub struct Hams {
     kill: Arc<Mutex<Option<Sender<()>>>>,
 
     /// Callback to be called on shutdown
-    shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
+    pub(crate) shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
     /// Value to indicate if service is running
@@ -65,13 +66,15 @@ impl Hams {
     pub fn new<S: Into<String>>(name: S) -> Hams {
         Hams {
             name: name.into(),
+            version: "UNDEFINED".to_owned(),
+            hams_version: env!("CARGO_PKG_VERSION").to_string(),
+            hams_name: env!("CARGO_PKG_NAME").to_string(),
+
             thread_jh: Arc::new(Mutex::new(None)),
 
             // channels: Arc::new(Mutex::new(vec![])),
             // handles: Arc::new(Mutex::new(vec![])),
             kill: Arc::new(Mutex::new(None)),
-            version: env!("CARGO_PKG_VERSION").to_string(),
-            package: env!("CARGO_PKG_NAME").to_string(),
             port: 8079,
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
@@ -217,7 +220,7 @@ impl Hams {
         info!("start_async is now complete for health");
     }
 
-    fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {
+    pub fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {
         match shutdown_cb.lock().unwrap().as_ref() {
             Some(hams_callback) => {
                 info!("Executing CB");
@@ -248,9 +251,11 @@ pub async fn service_listen<'a>(
     hams: Hams,
     mut kill_recv: Receiver<()>,
 ) -> tokio::task::JoinHandle<()> {
+    use crate::webservice::hams_service;
+
     let temp_hams = hams.clone();
     // TODO:  use a direct clone not temp
-    let api = warp_filters::hams_service(temp_hams);
+    let api = hams_service(temp_hams);
 
     let (_addr, server) =
         warp::serve(api).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
@@ -259,152 +264,4 @@ pub async fn service_listen<'a>(
 
     info!("Serving service ({}) on port {}", hams.name, hams.port);
     tokio::task::spawn(server)
-}
-
-#[cfg(feature = "axum")]
-/// Start the port listening and exposing the service on it
-pub async fn service_listen<'a>(
-    hams: Hams,
-    mut kill_recv: Receiver<()>,
-) -> tokio::task::JoinHandle<()> {
-    let temp_hams = hams.clone();
-
-    let api = hams_service(temp_hams);
-
-    let routes = api.with(warp::log("hams"));
-
-    let (_addr, server) =
-        warp::serve(routes).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
-            kill_recv.recv().await;
-        });
-
-    info!("Serving service ({}) on port {}", hams.name, hams.port);
-    tokio::task::spawn(server)
-}
-
-#[cfg(feature = "warp")]
-mod warp_filters {
-    use warp::Filter;
-
-    use super::{warp_handlers, Hams};
-
-    pub fn hams_service(
-        hams: Hams,
-    ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-        let name = warp::path("name")
-            .and(warp::get())
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::name_handler);
-
-        let shutdown = warp::path("shutdown")
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::shutdown_handler);
-
-        let alive = warp::path("alive")
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::alive_handler);
-
-        let ready = warp::path("ready")
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::ready_handler);
-
-        let version = warp::path("version")
-            .and(warp::get())
-            .and(with_hams(hams.clone()))
-            .and_then(warp_handlers::version_handler);
-
-        warp::path("health").and(name.or(version).or(alive).or(ready).or(shutdown))
-    }
-
-    fn with_hams(
-        hams: Hams,
-    ) -> impl Filter<Extract = (Hams,), Error = std::convert::Infallible> + Clone {
-        warp::any().map(move || hams.clone())
-    }
-}
-
-#[cfg(feature = "warp")]
-mod warp_handlers {
-    use std::convert::Infallible;
-
-    use serde::Serialize;
-
-    use super::Hams;
-
-    /// Reply structure for Version endpoint
-    #[derive(Serialize)]
-    struct VersionReply {
-        version: String,
-        package: String,
-    }
-
-    /// Reply structure for Name endpoint
-    #[derive(Serialize)]
-    struct NameReply {
-        name: String,
-    }
-
-    /// Reply structure for Name endpoint
-    #[derive(Serialize)]
-    struct VersionNameReply {
-        name: String,
-        version: String,
-    }
-
-    /// Handler for name endpoint
-    pub async fn name_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let name_reply = NameReply { name: hams.name };
-        Ok(warp::reply::json(&name_reply))
-    }
-
-    /// Handler for version endpoint
-    pub async fn version_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        let version_reply = VersionReply {
-            version: hams.version,
-            package: hams.package,
-        };
-        Ok(warp::reply::json(&version_reply))
-    }
-
-    /// Handler for shutdown endpoint
-    pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        Hams::tigger_callback(hams.shutdown_cb.clone());
-
-        let shutdown_reply = VersionNameReply {
-            version: hams.version,
-            name: hams.name,
-        };
-
-        Ok(warp::reply::json(&shutdown_reply))
-    }
-
-    /// Handler for alive endpoint
-    pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        // let (valid, content) = hams.check_alive();
-        let (valid, content) = (true, "Alive");
-
-        Ok(warp::reply::with_status(
-            content,
-            if valid {
-                warp::http::StatusCode::OK
-            } else {
-                warp::http::StatusCode::NOT_ACCEPTABLE
-            },
-        ))
-    }
-
-    /// Handler for ready endpoint
-    pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        // let (valid, content) = hams.check_ready();
-        let (valid, content) = (true, "Ready");
-
-        Ok(warp::reply::with_status(
-            content,
-            if valid {
-                warp::http::StatusCode::OK
-            } else {
-                warp::http::StatusCode::NOT_ACCEPTABLE
-            },
-        ))
-    }
 }

@@ -6,16 +6,16 @@ use std::{
 
 use serde::Serialize;
 
-use super::probe::{BoxedHealthProbe, HealthProbe};
+use super::probe::{BoxedHealthProbe, HealthProbe, HealthProbeResult};
 
 /// Reply structure to return from a health check
 #[derive(Debug, Eq, PartialEq, Serialize)]
-pub struct HealthCheckReply {
+pub struct HealthCheckResult {
     pub(crate) name: String,
     pub(crate) valid: bool,
 }
 
-impl<'a> warp::Reply for HealthCheckReply {
+impl warp::Reply for HealthCheckResult {
     fn into_response(self) -> warp::reply::Response {
         warp::reply::with_status(
             warp::reply::json(&self),
@@ -41,6 +41,7 @@ pub struct HealthCheck {
 }
 
 impl HealthCheck {
+    /// Create a new HealthCheck with a name
     pub fn new<S: Into<String>>(name: S) -> Self {
         Self {
             name: name.into(),
@@ -48,30 +49,39 @@ impl HealthCheck {
         }
     }
 
+    /// Insert a probe into the HealthCheck
     pub fn insert(&self, probe: BoxedHealthProbe<'static>) {
         self.probes.lock().unwrap().insert(probe);
     }
 
+    /// Remove a probe from the HealthCheck
     pub fn remove(&self, probe: BoxedHealthProbe<'static>) {
         self.probes.lock().unwrap().remove(&probe);
     }
 
-    pub fn check(&self, time: Instant) -> bool {
-        self.probes
+    /// Check the health of the HealthCheck
+    pub fn check(&self, time: Instant) -> HealthCheckResult {
+        let valid = self
+            .probes
             .lock()
             .unwrap()
             .iter()
-            .all(|probe| probe.check(time).unwrap_or_else(|_err| false))
+            .all(|probe| probe.check(time).unwrap_or_else(|_err| false));
+        HealthCheckResult {
+            name: self.name.clone(),
+            valid,
+        }
     }
 
-    pub fn check_reply(&self, time: Instant) -> Vec<HealthCheckReply> {
+    /// Check the health of the HealthCheck and return a vector of results of type [HealthProbeResult]
+    pub fn check_reply(&self, time: Instant) -> Vec<HealthProbeResult> {
         self.probes
             .lock()
             .unwrap()
             .iter()
-            .map(|probe| HealthCheckReply {
-                name: probe.name().unwrap_or_else(|_err| "Unknown".to_string()),
-                valid: probe.check(time).unwrap_or_else(|_err| false),
+            .map(|probe| HealthProbeResult {
+                name: probe.name().unwrap_or("Unknown".to_string()),
+                valid: probe.check(time).unwrap_or(false),
             })
             .collect()
     }
@@ -80,7 +90,7 @@ impl HealthCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::probe::manual::ManualHealthProbe;
+    use crate::health::{check, probe::manual::ManualHealthProbe};
     use std::time::Duration;
 
     #[test]
@@ -88,7 +98,7 @@ mod tests {
         let health_check = HealthCheck::new("test");
         let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
         health_check.insert(probe);
-        assert!(health_check.check(Instant::now()));
+        assert!(health_check.check(Instant::now()).valid);
     }
 
     #[test]
@@ -100,12 +110,10 @@ mod tests {
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
-        assert!(health_check.check(Instant::now()));
         let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
         health_check.remove(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
-        assert!(health_check.check(Instant::now()));
     }
 
     #[test]
@@ -117,6 +125,8 @@ mod tests {
         assert_eq!(replies.len(), 1);
         assert_eq!(replies[0].name, "test_probe");
         assert_eq!(replies[0].valid, true);
+        let check = health_check.check(Instant::now());
+        assert!(check.valid);
     }
 
     #[test]
@@ -135,10 +145,12 @@ mod tests {
         let health_check = HealthCheck::new("test");
         let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
         health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", false));
+        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", true));
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
+        let check = health_check.check(Instant::now());
+        assert!(check.valid);
     }
 
     #[test]
@@ -150,5 +162,7 @@ mod tests {
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
+        let check = health_check.check(Instant::now());
+        assert!(!check.valid);
     }
 }
