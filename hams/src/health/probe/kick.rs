@@ -46,7 +46,12 @@ mod tests {
         assert_eq!(probe.check(Instant::now()).unwrap(), true);
         probe.kick();
         assert_eq!(probe.check(Instant::now()).unwrap(), true);
-        std::thread::sleep(Duration::from_secs(2));
-        assert_eq!(probe.check(Instant::now()).unwrap(), false);
+        //No need to sleep, we can just check the time
+        assert_eq!(
+            probe
+                .check(Instant::now() + Duration::from_secs(2))
+                .unwrap(),
+            false
+        );
     }
 }

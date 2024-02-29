@@ -22,7 +22,7 @@ pub fn hams_service(
         .and(with_hams(hams.clone()))
         .and_then(handlers::version);
 
-    warp::path("health").and(version.or(alive).or(ready).or(shutdown))
+    warp::path("hams").and(version.or(shutdown).or(alive).or(ready))
 }
 
 fn with_hams(
@@ -108,7 +108,7 @@ mod handlers {
 
             let reply = warp::test::request()
                 .method("GET")
-                .path("/health/version")
+                .path("/hams/version")
                 .reply(&api)
                 .await;
 
@@ -122,7 +122,7 @@ mod handlers {
 
             let reply = warp::test::request()
                 .method("POST")
-                .path("/health/shutdown")
+                .path("/hams/shutdown")
                 .reply(&api)
                 .await;
 
@@ -136,7 +136,7 @@ mod handlers {
 
             let reply = warp::test::request()
                 .method("GET")
-                .path("/health/alive")
+                .path("/hams/alive")
                 .reply(&api)
                 .await;
 
@@ -150,7 +150,7 @@ mod handlers {
 
             let reply = warp::test::request()
                 .method("GET")
-                .path("/health/ready")
+                .path("/hams/ready")
                 .reply(&api)
                 .await;
 
