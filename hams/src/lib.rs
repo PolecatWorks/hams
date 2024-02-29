@@ -24,7 +24,6 @@ use libc::c_int;
 use log::info;
 use std::ffi::CStr;
 use std::process;
-// use std::time::Duration;
 
 /// Name of the Crate
 const NAME: &str = env!("CARGO_PKG_NAME");
