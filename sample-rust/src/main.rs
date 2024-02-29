@@ -4,11 +4,14 @@ use std::process::ExitCode;
 use clap::Parser;
 use clap::Subcommand;
 use env_logger::Env;
+use ffi_log2::log_param;
 use log::info;
 use sample_rust::config::Config;
+use sample_rust::hams_logger_init;
 use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
+use sample_rust::Hams;
 use sample_rust::NAME;
 use sample_rust::VERSION;
 
@@ -41,6 +44,8 @@ pub fn main() -> ExitCode {
     let log_level = Env::default().default_filter_or("info");
     env_logger::Builder::from_env(log_level).init();
 
+    hams_logger_init(log_param()).unwrap();
+
     let cli = Cli::parse();
 
     info!("Value for config: {:?}", cli.config);
@@ -68,6 +73,10 @@ pub fn main() -> ExitCode {
             println!("Hello, world! {}:{}", NAME, VERSION);
             smokey();
             hello_world();
+
+            let hams = Hams::new("sample").unwrap();
+            drop(hams);
+
             ExitCode::SUCCESS
         }
         None => {
