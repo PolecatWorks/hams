@@ -10,3 +10,5 @@ log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
 hams = { path = "../hams" }
 libc = "~0.2"
+serde = { version = "~1.0", features = ['std', 'derive'] }
+figment = { version = "~0.10", features = ["yaml", "env"] }

@@ -1,9 +1,12 @@
 use std::path::PathBuf;
+use std::process::ExitCode;
 
 use clap::Parser;
 use clap::Subcommand;
 use env_logger::Env;
-use sample_rust::ffi::hello_world;
+use log::info;
+use sample_rust::config::Config;
+use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
 use sample_rust::NAME;
@@ -34,11 +37,42 @@ struct Cli {
     command: Option<Commands>,
 }
 
-pub fn main() {
+pub fn main() -> ExitCode {
     let log_level = Env::default().default_filter_or("info");
     env_logger::Builder::from_env(log_level).init();
 
-    println!("Hello, world! {}:{}", NAME, VERSION);
-    smokey();
-    unsafe { hello_world() };
+    let cli = Cli::parse();
+
+    info!("Value for config: {:?}", cli.config);
+
+    let config: Config = Config::figment(cli.config)
+        .extract()
+        .expect("Config file loaded");
+
+    match cli.command {
+        Some(Commands::Test { list }) => {
+            if list {
+                println!("Listing test values");
+            } else {
+                println!("Testing things");
+            }
+            ExitCode::SUCCESS
+        }
+        Some(Commands::Validate {}) => {
+            println!("Validating the configuration");
+            println!("Config: {:?}", config);
+            ExitCode::SUCCESS
+        }
+        Some(Commands::Start {}) => {
+            println!("Starting the service");
+            println!("Hello, world! {}:{}", NAME, VERSION);
+            smokey();
+            hello_world();
+            ExitCode::SUCCESS
+        }
+        None => {
+            println!("No command specified");
+            ExitCode::FAILURE
+        }
+    }
 }
