@@ -1,3 +1,0 @@
-image:
-  repository: dockerreg.k8s/polecatworks/sample-rust
-  tag: 0.2.0
