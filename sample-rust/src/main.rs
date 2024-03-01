@@ -70,7 +70,9 @@ pub fn main() -> ExitCode {
         }
         Some(Commands::Start {}) => {
             println!("Starting the service");
-            println!("Hello, world! {}:{}", NAME, VERSION);
+            println!("Sample version: {}:{}", NAME, VERSION);
+            let hams_version = sample_rust::hams_version();
+            println!("HaMS version: {}", hams_version);
             smokey();
             hello_world();
 

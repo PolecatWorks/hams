@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{ffi::CStr, marker::PhantomData};
 
 use ffi_log2::LogParam;
 use hamserror::HamsError;
@@ -16,6 +16,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn hello_world() {
     unsafe { ffi::hello_world() }
+}
+
+pub fn hams_version() -> String {
+    let c_str = unsafe { ffi::hams_version() };
+    let r_str = unsafe { CStr::from_ptr(c_str) };
+    r_str.to_str().unwrap().to_string()
 }
 
 /// Initialise logging

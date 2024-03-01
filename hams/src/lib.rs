@@ -151,6 +151,14 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     )
 }
 
+/// Return the version of the library
+#[no_mangle]
+pub extern "C" fn hams_version() -> *const libc::c_char {
+    let version = format!("{}:{}", NAME, VERSION);
+    let c_version = std::ffi::CString::new(version).unwrap();
+    c_version.into_raw()
+}
+
 // /// # Safety
 // ///
 // /// Create an alive kicked health check
