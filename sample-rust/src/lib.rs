@@ -27,6 +27,8 @@ pub fn hams_logger_init(param: LogParam) -> Result<(), HamsError> {
 }
 
 /// Hams is an FFI struct to opaquely handle the object that was created by the Hams API.
+///
+/// This allows the developer to use the Hams C API using safe rust.
 pub struct Hams<'a> {
     pub c: *mut ffi::Hams,
     _marker: PhantomData<&'a ()>,
