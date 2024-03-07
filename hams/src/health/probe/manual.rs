@@ -6,12 +6,12 @@ use std::time::Instant;
 /// A liveness check that is manuall controlled. Allowing the developer to manually
 /// enable or disable it as appropriate.
 #[derive(Debug, Hash, PartialEq)]
-pub struct ManualHealthProbe {
+pub struct Manual {
     name: String,
     enabled: bool,
 }
 
-impl ManualHealthProbe {
+impl Manual {
     pub fn new<S: Into<String>>(name: S, enabled: bool) -> Self {
         Self {
             name: name.into(),
@@ -32,7 +32,7 @@ impl ManualHealthProbe {
     }
 }
 
-impl HealthProbe for ManualHealthProbe {
+impl HealthProbe for Manual {
     fn name(&self) -> Result<String, HamsError> {
         Ok(self.name.clone())
     }
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_manual() {
-        let mut probe = ManualHealthProbe::new("test", true);
+        let mut probe = Manual::new("test", true);
         assert_eq!(probe.check(Instant::now()).unwrap(), true);
         probe.disable();
         assert_eq!(probe.check(Instant::now()).unwrap(), false);

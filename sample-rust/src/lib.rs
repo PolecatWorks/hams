@@ -71,9 +71,62 @@ impl<'a> Drop for Hams<'a> {
     fn drop(&mut self) {
         let retval = unsafe { ffi::hams_free(self.c) };
         if retval == 0 {
-            panic!("FAILED to freem HaMS");
+            panic!("FAILED to free HaMS");
         }
 
         info!("HaMS freed")
+    }
+}
+
+pub struct ProbeManual<'a> {
+    pub c: *mut ffi::Probe,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> ProbeManual<'a> {
+    /// Construct a new manual probe
+    pub fn manual_new<S: Into<String>>(
+        name: S,
+        valid: bool,
+    ) -> Result<ProbeManual<'a>, crate::hamserror::HamsError>
+    where
+        S: std::fmt::Display,
+    {
+        info!("New ManualHealthProbe: {}", &name);
+        let c_name = std::ffi::CString::new(name.into())?;
+        let c = unsafe { ffi::probe_manual_new(c_name.as_ptr(), valid) };
+        if c.is_null() {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to create Probe object".to_string(),
+            ));
+        }
+        Ok(ProbeManual {
+            c,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<'a> Drop for ProbeManual<'a> {
+    /// Releaes the HaMS ffi on drop
+    fn drop(&mut self) {
+        let retval = unsafe { ffi::probe_manual_free(self.c) };
+        if retval == 0 {
+            panic!("FAILED to free Probe");
+        }
+
+        info!("Probe freed")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_probe() {
+        let probe = ProbeManual::manual_new("test_probe", true).unwrap();
+
+        drop(probe);
     }
 }

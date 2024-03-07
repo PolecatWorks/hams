@@ -12,6 +12,7 @@ use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
 use sample_rust::Hams;
+use sample_rust::ProbeManual;
 use sample_rust::NAME;
 use sample_rust::VERSION;
 
@@ -75,6 +76,10 @@ pub fn main() -> ExitCode {
             println!("HaMS version: {}", hams_version);
             smokey();
             hello_world();
+
+            let probe = ProbeManual::manual_new("test", true).unwrap();
+            println!("New Manual Probe CREATED");
+            drop(probe);
 
             let hams = Hams::new("sample").unwrap();
             drop(hams);

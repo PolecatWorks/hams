@@ -10,6 +10,20 @@ Typical usages are:
 * Java/Kotlin
 * Node
 
+# Test with Miri
+
+Run the command
+
+    cargo watch -x 'miri test'
+
+# Run and test
+
+Run the command
+
+    cargo watch -x "run -- --config sample-rust/test_data/config.yaml start"
+
+
+
 # ToDo
 
 List of topics that need work

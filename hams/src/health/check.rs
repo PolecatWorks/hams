@@ -90,13 +90,13 @@ impl HealthCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::{check, probe::manual::ManualHealthProbe};
+    use crate::health::{check, probe::manual::Manual};
     use std::time::Duration;
 
     #[test]
     fn test_health_check() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.insert(probe);
         assert!(health_check.check(Instant::now()).valid);
     }
@@ -104,13 +104,13 @@ mod tests {
     #[test]
     fn test_health_probe_remove() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", true));
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.remove(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn test_health_check_reply() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn test_health_check_reply_fail() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", false));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", false));
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
@@ -143,9 +143,9 @@ mod tests {
     #[test]
     fn test_health_check_reply_multiple() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", true));
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
@@ -156,9 +156,9 @@ mod tests {
     #[test]
     fn test_health_check_reply_failures() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe", true));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(ManualHealthProbe::new("test_probe2", false));
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", false));
         health_check.insert(probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);

@@ -17,9 +17,14 @@ pub mod health;
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
 
+use crate::health::probe::HealthProbe;
+
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
+use health::probe::kick::Kick;
+use health::probe::manual::Manual;
+use health::probe::BoxedHealthProbe;
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
@@ -157,6 +162,97 @@ pub extern "C" fn hams_version() -> *const libc::c_char {
     let version = format!("{}:{}", NAME, VERSION);
     let c_version = std::ffi::CString::new(version).unwrap();
     c_version.into_raw()
+}
+
+/// Return a manual health probe
+///
+/// # Safety
+/// Create a manual health probe
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool) -> *mut Manual {
+    // TODO: Not sure if we should be returning a BoxedHealthProbe as this will mean we cannot call the set functions.
+    ffi_helpers::null_pointer_check!(name);
+
+    catch_panic!(
+        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
+        info!("Creating ManualHealthProbe: {}", name_str);
+
+        let probe = health::probe::manual::Manual::new(name_str, check);
+
+        Ok(Box::into_raw(Box::new(probe)))
+    )
+}
+
+/// Free Manual Health Probe
+///
+/// # Safety
+/// Free the Manual Health Probe. The object must be created with HaMS library
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = Box::from_raw(ptr);
+
+        let name = &probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Releasing manual probe: {}", name);
+        drop(probe);
+        Ok(1)
+    )
+}
+
+/// Return a kick health probe
+///
+/// # Safety
+/// Create a kick health probe
+pub unsafe extern "C" fn probe_kick_new(
+    name: *const libc::c_char,
+    margin_secs: c_int,
+) -> *mut Kick {
+    ffi_helpers::null_pointer_check!(name);
+
+    catch_panic!(
+        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
+        let margin = std::time::Duration::from_secs(margin_secs as u64);
+        info!("Creating KickHealthProbe: {}", name_str);
+
+        let probe = health::probe::kick::Kick::new(name_str, margin);
+        Ok(Box::into_raw(Box::new(probe)))
+    )
+}
+
+/// Call kick method
+///
+/// # Safety
+/// Call the kick method on the Kick object
+pub unsafe extern "C" fn probe_kick(ptr: *mut Kick) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        probe.kick();
+        Ok(1)
+    )
+}
+
+/// Free Health Probe
+///
+/// # Safety
+/// Free the Health Probe. The object must be created with HaMS library
+#[no_mangle]
+pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = Box::from_raw(ptr);
+
+        let name = &probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Releasing probe: {}", name);
+        drop(probe);
+        Ok(1)
+    )
 }
 
 // /// # Safety
