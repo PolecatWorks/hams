@@ -265,3 +265,35 @@ pub async fn service_listen<'a>(
     info!("Serving service ({}) on port {}", hams.name, hams.port);
     tokio::task::spawn(server)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::health::probe::{manual::Manual, BoxedHealthProbe};
+
+    use super::*;
+    use std::time::Duration;
+
+    #[cfg_attr(miri, ignore)]
+    #[test]
+    fn test_hams() {
+        let mut hams = Hams::new("test");
+        hams.start().expect("Started");
+        thread::sleep(Duration::from_secs(1));
+        hams.stop().expect("Stopped");
+    }
+
+    // Test add and remove alive and ready checks
+    #[cfg_attr(miri, ignore)]
+    #[test]
+    fn test_hams_health() {
+        let hams = Hams::new("test");
+
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
+        hams.alive.insert(probe);
+        // hams.alive.remove(probe);
+
+        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
+        hams.ready.insert(probe);
+        // hams.ready.remove(probe);
+    }
+}

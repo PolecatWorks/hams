@@ -20,6 +20,23 @@ pub struct HealthProbeResult {
     /// Return value of health Reply
     pub valid: bool,
 }
+
+/// A boxed HealthProbe for use over FFI
+#[thin_trait_object]
+/// Trait for health probes
+pub trait HealthProbe {
+    /// Name of the probe
+    fn name(&self) -> Result<String, HamsError>;
+    /// Check the health of the probe
+    fn check(&self, time: Instant) -> Result<bool, HamsError>;
+}
+
+// impl<T> From<T> for BoxedHealthProbe<'_> {
+//     fn from(t: T) -> Self {
+//         BoxedHealthProbe::new(t)
+//     }
+// }
+
 unsafe impl Send for BoxedHealthProbe<'_> {}
 
 impl fmt::Debug for HealthProbeResult {
@@ -46,16 +63,6 @@ impl Display for HealthProbeResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}/{}", self.name, self.valid)
     }
-}
-
-/// A boxed HealthProbe for use over FFI
-#[thin_trait_object]
-/// Trait for health probes
-pub trait HealthProbe {
-    /// Name of the probe
-    fn name(&self) -> Result<String, HamsError>;
-    /// Check the health of the probe
-    fn check(&self, time: Instant) -> Result<bool, HamsError>;
 }
 
 impl fmt::Debug for BoxedHealthProbe<'_> {

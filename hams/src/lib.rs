@@ -57,6 +57,14 @@ pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
     my_cb();
 }
 
+/// Return the version of the library
+#[no_mangle]
+pub extern "C" fn hams_version() -> *const libc::c_char {
+    let version = format!("{}:{}", NAME, VERSION);
+    let c_version = std::ffi::CString::new(version).unwrap();
+    c_version.into_raw()
+}
+
 #[cfg_attr(doc, aquamarine::aquamarine)]
 ///
 /// Register logging for uservice
@@ -97,7 +105,7 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 ///
 /// Initialise the hams object giving it a name on construction
 #[no_mangle]
-pub unsafe extern "C" fn hams_init<'a>(name: *const libc::c_char) -> *mut Hams {
+pub unsafe extern "C" fn hams_new<'a>(name: *const libc::c_char) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
     catch_panic!(
@@ -156,13 +164,20 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     )
 }
 
-/// Return the version of the library
-#[no_mangle]
-pub extern "C" fn hams_version() -> *const libc::c_char {
-    let version = format!("{}:{}", NAME, VERSION);
-    let c_version = std::ffi::CString::new(version).unwrap();
-    c_version.into_raw()
-}
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_add_alive(ptr: *mut Hams, probe: *mut BoxedHealthProbe) -> i32 {
+//     ffi_helpers::null_pointer_check!(ptr);
+//     ffi_helpers::null_pointer_check!(probe);
+
+//     catch_panic!(
+//         let hams = unsafe {&mut *ptr};
+//         let probe = unsafe { Box::from_raw(probe) };
+
+//         info!("Adding alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
+//         hams.add_alive(probe);
+//         Ok(1)
+//     )
+// }
 
 /// Return a manual health probe
 ///
@@ -398,7 +413,7 @@ mod tests {
     fn init_free() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_init(c_library_name.as_ptr()) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -412,7 +427,7 @@ mod tests {
     #[test]
     fn null_init() {
         // let c_library_name: libc::c_char = ptr::null();
-        let my_hams = unsafe { hams_init(ptr::null()) };
+        let my_hams = unsafe { hams_new(ptr::null()) };
 
         assert_eq!(my_hams, ptr::null_mut());
 

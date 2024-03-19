@@ -37,7 +37,7 @@ impl warp::Reply for HealthCheckResult {
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
     name: String,
-    probes: Arc<Mutex<HashSet<BoxedHealthProbe<'static>>>>,
+    pub(crate) probes: Arc<Mutex<HashSet<BoxedHealthProbe<'static>>>>,
 }
 
 impl HealthCheck {
@@ -55,8 +55,8 @@ impl HealthCheck {
     }
 
     /// Remove a probe from the HealthCheck
-    pub fn remove(&self, probe: BoxedHealthProbe<'static>) {
-        self.probes.lock().unwrap().remove(&probe);
+    pub fn remove(&self, probe: &BoxedHealthProbe<'static>) {
+        self.probes.lock().unwrap().remove(probe);
     }
 
     /// Check the health of the HealthCheck
@@ -111,7 +111,7 @@ mod tests {
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
         let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(probe);
+        health_check.remove(&probe);
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
     }

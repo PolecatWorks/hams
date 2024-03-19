@@ -51,7 +51,7 @@ impl<'a> Hams<'a> {
     {
         info!("Registering HaMS: {}", &name);
         let c_name = std::ffi::CString::new(name.into())?;
-        let c = unsafe { ffi::hams_init(c_name.as_ptr()) };
+        let c = unsafe { ffi::hams_new(c_name.as_ptr()) };
         if c.is_null() {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to create Hams object".to_string(),

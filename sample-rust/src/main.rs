@@ -79,6 +79,7 @@ pub fn main() -> ExitCode {
 
             let probe = ProbeManual::manual_new("test", true).unwrap();
             println!("New Manual Probe CREATED");
+
             drop(probe);
 
             let hams = Hams::new("sample").unwrap();

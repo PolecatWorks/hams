@@ -21,7 +21,7 @@ extern "C" {
     /// Configure logging for HaMS
     pub fn hams_logger_init(param: LogParam) -> i32;
 
-    pub fn hams_init(name: *const libc::c_char) -> *mut Hams;
+    pub fn hams_new(name: *const libc::c_char) -> *mut Hams;
     pub fn hams_free(hams: *mut Hams) -> i32;
     pub fn hello_world();
     pub fn hams_version() -> *const libc::c_char;
