@@ -31,12 +31,6 @@ pub trait HealthProbe {
     fn check(&self, time: Instant) -> Result<bool, HamsError>;
 }
 
-// impl<T> From<T> for BoxedHealthProbe<'_> {
-//     fn from(t: T) -> Self {
-//         BoxedHealthProbe::new(t)
-//     }
-// }
-
 unsafe impl Send for BoxedHealthProbe<'_> {}
 
 impl fmt::Debug for HealthProbeResult {
@@ -82,7 +76,7 @@ mod tests {
             valid: true,
         };
         assert_eq!(hpr.name, "test");
-        assert_eq!(hpr.valid, true);
+        assert!(hpr.valid);
     }
 
     struct Probe0 {
@@ -107,7 +101,7 @@ mod tests {
             check: true,
         };
         assert_eq!(probe.name().unwrap(), "test");
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
     }
 
     #[test]
@@ -122,7 +116,7 @@ mod tests {
         });
         let mut set = std::collections::HashSet::new();
         set.insert(probe0);
-        assert_eq!(set.contains(&probe1), true);
+        assert!(set.contains(&probe1));
 
         set.insert(probe1);
 

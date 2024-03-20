@@ -1,4 +1,4 @@
-use super::HealthProbe;
+use super::{BoxedHealthProbe, HealthProbe};
 use crate::error::HamsError;
 
 use std::{
@@ -42,6 +42,10 @@ impl Manual {
     pub fn toggle(&mut self) {
         let mut inner = self.enabled.lock().unwrap();
         inner.valid = !inner.valid;
+    }
+
+    pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+        BoxedHealthProbe::new(self.clone())
     }
 }
 
@@ -93,7 +97,8 @@ mod tests {
     fn test_insert() {
         let mut manual = Manual::new("test", true);
 
-        let probe = BoxedHealthProbe::new(manual.clone());
+        // let probe = BoxedHealthProbe::new(manual.clone());
+        let probe = manual.boxed_probe();
 
         assert!(probe.check(Instant::now()).unwrap());
 
@@ -107,6 +112,8 @@ mod tests {
 
         assert_eq!(check.probes.lock().unwrap().len(), 1);
 
-        check.remove(&BoxedHealthProbe::new(manual.clone()));
+        check.remove(&manual.boxed_probe());
+
+        assert_eq!(check.probes.lock().unwrap().len(), 0);
     }
 }
