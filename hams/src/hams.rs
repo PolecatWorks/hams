@@ -133,21 +133,25 @@ impl Hams {
     pub fn stop(&mut self) -> Result<(), HamsError> {
         info!("stopped hams {}", self.name);
 
-        // let ben = self.thread_tx.lock().unwrap().as_ref().unwrap().clone();
-        // ben.send(()).expect("Sent close message");
-        info!("Close sent");
+        info!("Sending close message to thread");
 
-        let mut tempval = self.thread_jh.lock().expect("got thread");
-        let old_thread = mem::replace(&mut *tempval, None);
-
+        // get teh kill channel and send a message to it
         let mut temp_kill = self.kill.as_ref().lock().expect("got the kill");
-        let old_kill = mem::replace(&mut *temp_kill, None);
+        let old_kill = (*temp_kill).take();
 
         info!("Sending soft KILL signal");
-        old_kill
-            .unwrap()
-            .blocking_send(())
-            .expect("Send close to async");
+        match old_kill {
+            Some(kill) => {
+                kill.blocking_send(()).expect("Send close to async");
+            }
+            None => {
+                error!("No kill channel to send to");
+            }
+        }
+
+        // get the thread join handle and wait for it to finish
+        let mut temp_thread = self.thread_jh.lock().expect("got thread");
+        let old_thread = (*temp_thread).take();
 
         match old_thread {
             Some(jh) => {

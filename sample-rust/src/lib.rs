@@ -62,6 +62,35 @@ impl<'a> Hams<'a> {
             _marker: PhantomData,
         })
     }
+
+    /// Start the HaMS
+    ///
+    /// This will start the HaMS and begin serving the readyness and liveness checks
+    /// as well as the prometheus metrics
+    ///
+    pub fn start(&self) -> Result<(), crate::hamserror::HamsError> {
+        let retval = unsafe { ffi::hams_start(self.c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to start HaMS".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Stop the HaMS
+    ///
+    /// This will stop the HaMS and stop serving the readyness and liveness checks
+    /// as well as the prometheus metrics
+    pub fn stop(&self) -> Result<(), crate::hamserror::HamsError> {
+        let retval = unsafe { ffi::hams_stop(self.c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to stop HaMS".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object

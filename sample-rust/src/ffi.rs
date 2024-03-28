@@ -23,6 +23,9 @@ extern "C" {
 
     pub fn hams_new(name: *const libc::c_char) -> *mut Hams;
     pub fn hams_free(hams: *mut Hams) -> i32;
+    pub fn hams_start(hams: *mut Hams) -> i32;
+    pub fn hams_stop(hams: *mut Hams) -> i32;
+
     pub fn hello_world();
     pub fn hams_version() -> *const libc::c_char;
     pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut Probe;

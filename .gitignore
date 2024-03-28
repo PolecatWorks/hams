@@ -17,3 +17,4 @@ configure
 .dirstamp
 autom4te.cache
 stamp-h1
+Cargo.lock

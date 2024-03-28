@@ -1,10 +1,13 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::thread;
+use std::time::Duration;
 
 use clap::Parser;
 use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
+use libc::sleep;
 use log::info;
 use sample_rust::config::Config;
 use sample_rust::hams_logger_init;
@@ -83,6 +86,13 @@ pub fn main() -> ExitCode {
             drop(probe);
 
             let hams = Hams::new("sample").unwrap();
+            println!("New HaMS CREATED");
+
+            hams.start().unwrap();
+            thread::sleep(Duration::from_secs(5));
+
+            hams.stop().unwrap();
+
             drop(hams);
 
             ExitCode::SUCCESS
