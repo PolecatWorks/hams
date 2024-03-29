@@ -52,7 +52,7 @@ pub struct Hams {
     /// Callback to be called on shutdown
     pub(crate) shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
-    thread_jh: Arc<Mutex<Option<JoinHandle<()>>>>,
+    thread_jh: Arc<Mutex<Option<JoinHandle<Result<(), HamsError>>>>>,
     /// Value to indicate if service is running
     running: Arc<AtomicBool>,
 }
@@ -83,108 +83,95 @@ impl Hams {
         }
     }
 
-    pub fn register_shutdown(&self, user_data: *mut c_void, cb: unsafe extern "C" fn(*mut c_void)) {
+    pub fn register_shutdown(
+        &self,
+        user_data: *mut c_void,
+        cb: unsafe extern "C" fn(*mut c_void),
+    ) -> Result<(), HamsError> {
         println!("Add shutdown to {}", self.name);
-        *self.shutdown_cb.lock().unwrap() = Some(HamsCallback { user_data, cb });
+
+        *self.shutdown_cb.lock()? = Some(HamsCallback { user_data, cb });
+        Ok(())
     }
 
     pub fn start(&mut self) -> Result<(), HamsError> {
-        info!("started hams {}", self.name);
+        info!("Starting HaMS {}", self.name);
         self.running.store(true, Ordering::Relaxed);
 
         let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
-        *self.kill.lock().unwrap() = Some(channel_kill);
-        // *self.kill = Some(Mutex::new(channel_kill));
-
-        // let (thread_tx, thread_rx) = sync::mpsc::channel::<()>();
-        // *self.thread_tx.lock().unwrap()=Some(thread_tx);
+        *self.kill.lock()? = Some(channel_kill);
 
         // Create a clone of self to be owned by the thread
         let mut thread_self = self.clone();
         info!("Original thread: {:?}", thread::current().id());
 
-        let new_hams_thread = thread::spawn(move || {
-            println!("Hello from thread");
+        let new_hams_thread = thread::spawn(move || -> Result<(), HamsError> {
             println!("Have thread_self here {:?}", thread_self);
-            thread_self.start_tokio(rx_kill);
+            thread_self.start_tokio(rx_kill)?;
 
             info!("Thread loop is complete");
+            Ok(())
         });
 
-        *self.thread_jh.lock().unwrap() = Some(new_hams_thread);
+        *self.thread_jh.lock()? = Some(new_hams_thread);
 
         Ok(())
     }
 
-    fn start_tokio(&mut self, rx_kill: Receiver<()>) {
+    fn start_tokio(&mut self, rx_kill: Receiver<()>) -> Result<(), HamsError> {
         info!("starting Tokio");
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
-            .build()
-            .expect("Runtime created in current thread");
+            .build()?;
         let _guard = rt.enter();
 
-        rt.block_on(self.start_async(rx_kill));
+        rt.block_on(self.start_async(rx_kill))?;
 
         info!("Tokio ended");
-    }
-
-    pub fn stop(&mut self) -> Result<(), HamsError> {
-        info!("stopped hams {}", self.name);
-
-        info!("Sending close message to thread");
-
-        // get teh kill channel and send a message to it
-        let mut temp_kill = self.kill.as_ref().lock().expect("got the kill");
-        let old_kill = (*temp_kill).take();
-
-        info!("Sending soft KILL signal");
-        match old_kill {
-            Some(kill) => {
-                kill.blocking_send(()).expect("Send close to async");
-            }
-            None => {
-                error!("No kill channel to send to");
-            }
-        }
-
-        // get the thread join handle and wait for it to finish
-        let mut temp_thread = self.thread_jh.lock().expect("got thread");
-        let old_thread = (*temp_thread).take();
-
-        match old_thread {
-            Some(jh) => {
-                println!("have found a thread joinhandle");
-                jh.join().expect("Thread is joined");
-            }
-            None => println!("Thread not started"),
-        }
-
         Ok(())
     }
 
-    async fn start_async(&mut self, mut kill_signal: Receiver<()>) {
+    pub fn stop(&mut self) -> Result<(), HamsError> {
+        info!("Stopping hams {}", self.name);
+
+        // Get the kill channel and send a message to it
+        let mut temp_kill = self.kill.as_ref().lock()?;
+        let kill = (*temp_kill)
+            .take()
+            .ok_or(HamsError::OptionNone("No kill channel".to_owned()))?;
+
+        kill.blocking_send(())?;
+
+        // get the thread join handle and wait for it to finish
+        let mut temp_thread = self.thread_jh.lock()?;
+        let thread = (*temp_thread)
+            .take()
+            .ok_or(HamsError::OptionNone("No thread to join".to_owned()))?;
+
+        // The ? operator returns the error if the thread join fails. The resultant return is still a result as the
+        // thread itself has an Result return
+        thread.join().map_err(|_e| HamsError::JoinError2)?
+    }
+
+    async fn start_async(&mut self, mut kill_signal: Receiver<()>) -> Result<(), HamsError> {
         info!("Starting ASYNC");
 
         // Put code here to spawn the service parts (ie hams service)
-        // for each servcie get a channel to allow us to shut it down
+        // for each service get a channel to allow us to shut it down
         // and when spawning save the handle to allow us to wait on it finishing.
 
         let (shutdown_health, shutdown_health_recv) = mpsc::channel(1);
-        let health_listen = service_listen(self.clone(), shutdown_health_recv).await;
-
-        // let channels_register = self.channels.clone();
+        let health_listen = webservice(self.clone(), shutdown_health_recv).await;
 
         let my_running = self.running.clone();
         let my_shutdown_cb = self.shutdown_cb.clone();
 
         info!("Starting Tokio spawn");
 
-        let mut sig_terminate =
-            signal(SignalKind::terminate()).expect("Register terminate signal handler");
-        let mut sig_quit = signal(SignalKind::quit()).expect("Register quit signal handler");
-        let mut sig_hup = signal(SignalKind::hangup()).expect("Register hangup signal handler");
+        let mut sig_terminate = signal(SignalKind::terminate())?;
+        let mut sig_quit = signal(SignalKind::quit())?;
+        let mut sig_hup = signal(SignalKind::hangup())?;
         info!("registered signal handlers");
 
         while my_running.load(Ordering::Relaxed) {
@@ -192,58 +179,44 @@ impl Hams {
             tokio::select! {
                     _ = tokio::signal::ctrl_c() => {
                         info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
-                        Hams::tigger_callback(my_shutdown_cb.clone());
-                        // self.tigger_callback();
+                        Hams::tigger_callback(my_shutdown_cb.clone())?;
                     },
                     _ = kill_signal.recv() => {
                         info!("Received kill from library");
                         my_running.store(false, Ordering::Relaxed);
                     },
-                    // _ = rx_http_kill.recv() => info!("Received HTTP kill signal"),
                     _ = sig_terminate.recv() => {
                         info!("Received TERM signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone());
+                        Hams::tigger_callback(my_shutdown_cb.clone())?;
                     },
                     _ = sig_quit.recv() => {
                         info!("Received QUIT signal");
-                    Hams::tigger_callback(my_shutdown_cb.clone());
+                        Hams::tigger_callback(my_shutdown_cb.clone())?;
                     },
                     _ = sig_hup.recv() => {
                         info!("Received HUP signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone());
+                        Hams::tigger_callback(my_shutdown_cb.clone())?;
                     },
             };
         }
 
-        shutdown_health
-            .send(())
-            .await
-            .expect("Shutdown sent to listen");
+        shutdown_health.send(()).await?;
 
-        health_listen.await.expect("health_listen is complete");
+        health_listen.await?;
+
         info!("start_async is now complete for health");
+        Ok(())
     }
 
-    pub fn tigger_callback(shutdown_cb: Arc<Mutex<Option<HamsCallback>>>) {
-        match shutdown_cb.lock().unwrap().as_ref() {
-            Some(hams_callback) => {
-                info!("Executing CB");
-                unsafe { (hams_callback.cb)(hams_callback.user_data) };
-            }
-            None => error!("Call shutdown CB with None"),
-        }
-    }
-}
+    pub(crate) fn tigger_callback(
+        shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
+    ) -> Result<(), HamsError> {
+        let hams_mg = shutdown_cb.lock()?;
+        let hams_callback = hams_mg.as_ref().ok_or(HamsError::CallbackError)?;
 
-async fn shutdown(channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>) {
-    let channels = channels.lock().unwrap().clone();
+        unsafe { (hams_callback.cb)(hams_callback.user_data) };
 
-    for channel in channels.iter() {
-        let channel_rx = channel.send(()).await;
-        match channel_rx {
-            Ok(_v) => info!("Shutdown signal sent"),
-            Err(e) => info!("Error sending close signal: {:?}", e),
-        }
+        Ok(())
     }
 }
 
@@ -251,22 +224,20 @@ async fn shutdown(channels: Arc<Mutex<Vec<mpsc::Sender<()>>>>) {
 /**
 Start the port listening and exposing the service on it
 */
-pub async fn service_listen<'a>(
+pub async fn webservice<'a>(
     hams: Hams,
     mut kill_recv: Receiver<()>,
 ) -> tokio::task::JoinHandle<()> {
     use crate::webservice::hams_service;
 
-    let temp_hams = hams.clone();
-    // TODO:  use a direct clone not temp
-    let api = hams_service(temp_hams);
+    let api = hams_service(hams.clone());
 
     let (_addr, server) =
         warp::serve(api).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
             kill_recv.recv().await;
         });
 
-    info!("Serving service ({}) on port {}", hams.name, hams.port);
+    info!("Serving HaMS ({}) on port {}", hams.name, hams.port);
     tokio::task::spawn(server)
 }
 

@@ -9,20 +9,42 @@ use thiserror::Error;
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {
+    /// Error when running callback
+    #[error("Error calling callback")]
+    CallbackError,
+    /// Error when starting a thread
+    #[error("io::Error eg from tokio start")]
+    IoError(#[from] std::io::Error),
+    /// Error when trying to join a thread
+    #[error("JoinError2")]
+    JoinError2,
+    /// Error when trying to join thread
+    #[error("JoinError")]
+    JoinError(#[from] tokio::task::JoinError),
+    /// Error when trying to send signal to mpsc
+    #[error("Error sending mpsc signal to channel")]
+    SendError(#[from] tokio::sync::mpsc::error::SendError<()>),
+    /// Error getting Option execting it to be not None
+    /// TODO: Maybe remove this
+    #[error("OptionNone error: `{0}`")]
+    OptionNone(String),
+    /// PoisonError from accessing MutexGuard
+    #[error("PoisonError from MutexGuard")]
+    PoisonError,
     /// A standard error with configurable message
-    #[error("Generic error: `{0}`")]
+    #[error("Generic error message (use sparigly): `{0}`")]
     Message(String),
-    /// A Nul was found
-    #[error("NulError response")]
-    NulError,
+    /// A Nul was found on FFI pointer
+    #[error("NulError from FFI pointer")]
+    NulError(#[from] NulError),
     /// An error with unknown source
     #[error("Unknown error")]
     Unknown,
 }
 
-impl From<NulError> for HamsError {
-    fn from(_: NulError) -> HamsError {
-        HamsError::NulError
+impl<T> From<std::sync::PoisonError<T>> for HamsError {
+    fn from(_: std::sync::PoisonError<T>) -> Self {
+        Self::PoisonError
     }
 }
 
