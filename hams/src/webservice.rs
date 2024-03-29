@@ -59,7 +59,8 @@ mod handlers {
 
     /// Handler for shutdown endpoint
     pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
-        Hams::tigger_callback(hams.shutdown_cb.clone());
+        // TODO: Call shutdown
+        // Hams::tigger_callback(hams.shutdown_cb.clone());
 
         version(hams).await
     }
@@ -102,6 +103,7 @@ mod handlers {
         use warp::{filters::reply, http::StatusCode};
 
         #[tokio::test]
+        #[cfg_attr(miri, ignore)]
         async fn test_version() {
             let hams = Hams::new("test");
             let api = hams_service(hams);
@@ -116,6 +118,7 @@ mod handlers {
         }
 
         #[tokio::test]
+        #[cfg_attr(miri, ignore)]
         async fn test_shutdown() {
             let hams = Hams::new("test");
             let api = hams_service(hams);
@@ -130,6 +133,7 @@ mod handlers {
         }
 
         #[tokio::test]
+        #[cfg_attr(miri, ignore)]
         async fn test_alive() {
             let hams = Hams::new("test");
             let api = hams_service(hams);
@@ -144,6 +148,7 @@ mod handlers {
         }
 
         #[tokio::test]
+        #[cfg_attr(miri, ignore)]
         async fn test_ready() {
             let hams = Hams::new("test");
             let api = hams_service(hams);

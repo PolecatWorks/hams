@@ -1,10 +1,13 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::thread;
+use std::time::Duration;
 
 use clap::Parser;
 use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
+use libc::sleep;
 use log::info;
 use sample_rust::config::Config;
 use sample_rust::hams_logger_init;
@@ -12,6 +15,7 @@ use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
 use sample_rust::Hams;
+use sample_rust::ProbeManual;
 use sample_rust::NAME;
 use sample_rust::VERSION;
 
@@ -70,11 +74,25 @@ pub fn main() -> ExitCode {
         }
         Some(Commands::Start {}) => {
             println!("Starting the service");
-            println!("Hello, world! {}:{}", NAME, VERSION);
+            println!("Sample version: {}:{}", NAME, VERSION);
+            let hams_version = sample_rust::hams_version();
+            println!("HaMS version: {}", hams_version);
             smokey();
             hello_world();
 
+            let probe = ProbeManual::manual_new("test", true).unwrap();
+            println!("New Manual Probe CREATED");
+
+            drop(probe);
+
             let hams = Hams::new("sample").unwrap();
+            println!("New HaMS CREATED");
+
+            hams.start().unwrap();
+            thread::sleep(Duration::from_secs(5));
+
+            hams.stop().unwrap();
+
             drop(hams);
 
             ExitCode::SUCCESS

@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use std::{ffi::CStr, marker::PhantomData};
 
 use ffi_log2::LogParam;
 use hamserror::HamsError;
@@ -16,6 +16,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn hello_world() {
     unsafe { ffi::hello_world() }
+}
+
+pub fn hams_version() -> String {
+    let c_str = unsafe { ffi::hams_version() };
+    let r_str = unsafe { CStr::from_ptr(c_str) };
+    r_str.to_str().unwrap().to_string()
 }
 
 /// Initialise logging
@@ -45,7 +51,7 @@ impl<'a> Hams<'a> {
     {
         info!("Registering HaMS: {}", &name);
         let c_name = std::ffi::CString::new(name.into())?;
-        let c = unsafe { ffi::hams_init(c_name.as_ptr()) };
+        let c = unsafe { ffi::hams_new(c_name.as_ptr()) };
         if c.is_null() {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to create Hams object".to_string(),
@@ -56,6 +62,35 @@ impl<'a> Hams<'a> {
             _marker: PhantomData,
         })
     }
+
+    /// Start the HaMS
+    ///
+    /// This will start the HaMS and begin serving the readyness and liveness checks
+    /// as well as the prometheus metrics
+    ///
+    pub fn start(&self) -> Result<(), crate::hamserror::HamsError> {
+        let retval = unsafe { ffi::hams_start(self.c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to start HaMS".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Stop the HaMS
+    ///
+    /// This will stop the HaMS and stop serving the readyness and liveness checks
+    /// as well as the prometheus metrics
+    pub fn stop(&self) -> Result<(), crate::hamserror::HamsError> {
+        let retval = unsafe { ffi::hams_stop(self.c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to stop HaMS".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
@@ -65,9 +100,62 @@ impl<'a> Drop for Hams<'a> {
     fn drop(&mut self) {
         let retval = unsafe { ffi::hams_free(self.c) };
         if retval == 0 {
-            panic!("FAILED to freem HaMS");
+            panic!("FAILED to free HaMS");
         }
 
         info!("HaMS freed")
+    }
+}
+
+pub struct ProbeManual<'a> {
+    pub c: *mut ffi::Probe,
+    _marker: PhantomData<&'a ()>,
+}
+
+impl<'a> ProbeManual<'a> {
+    /// Construct a new manual probe
+    pub fn manual_new<S: Into<String>>(
+        name: S,
+        valid: bool,
+    ) -> Result<ProbeManual<'a>, crate::hamserror::HamsError>
+    where
+        S: std::fmt::Display,
+    {
+        info!("New ManualHealthProbe: {}", &name);
+        let c_name = std::ffi::CString::new(name.into())?;
+        let c = unsafe { ffi::probe_manual_new(c_name.as_ptr(), valid) };
+        if c.is_null() {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to create Probe object".to_string(),
+            ));
+        }
+        Ok(ProbeManual {
+            c,
+            _marker: PhantomData,
+        })
+    }
+}
+
+impl<'a> Drop for ProbeManual<'a> {
+    /// Releaes the HaMS ffi on drop
+    fn drop(&mut self) {
+        let retval = unsafe { ffi::probe_manual_free(self.c) };
+        if retval == 0 {
+            panic!("FAILED to free Probe");
+        }
+
+        info!("Probe freed")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_probe() {
+        let probe = ProbeManual::manual_new("test_probe", true).unwrap();
+
+        drop(probe);
     }
 }

@@ -20,6 +20,17 @@ pub struct HealthProbeResult {
     /// Return value of health Reply
     pub valid: bool,
 }
+
+/// A boxed HealthProbe for use over FFI
+#[thin_trait_object]
+/// Trait for health probes
+pub trait HealthProbe {
+    /// Name of the probe
+    fn name(&self) -> Result<String, HamsError>;
+    /// Check the health of the probe
+    fn check(&self, time: Instant) -> Result<bool, HamsError>;
+}
+
 unsafe impl Send for BoxedHealthProbe<'_> {}
 
 impl fmt::Debug for HealthProbeResult {
@@ -48,16 +59,6 @@ impl Display for HealthProbeResult {
     }
 }
 
-/// A boxed HealthProbe for use over FFI
-#[thin_trait_object]
-/// Trait for health probes
-pub trait HealthProbe {
-    /// Name of the probe
-    fn name(&self) -> Result<String, HamsError>;
-    /// Check the health of the probe
-    fn check(&self, time: Instant) -> Result<bool, HamsError>;
-}
-
 impl fmt::Debug for BoxedHealthProbe<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "BoxedHealthProbe")
@@ -75,7 +76,7 @@ mod tests {
             valid: true,
         };
         assert_eq!(hpr.name, "test");
-        assert_eq!(hpr.valid, true);
+        assert!(hpr.valid);
     }
 
     struct Probe0 {
@@ -100,7 +101,7 @@ mod tests {
             check: true,
         };
         assert_eq!(probe.name().unwrap(), "test");
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
     }
 
     #[test]
@@ -115,7 +116,7 @@ mod tests {
         });
         let mut set = std::collections::HashSet::new();
         set.insert(probe0);
-        assert_eq!(set.contains(&probe1), true);
+        assert!(set.contains(&probe1));
 
         set.insert(probe1);
 

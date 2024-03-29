@@ -1,38 +1,53 @@
 //! describe errors in Hams
 
-use std::{error::Error, ffi::NulError, fmt};
+use std::{ffi::NulError, fmt};
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
+use thiserror::Error;
 
 /// Error type for handling errors on FFI calls
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum HamsError {
+    /// Error when running callback
+    #[error("Error calling callback")]
+    CallbackError,
+    /// Error when starting a thread
+    #[error("io::Error eg from tokio start")]
+    IoError(#[from] std::io::Error),
+    /// Error when trying to join a thread
+    #[error("JoinError2")]
+    JoinError2,
+    /// Error when trying to join thread
+    #[error("JoinError")]
+    JoinError(#[from] tokio::task::JoinError),
+    /// Error when trying to send signal to mpsc
+    #[error("Error sending mpsc signal to channel")]
+    SendError(#[from] tokio::sync::mpsc::error::SendError<()>),
+    /// Error getting Option execting it to be not None
+    /// TODO: Maybe remove this
+    #[error("OptionNone error: `{0}`")]
+    OptionNone(String),
+    /// PoisonError from accessing MutexGuard
+    #[error("PoisonError from MutexGuard")]
+    PoisonError,
     /// A standard error with configurable message
+    #[error("Generic error message (use sparigly): `{0}`")]
     Message(String),
-    /// A Nul was found
-    NulError,
+    /// A Nul was found on FFI pointer
+    #[error("NulError from FFI pointer")]
+    NulError(#[from] NulError),
     /// An error with unknown source
+    #[error("Unknown error")]
     Unknown,
 }
 
-impl fmt::Display for HamsError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            HamsError::Message(msg) => write!(f, "Custom error: {}", msg),
-            HamsError::NulError => write!(f, "Null was retuned"),
-            HamsError::Unknown => todo!(),
-        }
+impl<T> From<std::sync::PoisonError<T>> for HamsError {
+    fn from(_: std::sync::PoisonError<T>) -> Self {
+        Self::PoisonError
     }
 }
 
-impl Error for HamsError {}
-
-impl From<NulError> for HamsError {
-    fn from(_: NulError) -> HamsError {
-        HamsError::NulError
-    }
-}
 /// Convert FFI error messages to Result
 ///
 /// When functions set error_msg during FFI calls the calling function can then use this

@@ -2,9 +2,11 @@ use crate::error::HamsError;
 use crate::health::probe::HealthProbe;
 use std::time::{Duration, Instant};
 
+use super::BoxedHealthProbe;
+
 /// A liveness check that automatically fails when the timer has not been reset before
 /// the duration. Equivalent of a dead mans handle.
-#[derive(Debug, Hash, PartialEq)]
+#[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Kick {
     name: String,
     latest: Instant,
@@ -22,6 +24,10 @@ impl Kick {
 
     pub fn kick(&mut self) {
         self.latest = Instant::now();
+    }
+
+    pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+        BoxedHealthProbe::new(self.clone())
     }
 }
 

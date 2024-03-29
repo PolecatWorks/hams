@@ -17,9 +17,14 @@ pub mod health;
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
 
+use crate::health::probe::HealthProbe;
+
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
+use health::probe::kick::Kick;
+use health::probe::manual::Manual;
+use health::probe::BoxedHealthProbe;
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
@@ -50,6 +55,14 @@ pub extern "C" fn hello_node() -> c_int {
 pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
     println!("HOWDY callback");
     my_cb();
+}
+
+/// Return the version of the library
+#[no_mangle]
+pub extern "C" fn hams_version() -> *const libc::c_char {
+    let version = format!("{}:{}", NAME, VERSION);
+    let c_version = std::ffi::CString::new(version).unwrap();
+    c_version.into_raw()
 }
 
 #[cfg_attr(doc, aquamarine::aquamarine)]
@@ -92,7 +105,7 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 ///
 /// Initialise the hams object giving it a name on construction
 #[no_mangle]
-pub unsafe extern "C" fn hams_init<'a>(name: *const libc::c_char) -> *mut Hams {
+pub unsafe extern "C" fn hams_new<'a>(name: *const libc::c_char) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
     catch_panic!(
@@ -147,6 +160,112 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
         let hams = unsafe {&mut *ptr};
         info!("stop my ham {}", hams.name);
         hams.stop().expect("Hams stopped");
+        Ok(1)
+    )
+}
+
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_add_alive(ptr: *mut Hams, probe: *mut BoxedHealthProbe) -> i32 {
+//     ffi_helpers::null_pointer_check!(ptr);
+//     ffi_helpers::null_pointer_check!(probe);
+
+//     catch_panic!(
+//         let hams = unsafe {&mut *ptr};
+//         let probe = unsafe { Box::from_raw(probe) };
+
+//         info!("Adding alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
+//         hams.add_alive(probe);
+//         Ok(1)
+//     )
+// }
+
+/// Return a manual health probe
+///
+/// # Safety
+/// Create a manual health probe
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool) -> *mut Manual {
+    // TODO: Not sure if we should be returning a BoxedHealthProbe as this will mean we cannot call the set functions.
+    ffi_helpers::null_pointer_check!(name);
+
+    catch_panic!(
+        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
+        info!("Creating ManualHealthProbe: {}", name_str);
+
+        let probe = health::probe::manual::Manual::new(name_str, check);
+
+        Ok(Box::into_raw(Box::new(probe)))
+    )
+}
+
+/// Free Manual Health Probe
+///
+/// # Safety
+/// Free the Manual Health Probe. The object must be created with HaMS library
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = Box::from_raw(ptr);
+
+        let name = &probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Releasing manual probe: {}", name);
+        drop(probe);
+        Ok(1)
+    )
+}
+
+/// Return a kick health probe
+///
+/// # Safety
+/// Create a kick health probe
+pub unsafe extern "C" fn probe_kick_new(
+    name: *const libc::c_char,
+    margin_secs: c_int,
+) -> *mut Kick {
+    ffi_helpers::null_pointer_check!(name);
+
+    catch_panic!(
+        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
+        let margin = std::time::Duration::from_secs(margin_secs as u64);
+        info!("Creating KickHealthProbe: {}", name_str);
+
+        let probe = health::probe::kick::Kick::new(name_str, margin);
+        Ok(Box::into_raw(Box::new(probe)))
+    )
+}
+
+/// Call kick method
+///
+/// # Safety
+/// Call the kick method on the Kick object
+pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        probe.kick();
+        Ok(1)
+    )
+}
+
+/// Free Health Probe
+///
+/// # Safety
+/// Free the Health Probe. The object must be created with HaMS library
+#[no_mangle]
+pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = Box::from_raw(ptr);
+
+        let name = &probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Releasing kick probe: {}", name);
+        drop(probe);
         Ok(1)
     )
 }
@@ -291,10 +410,10 @@ mod tests {
     }
 
     #[test]
-    fn init_free() {
+    fn hams_init_free() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_init(c_library_name.as_ptr()) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -308,7 +427,7 @@ mod tests {
     #[test]
     fn null_init() {
         // let c_library_name: libc::c_char = ptr::null();
-        let my_hams = unsafe { hams_init(ptr::null()) };
+        let my_hams = unsafe { hams_new(ptr::null()) };
 
         assert_eq!(my_hams, ptr::null_mut());
 
@@ -322,5 +441,61 @@ mod tests {
         assert_eq!(retval, 0);
 
         assert!(ffi_error_to_result().is_err(), "Error should be returned");
+    }
+
+    // create and free manual probe
+    #[test]
+    fn probe_manual_create_free() {
+        let c_probe_name = std::ffi::CString::new("name").unwrap();
+
+        let my_probe = unsafe { probe_manual_new(c_probe_name.as_ptr(), true) };
+
+        assert_ne!(my_probe, ptr::null_mut());
+
+        println!("initialised Manual Probe");
+
+        let retval = unsafe { probe_manual_free(my_probe) };
+
+        assert_eq!(retval, 1);
+    }
+
+    // Create and free kick probe
+    #[test]
+    fn probe_kick_create_free() {
+        let c_probe_name = std::ffi::CString::new("name").unwrap();
+
+        let my_probe = unsafe { probe_kick_new(c_probe_name.as_ptr(), 10) };
+
+        assert_ne!(my_probe, ptr::null_mut());
+
+        println!("initialised Kick Probe");
+
+        let retval = unsafe { probe_kick_free(my_probe) };
+
+        assert_eq!(retval, 1);
+    }
+
+    // Create Hams and insert + remove manual probe
+    #[test]
+    fn hams_start_stop() {
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+
+        assert_ne!(my_hams, ptr::null_mut());
+
+        println!("initialised HaMS");
+
+        // let retval = unsafe { hams_start(my_hams) };
+
+        // assert_eq!(retval, 1);
+
+        // let retval = unsafe { hams_stop(my_hams) };
+
+        // assert_eq!(retval, 1);
+
+        let retval = unsafe { hams_free(my_hams) };
+
+        assert_eq!(retval, 1);
     }
 }

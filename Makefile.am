@@ -37,6 +37,10 @@ cargo-test:
 cargo-test-watch:
 	@cargo watch -x 'test -- --nocapture'
 
+
+cargo-miri-watch:
+	@cargo watch -x 'miri test'
+
 cargo-bloat:
 	@cargo bloat --release -n 10
 
