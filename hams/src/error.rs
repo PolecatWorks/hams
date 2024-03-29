@@ -1,6 +1,6 @@
 //! describe errors in Hams
 
-use std::{ffi::NulError, fmt};
+use std::ffi::NulError;
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};

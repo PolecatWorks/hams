@@ -13,8 +13,7 @@ use crate::{
 };
 
 use libc::c_void;
-use log::{error, info};
-use std::mem;
+use log::info;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::{signal::unix::SignalKind, sync::mpsc};
@@ -172,33 +171,31 @@ impl Hams {
         let mut sig_terminate = signal(SignalKind::terminate())?;
         let mut sig_quit = signal(SignalKind::quit())?;
         let mut sig_hup = signal(SignalKind::hangup())?;
-        info!("registered signal handlers");
+        info!("registered signal handlers: TERM, QUIT, HUP");
 
-        while my_running.load(Ordering::Relaxed) {
-            info!("Waiting on signal handlers");
-            tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {
-                        info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-                    _ = kill_signal.recv() => {
-                        info!("Received kill from library");
-                        my_running.store(false, Ordering::Relaxed);
-                    },
-                    _ = sig_terminate.recv() => {
-                        info!("Received TERM signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-                    _ = sig_quit.recv() => {
-                        info!("Received QUIT signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-                    _ = sig_hup.recv() => {
-                        info!("Received HUP signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-            };
-        }
+        info!("Waiting on signal handlers");
+        tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
+                    Hams::tigger_callback(my_shutdown_cb.clone())?;
+                },
+                _ = kill_signal.recv() => {
+                    info!("Received kill from library");
+                    my_running.store(false, Ordering::Relaxed);
+                },
+                _ = sig_terminate.recv() => {
+                    info!("Received TERM signal");
+                    Hams::tigger_callback(my_shutdown_cb.clone())?;
+                },
+                _ = sig_quit.recv() => {
+                    info!("Received QUIT signal");
+                    Hams::tigger_callback(my_shutdown_cb.clone())?;
+                },
+                _ = sig_hup.recv() => {
+                    info!("Received HUP signal");
+                    Hams::tigger_callback(my_shutdown_cb.clone())?;
+                },
+        };
 
         shutdown_health.send(()).await?;
 

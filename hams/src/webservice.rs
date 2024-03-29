@@ -35,7 +35,6 @@ mod handlers {
     use super::Hams;
     use serde::Serialize;
     use std::convert::Infallible;
-    use warp::reply::{Reply, Response};
 
     /// Reply structure for Version response
     #[derive(Serialize)]
@@ -100,7 +99,7 @@ mod handlers {
         use crate::webservice::hams_service;
 
         use super::*;
-        use warp::{filters::reply, http::StatusCode};
+        use warp::http::StatusCode;
 
         #[tokio::test]
         #[cfg_attr(miri, ignore)]

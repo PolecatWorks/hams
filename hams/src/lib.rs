@@ -24,7 +24,6 @@ use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use health::probe::kick::Kick;
 use health::probe::manual::Manual;
-use health::probe::BoxedHealthProbe;
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
