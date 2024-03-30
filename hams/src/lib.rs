@@ -5,8 +5,8 @@
 pub mod error;
 
 mod hams;
+mod tokio_tools;
 mod webservice;
-// mod wuggle;
 // use libc::c_void;
 
 // pub mod ffi;
@@ -158,7 +158,8 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     catch_panic!(
         let hams = unsafe {&mut *ptr};
         info!("stop my ham {}", hams.name);
-        hams.stop().expect("Hams stopped");
+        hams.stop().expect("Hams stopped here");
+        info!("HaMS stopped");
         Ok(1)
     )
 }

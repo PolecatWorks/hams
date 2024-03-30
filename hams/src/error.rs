@@ -9,6 +9,9 @@ use thiserror::Error;
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {
+    /// Cancelled service
+    #[error("Service was cancelled")]
+    Cancelled,
     /// Error when running callback
     #[error("Error calling callback")]
     CallbackError,

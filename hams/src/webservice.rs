@@ -65,7 +65,7 @@ mod handlers {
     }
 
     /// Handler for alive endpoint
-    pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn alive_handler(_hams: Hams) -> Result<impl warp::Reply, Infallible> {
         // let (valid, content) = hams.check_alive();
         let (valid, content) = (true, "Alive");
 
@@ -80,7 +80,7 @@ mod handlers {
     }
 
     /// Handler for ready endpoint
-    pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn ready_handler(_hams: Hams) -> Result<impl warp::Reply, Infallible> {
         // let (valid, content) = hams.check_ready();
         let (valid, content) = (true, "Ready");
 

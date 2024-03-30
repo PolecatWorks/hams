@@ -89,7 +89,8 @@ pub fn main() -> ExitCode {
             println!("New HaMS CREATED");
 
             hams.start().unwrap();
-            thread::sleep(Duration::from_secs(5));
+            info!("HaMS Started, now waiting for 3 secs");
+            thread::sleep(Duration::from_secs(3));
 
             hams.stop().unwrap();
 
