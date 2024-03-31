@@ -9,7 +9,7 @@ use std::{
 use crate::{
     error::HamsError,
     health::check::HealthCheck,
-    tokio_tools::run_in_tokio_with_cancel,
+    tokio_tools::{run_in_tokio, run_in_tokio_with_cancel},
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
 
@@ -102,42 +102,17 @@ impl Hams {
         self.cancellation_token = CancellationToken::new();
 
         // Create a clone of self to be owned by the thread
-        let mut thread_self = self.clone();
+        let mut self_thread = self.clone();
         info!("Original thread: {:?}", thread::current().id());
 
         // Create a new thread into which we will create the HaMS service using Tokio runtime
-        let new_hams_thread = thread::spawn(move || {
+        let thread_hams = thread::spawn(move || {
             info!("HaMS thread: {:?}", thread::current().id());
 
-            let x = run_in_tokio_with_cancel(
-                thread_self.cancellation_token.clone(),
-                thread_self.start_async(thread_self.cancellation_token.clone()),
-            );
-
-            let y = match x {
-                Ok(t) => {
-                    info!("Tokio thread finished: {:?}", t);
-
-                    Ok(())
-                }
-                Err(e) => {
-                    info!("Tokio thread finished with error: {:?}", e);
-                    match e {
-                        HamsError::Cancelled => {
-                            info!("Cancelled");
-                            Ok(())
-                        }
-                        _ => {
-                            info!("Error: {}", e);
-                            Err(e)
-                        }
-                    }
-                }
-            };
-            y
+            run_in_tokio(self_thread.start_async(self_thread.cancellation_token.clone()))
         });
 
-        *self.thread_jh.lock()? = Some(new_hams_thread);
+        *self.thread_jh.lock()? = Some(thread_hams);
 
         Ok(())
     }
