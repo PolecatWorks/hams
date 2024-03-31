@@ -90,8 +90,7 @@ impl HealthCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::{check, probe::manual::Manual};
-    use std::time::Duration;
+    use crate::health::probe::manual::Manual;
 
     #[test]
     fn test_health_check() {

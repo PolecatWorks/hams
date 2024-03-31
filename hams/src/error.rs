@@ -1,6 +1,6 @@
 //! describe errors in Hams
 
-use std::{ffi::NulError, fmt};
+use std::ffi::NulError;
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
@@ -9,6 +9,15 @@ use thiserror::Error;
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {
+    /// Error when service is not running
+    #[error("Service is not running")]
+    NotRunning,
+    /// Error when start is called but service is already running
+    #[error("Service is already running and cannot be started again")]
+    AlreadyRunning,
+    /// Cancelled service
+    #[error("Service was cancelled")]
+    Cancelled,
     /// Error when running callback
     #[error("Error calling callback")]
     CallbackError,
@@ -24,10 +33,9 @@ pub enum HamsError {
     /// Error when trying to send signal to mpsc
     #[error("Error sending mpsc signal to channel")]
     SendError(#[from] tokio::sync::mpsc::error::SendError<()>),
-    /// Error getting Option execting it to be not None
-    /// TODO: Maybe remove this
-    #[error("OptionNone error: `{0}`")]
-    OptionNone(String),
+    /// Error exchanging thread handle from HaMS into Option. Did not get a Thread
+    #[error("NoThread to join on stop")]
+    NoThread,
     /// PoisonError from accessing MutexGuard
     #[error("PoisonError from MutexGuard")]
     PoisonError,

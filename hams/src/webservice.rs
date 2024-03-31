@@ -35,7 +35,6 @@ mod handlers {
     use super::Hams;
     use serde::Serialize;
     use std::convert::Infallible;
-    use warp::reply::{Reply, Response};
 
     /// Reply structure for Version response
     #[derive(Serialize)]
@@ -66,7 +65,7 @@ mod handlers {
     }
 
     /// Handler for alive endpoint
-    pub async fn alive_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn alive_handler(_hams: Hams) -> Result<impl warp::Reply, Infallible> {
         // let (valid, content) = hams.check_alive();
         let (valid, content) = (true, "Alive");
 
@@ -81,7 +80,7 @@ mod handlers {
     }
 
     /// Handler for ready endpoint
-    pub async fn ready_handler(hams: Hams) -> Result<impl warp::Reply, Infallible> {
+    pub async fn ready_handler(_hams: Hams) -> Result<impl warp::Reply, Infallible> {
         // let (valid, content) = hams.check_ready();
         let (valid, content) = (true, "Ready");
 
@@ -100,7 +99,7 @@ mod handlers {
         use crate::webservice::hams_service;
 
         use super::*;
-        use warp::{filters::reply, http::StatusCode};
+        use warp::http::StatusCode;
 
         #[tokio::test]
         #[cfg_attr(miri, ignore)]

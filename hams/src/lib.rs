@@ -5,8 +5,8 @@
 pub mod error;
 
 mod hams;
+mod tokio_tools;
 mod webservice;
-// mod wuggle;
 // use libc::c_void;
 
 // pub mod ffi;
@@ -24,7 +24,6 @@ use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use health::probe::kick::Kick;
 use health::probe::manual::Manual;
-use health::probe::BoxedHealthProbe;
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
@@ -159,7 +158,8 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     catch_panic!(
         let hams = unsafe {&mut *ptr};
         info!("stop my ham {}", hams.name);
-        hams.stop().expect("Hams stopped");
+        hams.stop().expect("Hams stopped here");
+        info!("HaMS stopped");
         Ok(1)
     )
 }

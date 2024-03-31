@@ -61,10 +61,7 @@ impl HealthProbe for Manual {
 
 #[cfg(test)]
 mod tests {
-    use crate::health::probe::BoxedHealthProbe;
-
     use super::*;
-    use std::time::Duration;
 
     #[test]
     fn test_manual() {

@@ -9,15 +9,16 @@ use std::{
 use crate::{
     error::HamsError,
     health::check::HealthCheck,
+    tokio_tools::run_in_tokio_with_cancel,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
 
 use libc::c_void;
-use log::{error, info};
-use std::mem;
+use log::info;
 use tokio::signal::unix::signal;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tokio::{signal::unix::SignalKind, sync::mpsc};
+use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
 pub(crate) struct HamsCallback {
@@ -47,14 +48,13 @@ pub struct Hams {
     alive: HealthCheck,
     ready: HealthCheck,
 
-    kill: Arc<Mutex<Option<Sender<()>>>>,
+    /// Token to cancel the service
+    cancellation_token: CancellationToken,
 
     /// Callback to be called on shutdown
     pub(crate) shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<Result<(), HamsError>>>>>,
-    /// Value to indicate if service is running
-    running: Arc<AtomicBool>,
 }
 
 impl Hams {
@@ -64,6 +64,8 @@ impl Hams {
     ///
     /// * 'name' - A string slice that holds the name of the HaMS
     pub fn new<S: Into<String>>(name: S) -> Hams {
+        let ct = CancellationToken::new();
+        ct.cancel();
         Hams {
             name: name.into(),
             version: "UNDEFINED".to_owned(),
@@ -72,14 +74,11 @@ impl Hams {
 
             thread_jh: Arc::new(Mutex::new(None)),
 
-            // channels: Arc::new(Mutex::new(vec![])),
-            // handles: Arc::new(Mutex::new(vec![])),
-            kill: Arc::new(Mutex::new(None)),
+            cancellation_token: ct,
             port: 8079,
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
-            running: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -96,21 +95,46 @@ impl Hams {
 
     pub fn start(&mut self) -> Result<(), HamsError> {
         info!("Starting HaMS {}", self.name);
-        self.running.store(true, Ordering::Relaxed);
 
-        let (channel_kill, rx_kill) = mpsc::channel::<()>(1);
-        *self.kill.lock()? = Some(channel_kill);
+        if !self.cancellation_token.is_cancelled() {
+            return Err(HamsError::AlreadyRunning);
+        }
+        self.cancellation_token = CancellationToken::new();
 
         // Create a clone of self to be owned by the thread
         let mut thread_self = self.clone();
         info!("Original thread: {:?}", thread::current().id());
 
-        let new_hams_thread = thread::spawn(move || -> Result<(), HamsError> {
-            println!("Have thread_self here {:?}", thread_self);
-            thread_self.start_tokio(rx_kill)?;
+        // Create a new thread into which we will create the HaMS service using Tokio runtime
+        let new_hams_thread = thread::spawn(move || {
+            info!("HaMS thread: {:?}", thread::current().id());
 
-            info!("Thread loop is complete");
-            Ok(())
+            let x = run_in_tokio_with_cancel(
+                thread_self.cancellation_token.clone(),
+                thread_self.start_async(thread_self.cancellation_token.clone()),
+            );
+
+            let y = match x {
+                Ok(t) => {
+                    info!("Tokio thread finished: {:?}", t);
+
+                    Ok(())
+                }
+                Err(e) => {
+                    info!("Tokio thread finished with error: {:?}", e);
+                    match e {
+                        HamsError::Cancelled => {
+                            info!("Cancelled");
+                            Ok(())
+                        }
+                        _ => {
+                            info!("Error: {}", e);
+                            Err(e)
+                        }
+                    }
+                }
+            };
+            y
         });
 
         *self.thread_jh.lock()? = Some(new_hams_thread);
@@ -118,53 +142,41 @@ impl Hams {
         Ok(())
     }
 
-    fn start_tokio(&mut self, rx_kill: Receiver<()>) -> Result<(), HamsError> {
-        info!("starting Tokio");
-
-        let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()?;
-        let _guard = rt.enter();
-
-        rt.block_on(self.start_async(rx_kill))?;
-
-        info!("Tokio ended");
-        Ok(())
-    }
-
     pub fn stop(&mut self) -> Result<(), HamsError> {
         info!("Stopping hams {}", self.name);
 
-        // Get the kill channel and send a message to it
-        let mut temp_kill = self.kill.as_ref().lock()?;
-        let kill = (*temp_kill)
-            .take()
-            .ok_or(HamsError::OptionNone("No kill channel".to_owned()))?;
-
-        kill.blocking_send(())?;
+        // Check if the cancellation token is already cancelled
+        if self.cancellation_token.is_cancelled() {
+            return Err(HamsError::NotRunning);
+        }
 
         // get the thread join handle and wait for it to finish
         let mut temp_thread = self.thread_jh.lock()?;
-        let thread = (*temp_thread)
-            .take()
-            .ok_or(HamsError::OptionNone("No thread to join".to_owned()))?;
+
+        let thread = (*temp_thread).take().ok_or(HamsError::NoThread)?;
+
+        info!("Got thread to wait on");
+
+        self.cancellation_token.cancel();
+        info!("Sent CT");
 
         // The ? operator returns the error if the thread join fails. The resultant return is still a result as the
         // thread itself has an Result return
-        thread.join().map_err(|_e| HamsError::JoinError2)?
+        thread.join().map_err(|_e| {
+            info!("Thread join error");
+            HamsError::JoinError2
+        })?
     }
 
-    async fn start_async(&mut self, mut kill_signal: Receiver<()>) -> Result<(), HamsError> {
+    async fn start_async(&mut self, ct: CancellationToken) -> Result<(), HamsError> {
         info!("Starting ASYNC");
 
         // Put code here to spawn the service parts (ie hams service)
         // for each service get a channel to allow us to shut it down
         // and when spawning save the handle to allow us to wait on it finishing.
 
-        let (shutdown_health, shutdown_health_recv) = mpsc::channel(1);
-        let health_listen = webservice(self.clone(), shutdown_health_recv).await;
+        let hams_webservice = webservice(self.clone(), ct.clone()).await;
 
-        let my_running = self.running.clone();
         let my_shutdown_cb = self.shutdown_cb.clone();
 
         info!("Starting Tokio spawn");
@@ -172,39 +184,37 @@ impl Hams {
         let mut sig_terminate = signal(SignalKind::terminate())?;
         let mut sig_quit = signal(SignalKind::quit())?;
         let mut sig_hup = signal(SignalKind::hangup())?;
-        info!("registered signal handlers");
+        info!("registered signal handlers: TERM, QUIT, HUP");
 
-        while my_running.load(Ordering::Relaxed) {
-            info!("Waiting on signal handlers");
-            tokio::select! {
-                    _ = tokio::signal::ctrl_c() => {
-                        info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-                    _ = kill_signal.recv() => {
-                        info!("Received kill from library");
-                        my_running.store(false, Ordering::Relaxed);
-                    },
-                    _ = sig_terminate.recv() => {
-                        info!("Received TERM signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-                    _ = sig_quit.recv() => {
-                        info!("Received QUIT signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-                    _ = sig_hup.recv() => {
-                        info!("Received HUP signal");
-                        Hams::tigger_callback(my_shutdown_cb.clone())?;
-                    },
-            };
-        }
+        info!("Waiting on signal handlers");
+        tokio::select! {
+            ws = hams_webservice => {
+                info!("Hams webservice completed");
+                ws?;
+            },
+            _ = ct.cancelled() => {
+                info!("Cancellation Token cancelled");
+            },
+            _ = tokio::signal::ctrl_c() => {
+                info!("Received ctrl-c signal: {:?}", my_shutdown_cb);
+            },
+            _ = sig_terminate.recv() => {
+                info!("Received SIGTERM");
+            },
+            _ = sig_quit.recv() => {
+                info!("Received SIGQUIT");
+            },
+            _ = sig_hup.recv() => {
+                info!("Received SIGHUP");
+            },
+        };
+        info!("Signal handlers completed");
+        // Send ct.cancel() in case we exited the select based on a signal
+        ct.cancel();
 
-        shutdown_health.send(()).await?;
+        Hams::tigger_callback(my_shutdown_cb.clone())?;
 
-        health_listen.await?;
-
-        info!("start_async is now complete for health");
+        info!("start_async is now complete for HaMS {}", self.name);
         Ok(())
     }
 
@@ -212,9 +222,16 @@ impl Hams {
         shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     ) -> Result<(), HamsError> {
         let hams_mg = shutdown_cb.lock()?;
-        let hams_callback = hams_mg.as_ref().ok_or(HamsError::CallbackError)?;
-
-        unsafe { (hams_callback.cb)(hams_callback.user_data) };
+        match hams_mg.as_ref() {
+            Some(hams_callback) => {
+                info!("Triggering shutdown callback");
+                unsafe { (hams_callback.cb)(hams_callback.user_data) };
+                info!("Completed shutdown callback")
+            }
+            None => {
+                info!("No shutdown callback to trigger");
+            }
+        }
 
         Ok(())
     }
@@ -224,18 +241,13 @@ impl Hams {
 /**
 Start the port listening and exposing the service on it
 */
-pub async fn webservice<'a>(
-    hams: Hams,
-    mut kill_recv: Receiver<()>,
-) -> tokio::task::JoinHandle<()> {
+pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::JoinHandle<()> {
     use crate::webservice::hams_service;
 
     let api = hams_service(hams.clone());
 
-    let (_addr, server) =
-        warp::serve(api).bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), async move {
-            kill_recv.recv().await;
-        });
+    let (_addr, server) = warp::serve(api)
+        .bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), ct.cancelled_owned());
 
     info!("Serving HaMS ({}) on port {}", hams.name, hams.port);
     tokio::task::spawn(server)
@@ -247,6 +259,14 @@ mod tests {
 
     use super::*;
     use std::time::Duration;
+
+    /// This is a test to ensure that the CancellationToken can be cancelled multiple times
+    #[test]
+    fn test_cancel_token() {
+        let ct = CancellationToken::new();
+        ct.cancel();
+        ct.cancel();
+    }
 
     #[cfg_attr(miri, ignore)]
     #[test]
