@@ -1,23 +1,20 @@
 use std::{
-    sync::{
-        atomic::{AtomicBool, Ordering},
-        Arc, Mutex,
-    },
+    sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
 use crate::{
     error::HamsError,
     health::check::HealthCheck,
-    tokio_tools::{run_in_tokio, run_in_tokio_with_cancel},
+    tokio_tools::run_in_tokio,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
 
 use libc::c_void;
 use log::info;
 use tokio::signal::unix::signal;
-use tokio::sync::mpsc::{Receiver, Sender};
-use tokio::{signal::unix::SignalKind, sync::mpsc};
+
+use tokio::signal::unix::SignalKind;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Debug)]
