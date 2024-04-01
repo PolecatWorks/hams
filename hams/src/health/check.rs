@@ -103,16 +103,29 @@ mod tests {
     #[test]
     fn test_health_probe_remove() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", true));
-        health_check.insert(probe);
+
+        let manual0 = Manual::new("test_probe0", true);
+        let probe0 = BoxedHealthProbe::new(manual0.clone());
+        health_check.insert(probe0);
+
+        let manual1 = Manual::new("test_probe1", true);
+        health_check.insert(BoxedHealthProbe::new(manual1.clone()));
+
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(&probe);
+
+        // let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
+        health_check.remove(&BoxedHealthProbe::new(manual0.clone()));
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
+
+        let probe0 = BoxedHealthProbe::new(manual0.clone());
+        health_check.remove(&probe0);
+        assert_eq!(replies.len(), 1);
+
+        health_check.remove(&BoxedHealthProbe::new(manual1.clone()));
+        let replies = health_check.check_reply(Instant::now());
+        assert_eq!(replies.len(), 0);
     }
 
     #[test]
@@ -123,7 +136,7 @@ mod tests {
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
         assert_eq!(replies[0].name, "test_probe");
-        assert_eq!(replies[0].valid, true);
+        assert!(replies[0].valid);
         let check = health_check.check(Instant::now());
         assert!(check.valid);
     }

@@ -257,7 +257,6 @@ mod tests {
 
         let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         hams.alive.insert(probe);
-        // hams.alive.remove(probe);
 
         let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         hams.ready.insert(probe);
