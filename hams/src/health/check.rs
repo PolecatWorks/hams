@@ -66,7 +66,7 @@ impl HealthCheck {
             .lock()
             .unwrap()
             .iter()
-            .all(|probe| probe.check(time).unwrap_or_else(|_err| false));
+            .all(|probe| probe.check(time).unwrap_or(false));
         HealthCheckResult {
             name: self.name.clone(),
             valid,
@@ -90,7 +90,7 @@ impl HealthCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::probe::manual::Manual;
+    use crate::health::probe::manual::{self, Manual};
 
     #[test]
     fn test_health_check() {
@@ -105,25 +105,23 @@ mod tests {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        let probe0 = BoxedHealthProbe::new(manual0.clone());
-        health_check.insert(probe0);
+        health_check.insert(manual0.boxed_probe());
 
         let manual1 = Manual::new("test_probe1", true);
-        health_check.insert(BoxedHealthProbe::new(manual1.clone()));
+        health_check.insert(manual1.boxed_probe());
 
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 2);
 
         // let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(&BoxedHealthProbe::new(manual0.clone()));
+        health_check.remove(&manual0.boxed_probe());
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
 
-        let probe0 = BoxedHealthProbe::new(manual0.clone());
-        health_check.remove(&probe0);
+        health_check.remove(&manual0.boxed_probe());
         assert_eq!(replies.len(), 1);
 
-        health_check.remove(&BoxedHealthProbe::new(manual1.clone()));
+        health_check.remove(&manual1.boxed_probe());
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 0);
     }
@@ -149,7 +147,7 @@ mod tests {
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 1);
         assert_eq!(replies[0].name, "test_probe");
-        assert_eq!(replies[0].valid, false);
+        assert!(!replies[0].valid);
     }
 
     #[test]

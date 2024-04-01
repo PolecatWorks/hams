@@ -21,6 +21,18 @@ pub struct HealthProbeResult {
     pub valid: bool,
 }
 
+impl fmt::Debug for HealthProbeResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.name, self.valid)
+    }
+}
+
+impl Display for HealthProbeResult {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}/{}", self.name, self.valid)
+    }
+}
+
 /// A boxed HealthProbe for use over FFI
 #[thin_trait_object]
 /// Trait for health probes
@@ -29,15 +41,12 @@ pub trait HealthProbe {
     fn name(&self) -> Result<String, HamsError>;
     /// Check the health of the probe
     fn check(&self, time: Instant) -> Result<bool, HamsError>;
+
+    /// Return a boxed version of the probe that is FFI safe
+    fn boxed_probe(&self) -> BoxedHealthProbe<'static>;
 }
 
 unsafe impl Send for BoxedHealthProbe<'_> {}
-
-impl fmt::Debug for HealthProbeResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name, self.valid)
-    }
-}
 
 impl<'a> Hash for BoxedHealthProbe<'a> {
     fn hash<H: Hasher>(&self, state: &mut H) {
@@ -52,12 +61,6 @@ impl<'a> PartialEq for BoxedHealthProbe<'a> {
 }
 
 impl<'a> Eq for BoxedHealthProbe<'a> {}
-
-impl Display for HealthProbeResult {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.name, self.valid)
-    }
-}
 
 impl fmt::Debug for BoxedHealthProbe<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -79,6 +82,7 @@ mod tests {
         assert!(hpr.valid);
     }
 
+    #[derive(Clone)]
     struct Probe0 {
         name: String,
         check: bool,
@@ -91,6 +95,9 @@ mod tests {
 
         fn check(&self, _time: Instant) -> Result<bool, HamsError> {
             Ok(self.check)
+        }
+        fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+            BoxedHealthProbe::new(self.clone())
         }
     }
 

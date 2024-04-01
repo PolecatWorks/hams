@@ -39,6 +39,9 @@ impl HealthProbe for Kick {
     fn check(&self, time: Instant) -> Result<bool, HamsError> {
         Ok(time < self.latest + self.margin)
     }
+    fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+        BoxedHealthProbe::new(self.clone())
+    }
 }
 
 #[cfg(test)]
@@ -48,15 +51,21 @@ mod tests {
     #[test]
     fn test_kick() {
         let mut probe = Kick::new("test", Duration::from_secs(1));
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         probe.kick();
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         //No need to sleep, we can just check the time
-        assert_eq!(
-            probe
-                .check(Instant::now() + Duration::from_secs(2))
-                .unwrap(),
-            false
-        );
+        assert!(!probe
+            .check(Instant::now() + Duration::from_secs(2))
+            .unwrap());
+    }
+
+    // Test the boxed_probe method
+    #[test]
+    fn test_boxed_probe() {
+        let probe = Kick::new("test", Duration::from_secs(1));
+        let boxed_probe = probe.boxed_probe();
+        assert_eq!(boxed_probe.name().unwrap(), "test");
+        assert!(boxed_probe.check(Instant::now()).unwrap());
     }
 }

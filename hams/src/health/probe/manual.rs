@@ -44,9 +44,9 @@ impl Manual {
         inner.valid = !inner.valid;
     }
 
-    pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
-        BoxedHealthProbe::new(self.clone())
-    }
+    // pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+    //     BoxedHealthProbe::new(self.clone())
+    // }
 }
 
 impl HealthProbe for Manual {
@@ -56,6 +56,9 @@ impl HealthProbe for Manual {
 
     fn check(&self, _time: Instant) -> Result<bool, HamsError> {
         Ok(self.enabled.lock().unwrap().valid)
+    }
+    fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+        BoxedHealthProbe::new(self.clone())
     }
 }
 
