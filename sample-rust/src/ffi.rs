@@ -28,7 +28,13 @@ extern "C" {
 
     pub fn hello_world();
     pub fn hams_version() -> *const libc::c_char;
+
     pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut Probe;
     pub fn probe_manual_free(probe: *mut Probe) -> i32;
+    pub fn probe_manual_enable(probe: *mut Probe, valid: bool) -> i32;
+    pub fn probe_manual_disable(probe: *mut Probe) -> i32;
+    pub fn probe_manual_toggle(probe: *mut Probe) -> i32;
+    pub fn probe_manual_check(probe: *mut Probe) -> i32;
+
     pub fn probe_free(probe: *mut Probe) -> i32;
 }

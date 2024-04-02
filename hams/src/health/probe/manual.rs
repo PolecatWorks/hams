@@ -69,15 +69,15 @@ mod tests {
     #[test]
     fn test_manual() {
         let mut probe = Manual::new("test", true);
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         probe.disable();
-        assert_eq!(probe.check(Instant::now()).unwrap(), false);
+        assert!(!probe.check(Instant::now()).unwrap());
         probe.enable();
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         probe.toggle();
-        assert_eq!(probe.check(Instant::now()).unwrap(), false);
+        assert!(!probe.check(Instant::now()).unwrap());
         probe.toggle();
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
     }
 
     // Test that clone of Manual refers to same inner

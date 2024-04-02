@@ -7,7 +7,6 @@ use clap::Parser;
 use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
-use libc::sleep;
 use log::info;
 use sample_rust::config::Config;
 use sample_rust::hams_logger_init;
@@ -80,7 +79,7 @@ pub fn main() -> ExitCode {
             smokey();
             hello_world();
 
-            let probe = ProbeManual::manual_new("test", true).unwrap();
+            let probe = ProbeManual::new("test", true).unwrap();
             println!("New Manual Probe CREATED");
 
             drop(probe);

@@ -28,6 +28,7 @@ use libc::c_int;
 use log::info;
 use std::ffi::CStr;
 use std::process;
+use std::time::Instant;
 
 /// Name of the Crate
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -214,6 +215,70 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
         info!("Releasing manual probe: {}", name);
         drop(probe);
         Ok(1)
+    )
+}
+
+/// Enable the Manual Health Probe
+/// # Safety
+/// Enable the Manual Health Probe
+/// This will set the check to true
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_enable(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        probe.enable();
+        Ok(1)
+    )
+}
+
+/// Disable the Manual Health Probe
+/// # Safety
+/// Disable the Manual Health Probe
+/// This will set the check to false
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_disable(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        probe.disable();
+        Ok(1)
+    )
+}
+
+/// Toggle the Manual Health Probe
+/// # Safety
+/// Toggle the Manual Health Probe
+/// This will set the check to the opposite of the current value
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_toggle(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        probe.toggle();
+        Ok(1)
+    )
+}
+
+/// Check the Manual Health Probe
+/// # Safety
+/// Check the Manual Health Probe
+/// This will return the current value of the check
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr, -1);
+
+    let now = Instant::now();
+    catch_panic!(
+        let probe = &mut *ptr;
+
+        match probe.check(now) {
+            Ok(x) => Ok(x as i32),
+            Err(_) => Ok(-1_i32),
+        }
     )
 }
 
