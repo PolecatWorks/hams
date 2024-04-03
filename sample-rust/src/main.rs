@@ -14,6 +14,7 @@ use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
 use sample_rust::Hams;
+
 use sample_rust::ProbeManual;
 use sample_rust::NAME;
 use sample_rust::VERSION;
