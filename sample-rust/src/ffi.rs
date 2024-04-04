@@ -8,6 +8,14 @@ pub struct Hams {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
+/// Opaque object representing HaMS Manual Probe objects.
+/// Low level API access to the CAPI
+#[repr(C)]
+pub struct ManualProbe {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
 /// Opaque object representing HaMS Probe objects.
 /// Low level API access to the CAPI
 #[repr(C)]
@@ -29,12 +37,13 @@ extern "C" {
     pub fn hello_world();
     pub fn hams_version() -> *const libc::c_char;
 
-    pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut Probe;
-    pub fn probe_manual_free(probe: *mut Probe) -> i32;
-    pub fn probe_manual_enable(probe: *mut Probe, valid: bool) -> i32;
-    pub fn probe_manual_disable(probe: *mut Probe) -> i32;
-    pub fn probe_manual_toggle(probe: *mut Probe) -> i32;
-    pub fn probe_manual_check(probe: *mut Probe) -> i32;
+    pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut ManualProbe;
+    pub fn probe_manual_free(probe: *mut ManualProbe) -> i32;
+    pub fn probe_manual_enable(probe: *mut ManualProbe, valid: bool) -> i32;
+    pub fn probe_manual_disable(probe: *mut ManualProbe) -> i32;
+    pub fn probe_manual_toggle(probe: *mut ManualProbe) -> i32;
+    pub fn probe_manual_check(probe: *mut ManualProbe) -> i32;
+    pub fn probe_manual_boxed(probe: *mut ManualProbe) -> *mut Probe;
 
     pub fn probe_free(probe: *mut Probe) -> i32;
 }

@@ -4,7 +4,7 @@ use std::marker::PhantomData;
 use crate::ffi;
 
 pub struct ProbeManual<'a> {
-    pub c: *mut ffi::Probe,
+    pub c: *mut ffi::ManualProbe,
     _marker: PhantomData<&'a ()>,
 }
 

@@ -24,6 +24,7 @@ use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use health::probe::kick::Kick;
 use health::probe::manual::Manual;
+use health::probe::BoxedHealthProbe;
 use libc::c_int;
 use log::info;
 use std::ffi::CStr;
@@ -196,6 +197,38 @@ pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool
         let probe = health::probe::manual::Manual::new(name_str, check);
 
         Ok(Box::into_raw(Box::new(probe)))
+    )
+}
+
+/// Return a boxed health probe from the manual health probe
+/// # Safety
+/// Return a boxed health probe from the manual health probe
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealthProbe<'static> {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        let boxed_probe = probe.boxed_probe();
+        Ok(Box::into_raw(Box::new(boxed_probe)))
+    )
+}
+
+/// Free Health Probe
+/// # Safety
+/// Free the Health Probe. The object must be created with HaMS library
+#[no_mangle]
+pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = Box::from_raw(ptr);
+
+        let name = &probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Releasing probe: {}", name);
+        drop(probe);
+        Ok(1)
     )
 }
 
