@@ -6,17 +6,18 @@ use crate::ffi;
 /// Hams is an FFI struct to opaquely handle the object that was created by the Hams API.
 ///
 /// This allows the developer to use the Hams C API using safe rust.
-pub struct Hams<'a> {
-    pub c: *mut ffi::Hams,
-    _marker: PhantomData<&'a ()>,
+/// Following this example of wrapping the pointer: https://medium.com/dwelo-r-d/wrapping-unsafe-c-libraries-in-rust-d75aeb283c65
+pub struct Hams {
+    // This pointer must never be allowed to leave the struct
+    c: *mut ffi::Hams,
 }
 
-impl<'a> Hams<'a> {
+impl<'a> Hams {
     /// Construct the new Hams.
     /// The return of thi call will have created an object via FFI to handle and manage
     /// your alive and readyness checks.
     /// It also manages your monitoring via prometheus exports
-    pub fn new<S: Into<String>>(name: S) -> Result<Hams<'a>, crate::hamserror::HamsError>
+    pub fn new<S: Into<String>>(name: S) -> Result<Hams, crate::hamserror::HamsError>
     where
         S: std::fmt::Display,
     {
@@ -28,10 +29,7 @@ impl<'a> Hams<'a> {
                 "Failed to create Hams object".to_string(),
             ));
         }
-        Ok(Hams {
-            c,
-            _marker: PhantomData,
-        })
+        Ok(Hams { c })
     }
 
     /// Start the HaMS
@@ -66,7 +64,7 @@ impl<'a> Hams<'a> {
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
 /// goes out of scope
-impl<'a> Drop for Hams<'a> {
+impl<'a> Drop for Hams {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
         let retval = unsafe { ffi::hams_free(self.c) };
