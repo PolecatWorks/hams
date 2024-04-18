@@ -12,7 +12,7 @@ pub struct Hams {
     c: *mut ffi::Hams,
 }
 
-impl<'a> Hams {
+impl Hams {
     /// Construct the new Hams.
     /// The return of thi call will have created an object via FFI to handle and manage
     /// your alive and readyness checks.
@@ -64,7 +64,7 @@ impl<'a> Hams {
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
 /// goes out of scope
-impl<'a> Drop for Hams {
+impl Drop for Hams {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
         let retval = unsafe { ffi::hams_free(self.c) };
