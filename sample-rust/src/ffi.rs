@@ -13,7 +13,13 @@ pub struct Hams {
 #[repr(C)]
 pub struct ManualProbe {
     _data: [u8; 0],
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+    // _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+#[repr(C)]
+pub struct KickProbe {
+    _data: [u8; 0],
+    // _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
 /// Opaque object representing HaMS Probe objects.
@@ -44,6 +50,10 @@ extern "C" {
     pub fn probe_manual_toggle(probe: *mut ManualProbe) -> i32;
     pub fn probe_manual_check(probe: *mut ManualProbe) -> i32;
     pub fn probe_manual_boxed(probe: *mut ManualProbe) -> *mut Probe;
+
+    pub fn probe_kick_new(name: *const libc::c_char, margin: u64) -> *mut KickProbe;
+    pub fn probe_kick_free(probe: *mut KickProbe) -> i32;
+    pub fn probe_kick_kick(probe: *mut KickProbe) -> i32;
 
     pub fn probe_free(probe: *mut Probe) -> i32;
 }
