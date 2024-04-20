@@ -166,6 +166,26 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     )
 }
 
+/// # Safety
+/// Insert a health probe into the alive list of a HaMS object
+#[no_mangle]
+pub unsafe extern "C" fn hams_add_alive(ptr: *mut Hams, probe: *mut BoxedHealthProbe) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    catch_panic!(
+        let hams = unsafe {&mut *ptr};
+        let probe = unsafe {&mut *probe};
+        // let probe = unsafe { Box::from_raw(probe) };
+
+        info!("Adding alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
+        todo!("Add alive probe");
+        // hams.alive_insert(probe.clone());
+        // hams.add_alive(probe);
+        Ok(1)
+    )
+}
+
 // #[no_mangle]
 // pub unsafe extern "C" fn hams_add_alive(ptr: *mut Hams, probe: *mut BoxedHealthProbe) -> i32 {
 //     ffi_helpers::null_pointer_check!(ptr);
@@ -365,6 +385,20 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
         info!("Releasing kick probe: {}", name);
         drop(probe);
         Ok(1)
+    )
+}
+
+/// Return a boxed health probe from the manual health probe
+/// # Safety
+/// Return a boxed health probe from the manual health probe
+#[no_mangle]
+pub unsafe extern "C" fn probe_kick_boxed(ptr: *mut Kick) -> *mut BoxedHealthProbe<'static> {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        let boxed_probe = probe.boxed_probe();
+        Ok(Box::into_raw(Box::new(boxed_probe)))
     )
 }
 

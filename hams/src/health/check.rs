@@ -50,13 +50,13 @@ impl HealthCheck {
     }
 
     /// Insert a probe into the HealthCheck
-    pub fn insert(&self, probe: BoxedHealthProbe<'static>) {
-        self.probes.lock().unwrap().insert(probe);
+    pub fn insert(&self, probe: BoxedHealthProbe<'static>) -> bool {
+        self.probes.lock().unwrap().insert(probe)
     }
 
     /// Remove a probe from the HealthCheck
-    pub fn remove(&self, probe: &BoxedHealthProbe<'static>) {
-        self.probes.lock().unwrap().remove(probe);
+    pub fn remove(&self, probe: &BoxedHealthProbe<'static>) -> bool {
+        self.probes.lock().unwrap().remove(probe)
     }
 
     /// Check the health of the HealthCheck

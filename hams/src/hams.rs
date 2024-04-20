@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     error::HamsError,
-    health::check::HealthCheck,
+    health::{check::HealthCheck, probe::BoxedHealthProbe},
     tokio_tools::run_in_tokio,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
@@ -140,6 +140,26 @@ impl Hams {
         })?
     }
 
+    /// Insert probe to alive checks
+    pub fn alive_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
+        self.alive.insert(probe)
+    }
+
+    /// Remove probe from alive checks
+    pub fn alive_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
+        self.alive.remove(probe)
+    }
+
+    /// Insert probe to ready checks
+    pub fn ready_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
+        self.ready.insert(probe)
+    }
+
+    /// Remove probe from ready checks
+    pub fn ready_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
+        self.ready.remove(probe)
+    }
+
     async fn start_async(&mut self, ct: CancellationToken) -> Result<(), HamsError> {
         info!("Starting ASYNC");
 
@@ -227,10 +247,10 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
 #[cfg(test)]
 mod tests {
-    use crate::health::probe::{manual::Manual, BoxedHealthProbe};
+    use crate::health::probe::{manual::Manual, BoxedHealthProbe, HealthProbe};
 
     use super::*;
-    use std::time::Duration;
+    use std::time::{self, Duration};
 
     /// This is a test to ensure that the CancellationToken can be cancelled multiple times
     #[test]
@@ -250,16 +270,51 @@ mod tests {
     }
 
     // Test add and remove alive and ready checks
-    #[cfg_attr(miri, ignore)]
+    // #[cfg_attr(miri, ignore)]
     #[test]
     fn test_hams_health() {
-        let hams = Hams::new("test");
+        let mut hams = Hams::new("test");
 
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        hams.alive.insert(probe);
+        let probe0 = Manual::new("test_probe0", true);
+        hams.alive.insert(probe0.boxed_probe());
 
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        hams.ready.insert(probe);
-        // hams.ready.remove(probe);
+        let reply = hams.alive.check_reply(time::Instant::now());
+        assert_eq!(reply.len(), 1);
+
+        let probe1 = Manual::new("test_probe1", true);
+        assert!(hams.alive_insert(BoxedHealthProbe::new(probe1.clone())));
+
+        let reply = hams.alive.check_reply(time::Instant::now());
+        assert_eq!(reply.len(), 2);
+
+        assert!(hams.alive_remove(&BoxedHealthProbe::new(probe0.clone())));
+
+        let reply = hams.alive.check_reply(time::Instant::now());
+        assert_eq!(reply.len(), 1);
+
+        assert!(hams.alive_remove(&probe1.boxed_probe()));
+        // Fail when we try to remove the same probe again
+        assert!(!hams.alive_remove(&probe1.boxed_probe()));
+
+        let reply = hams.alive.check_reply(time::Instant::now());
+        assert_eq!(reply.len(), 0);
+
+        let probe2 = Manual::new("test_probe2", true);
+        assert!(hams.ready_insert(probe0.boxed_probe()));
+        assert!(hams.ready_insert(probe1.boxed_probe()));
+        assert!(hams.ready_insert(probe2.boxed_probe()));
+
+        // Fail when we try to insert the same probe again
+        assert!(!hams.ready_insert(probe2.boxed_probe()));
+
+        let reply = hams.ready.check_reply(time::Instant::now());
+        assert_eq!(reply.len(), 3);
+
+        // Remove from ready out of order compared to insert
+        assert!(hams.ready_remove(&probe1.boxed_probe()));
+        assert!(!hams.ready_remove(&probe1.boxed_probe()));
+
+        // Check the probe added to Alive as well as Ready
+        hams.alive_insert(probe0.boxed_probe());
     }
 }
