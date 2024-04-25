@@ -29,7 +29,7 @@ use libc::c_int;
 use log::info;
 use std::ffi::CStr;
 use std::process;
-use std::time::Instant;
+use tokio::time::Instant;
 
 /// Name of the Crate
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -169,19 +169,39 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
 /// # Safety
 /// Insert a health probe into the alive list of a HaMS object
 #[no_mangle]
-pub unsafe extern "C" fn hams_add_alive(ptr: *mut Hams, probe: *mut BoxedHealthProbe) -> i32 {
+pub unsafe extern "C" fn hams_alive_insert(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
     ffi_helpers::null_pointer_check!(probe);
 
     catch_panic!(
         let hams = unsafe {&mut *ptr};
-        let probe = unsafe {&mut *probe};
-        // let probe = unsafe { Box::from_raw(probe) };
+        let probe = Box::from_raw(probe);
 
         info!("Adding alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
-        todo!("Add alive probe");
-        // hams.alive_insert(probe.clone());
-        // hams.add_alive(probe);
+        hams.alive_insert(*probe);
+        Ok(1)
+    )
+}
+
+/// # Safety
+/// Remove a health probe from the alive list of a HaMS object
+#[no_mangle]
+pub unsafe extern "C" fn hams_alive_remove(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    catch_panic!(
+        let hams = unsafe {&mut *ptr};
+        let probe = Box::from_raw(probe);
+
+        info!("Removing alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
+        hams.alive_remove(&probe);
         Ok(1)
     )
 }

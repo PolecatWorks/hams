@@ -3,6 +3,8 @@ use std::marker::PhantomData;
 
 use crate::ffi;
 
+use super::BoxedProbe;
+
 pub struct ProbeManual<'a> {
     pub c: *mut ffi::ManualProbe,
     _marker: PhantomData<&'a ()>,
@@ -29,6 +31,12 @@ impl<'a> ProbeManual<'a> {
             c,
             _marker: PhantomData,
         })
+    }
+
+    pub fn boxed(&self) -> BoxedProbe {
+        BoxedProbe {
+            c: self.c as *mut ffi::Probe,
+        }
     }
 
     /// Enable the probe

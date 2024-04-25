@@ -1,6 +1,8 @@
+use tokio::time::Instant;
+
 use crate::error::HamsError;
 use crate::health::probe::HealthProbe;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::BoxedHealthProbe;
 

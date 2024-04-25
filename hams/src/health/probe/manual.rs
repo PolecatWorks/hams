@@ -1,10 +1,9 @@
+use tokio::time::Instant;
+
 use super::{BoxedHealthProbe, HealthProbe};
 use crate::error::HamsError;
 
-use std::{
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Hash, PartialEq)]
 struct Inner {

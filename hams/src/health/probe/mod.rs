@@ -1,8 +1,10 @@
 use std::fmt::Display;
 
 use serde::Serialize;
+use tokio::time::Instant;
+
 use std::hash::{Hash, Hasher};
-use std::time::Instant;
+
 use thin_trait_object::thin_trait_object;
 
 use crate::error::HamsError;
@@ -49,6 +51,8 @@ pub trait HealthProbe {
 unsafe impl Send for BoxedHealthProbe<'_> {}
 
 impl<'a> Hash for BoxedHealthProbe<'a> {
+    // NOTE: Use a unique identifier to distinguish probes. NOT the probe address.
+    // Reference here: https://stackoverflow.com/questions/72148631/how-can-i-hash-by-a-raw-pointer
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name().unwrap().hash(state);
     }

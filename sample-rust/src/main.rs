@@ -8,6 +8,7 @@ use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
 use log::info;
+use sample_rust::client::run_client_test;
 use sample_rust::config::Config;
 use sample_rust::hams_logger_init;
 use sample_rust::hello_world;
@@ -83,17 +84,26 @@ pub fn main() -> ExitCode {
             let probe = ProbeManual::new("test", true).unwrap();
             println!("New Manual Probe CREATED");
 
-            drop(probe);
-
             let hams = Hams::new("sample").unwrap();
             println!("New HaMS CREATED");
 
             hams.start().unwrap();
             info!("HaMS Started, now waiting for 3 secs");
-            thread::sleep(Duration::from_secs(3));
+
+            match run_client_test() {
+                Ok(_) => {
+                    info!("Client test ran successfully");
+                }
+                Err(e) => {
+                    info!("Client test failed: {}", e);
+                }
+            }
+
+            thread::sleep(Duration::from_secs(10));
 
             hams.stop().unwrap();
 
+            drop(probe);
             drop(hams);
 
             ExitCode::SUCCESS

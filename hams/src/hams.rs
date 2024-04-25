@@ -42,8 +42,8 @@ pub struct Hams {
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
-    alive: HealthCheck,
-    ready: HealthCheck,
+    pub alive: HealthCheck,
+    pub ready: HealthCheck,
 
     /// Token to cancel the service
     cancellation_token: CancellationToken,
@@ -247,10 +247,12 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
 #[cfg(test)]
 mod tests {
-    use crate::health::probe::{manual::Manual, BoxedHealthProbe, HealthProbe};
+    use tokio::time::Instant;
+
+    use crate::health::probe::{manual::Manual, HealthProbe};
 
     use super::*;
-    use std::time::{self, Duration};
+    use std::time::Duration;
 
     /// This is a test to ensure that the CancellationToken can be cancelled multiple times
     #[test]
@@ -278,25 +280,25 @@ mod tests {
         let probe0 = Manual::new("test_probe0", true);
         hams.alive.insert(probe0.boxed_probe());
 
-        let reply = hams.alive.check_reply(time::Instant::now());
+        let reply = hams.alive.check_reply(Instant::now());
         assert_eq!(reply.len(), 1);
 
         let probe1 = Manual::new("test_probe1", true);
         assert!(hams.alive_insert(BoxedHealthProbe::new(probe1.clone())));
 
-        let reply = hams.alive.check_reply(time::Instant::now());
+        let reply = hams.alive.check_reply(Instant::now());
         assert_eq!(reply.len(), 2);
 
         assert!(hams.alive_remove(&BoxedHealthProbe::new(probe0.clone())));
 
-        let reply = hams.alive.check_reply(time::Instant::now());
+        let reply = hams.alive.check_reply(Instant::now());
         assert_eq!(reply.len(), 1);
 
         assert!(hams.alive_remove(&probe1.boxed_probe()));
         // Fail when we try to remove the same probe again
         assert!(!hams.alive_remove(&probe1.boxed_probe()));
 
-        let reply = hams.alive.check_reply(time::Instant::now());
+        let reply = hams.alive.check_reply(Instant::now());
         assert_eq!(reply.len(), 0);
 
         let probe2 = Manual::new("test_probe2", true);
@@ -307,7 +309,7 @@ mod tests {
         // Fail when we try to insert the same probe again
         assert!(!hams.ready_insert(probe2.boxed_probe()));
 
-        let reply = hams.ready.check_reply(time::Instant::now());
+        let reply = hams.ready.check_reply(Instant::now());
         assert_eq!(reply.len(), 3);
 
         // Remove from ready out of order compared to insert

@@ -1,10 +1,10 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use serde::Serialize;
+use tokio::time::Instant;
 
 use super::probe::{BoxedHealthProbe, HealthProbe, HealthProbeResult};
 
@@ -36,7 +36,7 @@ impl warp::Reply for HealthCheckResult {
 /// This seems to capture the issue: https://users.rust-lang.org/t/why-this-impl-type-lifetime-may-not-live-long-enough/67855
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
-    name: String,
+    pub name: String,
     pub(crate) probes: Arc<Mutex<HashSet<BoxedHealthProbe<'static>>>>,
 }
 
@@ -124,6 +124,20 @@ mod tests {
         health_check.remove(&manual1.boxed_probe());
         let replies = health_check.check_reply(Instant::now());
         assert_eq!(replies.len(), 0);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_health_probe_by_ref() {
+        // NOTE: This it is not a good idea to use an address as a unique ID.
+        // reference: https://stackoverflow.com/questions/72148631/how-can-i-hash-by-a-raw-pointer
+        let health_check = HealthCheck::new("test");
+
+        let manual0 = Manual::new("test_probe0", true);
+        assert!(health_check.insert(manual0.boxed_probe()));
+
+        let manual1 = Manual::new("test_probe0", true);
+        assert!(health_check.insert(manual1.boxed_probe()));
     }
 
     #[test]

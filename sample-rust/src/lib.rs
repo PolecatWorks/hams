@@ -1,14 +1,14 @@
-use std::{ffi::CStr, marker::PhantomData};
+use std::ffi::CStr;
 
 use ffi_log2::LogParam;
 use hamserror::HamsError;
-use log::info;
 
+pub mod client;
 pub mod config;
 pub mod ffi;
 pub mod hams;
 pub mod hamserror;
-pub mod probes;
+mod probes;
 pub mod smoke;
 
 pub use hams::Hams;

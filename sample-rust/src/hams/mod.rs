@@ -1,7 +1,6 @@
 use log::info;
-use std::marker::PhantomData;
 
-use crate::ffi;
+use crate::{ffi, probes::BoxedProbe};
 
 /// Hams is an FFI struct to opaquely handle the object that was created by the Hams API.
 ///
@@ -60,6 +59,20 @@ impl Hams {
         }
         Ok(())
     }
+
+    /// Insert a probe into the alive checks
+    ///
+    /// This will insert a probe into the alive checks
+    pub fn alive_insert(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
+        // let probe_c = probe.c;
+        let retval = unsafe { ffi::hams_alive_insert(self.c, probe.c()) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to insert probe into alive checks".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
@@ -85,5 +98,17 @@ mod tests {
         let hams = Hams::new("test").unwrap();
         hams.start().unwrap();
         hams.stop().unwrap();
+    }
+
+    #[test]
+    fn add_probes_to_hams() {
+        let hams = Hams::new("test").unwrap();
+        let probe_manual = crate::probes::ProbeManual::new("test_probe", true).unwrap();
+
+        // todo!("Add the probe to the hams");
+        hams.alive_insert(probe_manual.boxed()).unwrap();
+
+        // hams.start().unwrap();
+        // hams.stop().unwrap();}
     }
 }
