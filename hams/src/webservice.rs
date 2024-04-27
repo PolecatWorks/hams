@@ -69,9 +69,17 @@ pub fn hams_service(
         .and(with_healthcheck(hams.alive.clone()))
         .and_then(handlers::check_handler);
 
+    let alive_verbose = warp::path("alive_verbose")
+        .and(with_healthcheck(hams.alive.clone()))
+        .and_then(handlers::check_verbose_handler);
+
     let ready = warp::path("ready")
         .and(with_healthcheck(hams.ready.clone()))
         .and_then(handlers::check_handler);
+
+    let ready_verbose = warp::path("ready_verbose")
+        .and(with_healthcheck(hams.ready.clone()))
+        .and_then(handlers::check_verbose_handler);
 
     let version = warp::path("version")
         .and(warp::get())
@@ -83,6 +91,8 @@ pub fn hams_service(
             .or(shutdown)
             .or(alive)
             .or(ready)
+            .or(alive_verbose)
+            .or(ready_verbose)
             .recover(handle_rejection),
     )
 }
@@ -100,7 +110,7 @@ fn with_hams(
 }
 
 mod handlers {
-    use crate::{error::HamsError, health::check::HealthCheck};
+    use crate::health::check::HealthCheck;
 
     use super::Hams;
     use serde::Serialize;
@@ -135,24 +145,35 @@ mod handlers {
         version(hams).await
     }
 
-    #[derive(Serialize)]
-    struct ProbeReply {
-        valid: bool,
-        name: String,
+    /// Handler for alive endpoint
+    pub async fn check_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
+        let health_check = check.check(Instant::now());
+
+        let valid = health_check.valid;
+        Ok(warp::reply::with_status(
+            health_check,
+            if valid {
+                warp::http::StatusCode::OK
+            } else {
+                warp::http::StatusCode::SERVICE_UNAVAILABLE
+            },
+        ))
     }
 
     /// Handler for alive endpoint
-    pub async fn check_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let reply = check.check(Instant::now());
-        if reply.valid {
-            let probe_reply = ProbeReply {
-                valid: true,
-                name: check.name,
-            };
-            Ok(warp::reply::json(&probe_reply))
-        } else {
-            Err(HamsError::ProbeNotGood("Alive".to_owned()).into())
-        }
+    pub async fn check_verbose_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
+        let health_check = check.check_verbose(Instant::now());
+
+        let valid = health_check.valid;
+
+        Ok(warp::reply::with_status(
+            health_check,
+            if valid {
+                warp::http::StatusCode::OK
+            } else {
+                warp::http::StatusCode::SERVICE_UNAVAILABLE
+            },
+        ))
     }
 
     #[cfg(test)]

@@ -280,26 +280,26 @@ mod tests {
         let probe0 = Manual::new("test_probe0", true);
         hams.alive.insert(probe0.boxed_probe());
 
-        let reply = hams.alive.check_reply(Instant::now());
-        assert_eq!(reply.len(), 1);
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 1);
 
         let probe1 = Manual::new("test_probe1", true);
         assert!(hams.alive_insert(BoxedHealthProbe::new(probe1.clone())));
 
-        let reply = hams.alive.check_reply(Instant::now());
-        assert_eq!(reply.len(), 2);
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 2);
 
         assert!(hams.alive_remove(&BoxedHealthProbe::new(probe0.clone())));
 
-        let reply = hams.alive.check_reply(Instant::now());
-        assert_eq!(reply.len(), 1);
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 1);
 
         assert!(hams.alive_remove(&probe1.boxed_probe()));
         // Fail when we try to remove the same probe again
         assert!(!hams.alive_remove(&probe1.boxed_probe()));
 
-        let reply = hams.alive.check_reply(Instant::now());
-        assert_eq!(reply.len(), 0);
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 0);
 
         let probe2 = Manual::new("test_probe2", true);
         assert!(hams.ready_insert(probe0.boxed_probe()));
@@ -309,8 +309,8 @@ mod tests {
         // Fail when we try to insert the same probe again
         assert!(!hams.ready_insert(probe2.boxed_probe()));
 
-        let reply = hams.ready.check_reply(Instant::now());
-        assert_eq!(reply.len(), 3);
+        let reply = hams.ready.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 3);
 
         // Remove from ready out of order compared to insert
         assert!(hams.ready_remove(&probe1.boxed_probe()));

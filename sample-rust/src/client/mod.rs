@@ -28,7 +28,21 @@ pub fn run_client_test() -> std::result::Result<(), error::MyError> {
             .await?;
         println!("{resp:#?}");
 
+        let resp = reqwest::get("http://localhost:8079/hams/alive_verbose")
+            .await?
+            .text()
+            // .json::<HashMap<String, String>>()
+            .await?;
+        println!("{resp:#?}");
+
         let resp = reqwest::get("http://localhost:8079/hams/ready")
+            .await?
+            .text()
+            // .json::<HashMap<String, String>>()
+            .await?;
+        println!("{resp:#?}");
+
+        let resp = reqwest::get("http://localhost:8079/hams/ready_verbose")
             .await?
             .text()
             // .json::<HashMap<String, String>>()
