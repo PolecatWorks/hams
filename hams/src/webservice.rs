@@ -86,6 +86,11 @@ pub fn hams_service(
         .and(with_hams(hams.clone()))
         .and_then(handlers::version);
 
+    let metrics = warp::path("metrics")
+        .and(warp::get())
+        .and(with_hams(hams.clone()))
+        .and_then(handlers::metrics);
+
     warp::path("hams").and(
         version
             .or(shutdown)
@@ -93,6 +98,7 @@ pub fn hams_service(
             .or(ready)
             .or(alive_verbose)
             .or(ready_verbose)
+            .or(metrics)
             .recover(handle_rejection),
     )
 }
@@ -174,6 +180,12 @@ mod handlers {
                 warp::http::StatusCode::SERVICE_UNAVAILABLE
             },
         ))
+    }
+
+    /// Handler for metrics endpoint
+    pub async fn metrics(_hams: Hams) -> Result<impl warp::Reply, Rejection> {
+        let metrics = "Prometheus metrics go here";
+        Ok(warp::reply::json(&metrics))
     }
 
     #[cfg(test)]

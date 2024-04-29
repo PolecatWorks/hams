@@ -49,6 +49,13 @@ pub fn run_client_test() -> std::result::Result<(), error::MyError> {
             .await?;
         println!("{resp:#?}");
 
+        let resp = reqwest::get("http://localhost:8079/hams/metrics")
+            .await?
+            .text()
+            // .json::<HashMap<String, String>>()
+            .await?;
+        println!("{resp:#?}");
+
         Ok(())
     })
 }
