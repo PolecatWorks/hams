@@ -168,6 +168,7 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
 
 /// # Safety
 /// Insert a health probe into the alive list of a HaMS object
+/// This will NOT take ownership of the probe but will store a copy of it
 #[no_mangle]
 pub unsafe extern "C" fn hams_alive_insert(
     ptr: *mut Hams,
@@ -178,11 +179,17 @@ pub unsafe extern "C" fn hams_alive_insert(
 
     catch_panic!(
         let hams = unsafe {&mut *ptr};
-        let probe = Box::from_raw(probe);
 
-        info!("Adding alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
-        hams.alive_insert(*probe);
-        Ok(1)
+        let probe = unsafe { Box::from_raw(probe) };
+        let name = probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Adding alive probe: {}", name);
+
+        if hams.alive_insert(*probe) {
+            Ok(1)
+        } else {
+            Ok(0)
+        }
     )
 }
 
@@ -648,6 +655,40 @@ mod tests {
 
         let retval = unsafe { hams_free(my_hams) };
 
+        assert_eq!(retval, 1);
+    }
+
+    // Test insert remove of manual probe into hams
+    #[test]
+    fn hams_insert_remove_manual() {
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+        assert_ne!(my_hams, ptr::null_mut());
+
+        println!("initialised HaMS");
+
+        let c_probe_name = std::ffi::CString::new("name").unwrap();
+
+        let my_probe = unsafe { probe_manual_new(c_probe_name.as_ptr(), true) };
+        assert_ne!(my_probe, ptr::null_mut());
+
+        let probe_boxed = unsafe { probe_manual_boxed(my_probe) };
+        assert_ne!(probe_boxed, ptr::null_mut());
+
+        let retval = unsafe { hams_alive_insert(my_hams, probe_boxed) };
+        assert_eq!(retval, 1);
+
+        let probe_boxed = unsafe { probe_manual_boxed(my_probe) };
+        assert_ne!(probe_boxed, ptr::null_mut());
+
+        let retval = unsafe { hams_alive_remove(my_hams, probe_boxed) };
+        assert_eq!(retval, 1);
+
+        let retval = unsafe { probe_manual_free(my_probe) };
+        assert_eq!(retval, 1);
+
+        let retval = unsafe { hams_free(my_hams) };
         assert_eq!(retval, 1);
     }
 }

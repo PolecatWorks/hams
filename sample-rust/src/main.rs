@@ -81,11 +81,17 @@ pub fn main() -> ExitCode {
             smokey();
             hello_world();
 
-            let probe = ProbeManual::new("test", true).unwrap();
+            let probe0 = ProbeManual::new("probe0", true).unwrap();
             println!("New Manual Probe CREATED");
 
             let hams = Hams::new("sample").unwrap();
             println!("New HaMS CREATED");
+
+            let ben = probe0.boxed();
+            println!("Probe Boxed");
+
+            hams.alive_insert(probe0.boxed())
+                .expect("insert probe0 into alive");
 
             hams.start().unwrap();
             info!("HaMS Started, now waiting for 3 secs");
@@ -103,7 +109,7 @@ pub fn main() -> ExitCode {
 
             hams.stop().unwrap();
 
-            drop(probe);
+            drop(probe0);
             drop(hams);
 
             ExitCode::SUCCESS
