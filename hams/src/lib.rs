@@ -213,6 +213,24 @@ pub unsafe extern "C" fn hams_alive_remove(
     )
 }
 
+/// # Safety
+/// Check the alive probe to see if it is still alive
+#[no_mangle]
+pub unsafe extern "C" fn hams_alive_check(ptr: *mut Hams) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr, -1);
+
+    let now = Instant::now();
+    catch_panic!(
+        let hams = unsafe {&mut *ptr};
+
+        if hams.alive.check(now).valid {
+            Ok(1)
+        } else {
+            Ok(0)
+        }
+    )
+}
+
 // #[no_mangle]
 // pub unsafe extern "C" fn hams_add_alive(ptr: *mut Hams, probe: *mut BoxedHealthProbe) -> i32 {
 //     ffi_helpers::null_pointer_check!(ptr);
@@ -673,17 +691,26 @@ mod tests {
         let my_probe = unsafe { probe_manual_new(c_probe_name.as_ptr(), true) };
         assert_ne!(my_probe, ptr::null_mut());
 
+        let check_response = unsafe { hams_alive_check(my_hams) };
+        assert_eq!(check_response, 1);
+
         let probe_boxed = unsafe { probe_manual_boxed(my_probe) };
         assert_ne!(probe_boxed, ptr::null_mut());
 
         let retval = unsafe { hams_alive_insert(my_hams, probe_boxed) };
         assert_eq!(retval, 1);
 
+        let check_response = unsafe { hams_alive_check(my_hams) };
+        assert_eq!(check_response, 1);
+
         let probe_boxed = unsafe { probe_manual_boxed(my_probe) };
         assert_ne!(probe_boxed, ptr::null_mut());
 
         let retval = unsafe { hams_alive_remove(my_hams, probe_boxed) };
         assert_eq!(retval, 1);
+
+        let check_response = unsafe { hams_alive_check(my_hams) };
+        assert_eq!(check_response, 1);
 
         let retval = unsafe { probe_manual_free(my_probe) };
         assert_eq!(retval, 1);
