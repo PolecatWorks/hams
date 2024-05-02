@@ -65,12 +65,15 @@ impl Hams {
     /// This will insert a probe into the alive checks
     pub fn alive_insert(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
         // let probe_c = probe.c;
-        let retval = unsafe { ffi::hams_alive_insert(self.c, probe.c()) };
+        println!("ABOUT to insert probe");
+        let retval = unsafe { ffi::hams_alive_insert(self.c, probe.c) };
+        println!("Part way through ");
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to insert probe into alive checks".to_string(),
             ));
         }
+        println!("did insert");
         Ok(())
     }
 }

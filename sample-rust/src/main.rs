@@ -90,8 +90,8 @@ pub fn main() -> ExitCode {
             let ben = probe0.boxed();
             println!("Probe Boxed");
 
-            hams.alive_insert(probe0.boxed())
-                .expect("insert probe0 into alive");
+            hams.alive_insert(ben).expect("insert probe0 into alive");
+            println!("Probe0 inserted into alive");
 
             hams.start().unwrap();
             info!("HaMS Started, now waiting for 3 secs");

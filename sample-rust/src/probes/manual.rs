@@ -34,9 +34,9 @@ impl<'a> ProbeManual<'a> {
     }
 
     pub fn boxed(&self) -> BoxedProbe {
-        BoxedProbe {
-            c: self.c as *mut ffi::Probe,
-        }
+        let c = unsafe { ffi::probe_manual_boxed(self.c) };
+
+        BoxedProbe { c }
     }
 
     /// Enable the probe
