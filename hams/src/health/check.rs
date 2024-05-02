@@ -116,24 +116,24 @@ mod tests {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        health_check.insert(manual0.boxed_probe());
+        health_check.insert(manual0.ffi_boxed());
 
         let manual1 = Manual::new("test_probe1", true);
-        health_check.insert(manual1.boxed_probe());
+        health_check.insert(manual1.ffi_boxed());
 
         let replies = health_check.check_verbose(Instant::now());
         assert_eq!(replies.details.unwrap().len(), 2);
 
         // let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(&manual0.boxed_probe());
+        health_check.remove(&manual0.ffi_boxed());
         let replies = health_check.check_verbose(Instant::now());
         let details = replies.details.unwrap();
         assert_eq!(details.len(), 1);
 
-        health_check.remove(&manual0.boxed_probe());
+        health_check.remove(&manual0.ffi_boxed());
         assert_eq!(details.len(), 1);
 
-        health_check.remove(&manual1.boxed_probe());
+        health_check.remove(&manual1.ffi_boxed());
         let replies = health_check.check_verbose(Instant::now());
         assert_eq!(replies.details.unwrap().len(), 0);
     }
@@ -146,10 +146,10 @@ mod tests {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        assert!(health_check.insert(manual0.boxed_probe()));
+        assert!(health_check.insert(manual0.ffi_boxed()));
 
         let manual1 = Manual::new("test_probe0", true);
-        assert!(health_check.insert(manual1.boxed_probe()));
+        assert!(health_check.insert(manual1.ffi_boxed()));
     }
 
     #[test]

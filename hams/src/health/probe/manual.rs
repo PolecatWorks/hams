@@ -56,7 +56,7 @@ impl HealthProbe for Manual {
     fn check(&self, _time: Instant) -> Result<bool, HamsError> {
         Ok(self.enabled.lock().unwrap().valid)
     }
-    fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+    fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
         BoxedHealthProbe::new(self.clone())
     }
 }
@@ -97,7 +97,7 @@ mod tests {
         let mut manual = Manual::new("test", true);
 
         // let probe = BoxedHealthProbe::new(manual.clone());
-        let probe = manual.boxed_probe();
+        let probe = manual.ffi_boxed();
 
         assert!(probe.check(Instant::now()).unwrap());
 
@@ -111,7 +111,7 @@ mod tests {
 
         assert_eq!(check.probes.lock().unwrap().len(), 1);
 
-        check.remove(&manual.boxed_probe());
+        check.remove(&manual.ffi_boxed());
 
         assert_eq!(check.probes.lock().unwrap().len(), 0);
     }

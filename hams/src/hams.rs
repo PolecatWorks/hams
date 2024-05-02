@@ -278,7 +278,7 @@ mod tests {
         let mut hams = Hams::new("test");
 
         let probe0 = Manual::new("test_probe0", true);
-        hams.alive.insert(probe0.boxed_probe());
+        hams.alive.insert(probe0.ffi_boxed());
 
         let reply = hams.alive.check_verbose(Instant::now());
         assert_eq!(reply.details.unwrap().len(), 1);
@@ -294,29 +294,29 @@ mod tests {
         let reply = hams.alive.check_verbose(Instant::now());
         assert_eq!(reply.details.unwrap().len(), 1);
 
-        assert!(hams.alive_remove(&probe1.boxed_probe()));
+        assert!(hams.alive_remove(&probe1.ffi_boxed()));
         // Fail when we try to remove the same probe again
-        assert!(!hams.alive_remove(&probe1.boxed_probe()));
+        assert!(!hams.alive_remove(&probe1.ffi_boxed()));
 
         let reply = hams.alive.check_verbose(Instant::now());
         assert_eq!(reply.details.unwrap().len(), 0);
 
         let probe2 = Manual::new("test_probe2", true);
-        assert!(hams.ready_insert(probe0.boxed_probe()));
-        assert!(hams.ready_insert(probe1.boxed_probe()));
-        assert!(hams.ready_insert(probe2.boxed_probe()));
+        assert!(hams.ready_insert(probe0.ffi_boxed()));
+        assert!(hams.ready_insert(probe1.ffi_boxed()));
+        assert!(hams.ready_insert(probe2.ffi_boxed()));
 
         // Fail when we try to insert the same probe again
-        assert!(!hams.ready_insert(probe2.boxed_probe()));
+        assert!(!hams.ready_insert(probe2.ffi_boxed()));
 
         let reply = hams.ready.check_verbose(Instant::now());
         assert_eq!(reply.details.unwrap().len(), 3);
 
         // Remove from ready out of order compared to insert
-        assert!(hams.ready_remove(&probe1.boxed_probe()));
-        assert!(!hams.ready_remove(&probe1.boxed_probe()));
+        assert!(hams.ready_remove(&probe1.ffi_boxed()));
+        assert!(!hams.ready_remove(&probe1.ffi_boxed()));
 
         // Check the probe added to Alive as well as Ready
-        hams.alive_insert(probe0.boxed_probe());
+        hams.alive_insert(probe0.ffi_boxed());
     }
 }

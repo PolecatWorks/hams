@@ -45,7 +45,7 @@ pub trait HealthProbe {
     fn check(&self, time: Instant) -> Result<bool, HamsError>;
 
     /// Return a boxed version of the probe that is FFI safe
-    fn boxed_probe(&self) -> BoxedHealthProbe<'static>;
+    fn ffi_boxed(&self) -> BoxedHealthProbe<'static>;
 }
 
 unsafe impl Send for BoxedHealthProbe<'_> {}
@@ -100,7 +100,7 @@ mod tests {
         fn check(&self, _time: Instant) -> Result<bool, HamsError> {
             Ok(self.check)
         }
-        fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+        fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
             BoxedHealthProbe::new(self.clone())
         }
     }

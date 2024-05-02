@@ -274,7 +274,7 @@ pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealt
 
     catch_panic!(
         let probe = &mut *ptr;
-        let boxed_probe = probe.boxed_probe();
+        let boxed_probe = probe.ffi_boxed();
         Ok(Box::into_raw(Box::new(boxed_probe)))
     )
 }
