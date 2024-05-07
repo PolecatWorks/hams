@@ -3,19 +3,26 @@ use std::marker::PhantomData;
 
 use crate::ffi;
 
-use super::BoxedProbe;
+use super::{BoxedProbe, Probe};
 
-pub struct ProbeManual<'a> {
+pub struct ProbeManual {
     pub c: *mut ffi::ManualProbe,
-    _marker: PhantomData<&'a ()>,
 }
 
-impl<'a> ProbeManual<'a> {
+impl Probe for ProbeManual {
+    fn boxed(&self) -> BoxedProbe {
+        let c = unsafe { ffi::probe_manual_boxed(self.c) };
+
+        BoxedProbe { c }
+    }
+}
+
+impl ProbeManual {
     /// Construct a new manual probe
     pub fn new<S: Into<String>>(
         name: S,
         valid: bool,
-    ) -> Result<ProbeManual<'a>, crate::hamserror::HamsError>
+    ) -> Result<ProbeManual, crate::hamserror::HamsError>
     where
         S: std::fmt::Display,
     {
@@ -27,16 +34,7 @@ impl<'a> ProbeManual<'a> {
                 "Failed to create Probe object".to_string(),
             ));
         }
-        Ok(ProbeManual {
-            c,
-            _marker: PhantomData,
-        })
-    }
-
-    pub fn boxed(&self) -> BoxedProbe {
-        let c = unsafe { ffi::probe_manual_boxed(self.c) };
-
-        BoxedProbe { c }
+        Ok(ProbeManual { c })
     }
 
     /// Enable the probe
@@ -85,7 +83,7 @@ impl<'a> ProbeManual<'a> {
     }
 }
 
-impl<'a> Drop for ProbeManual<'a> {
+impl<'a> Drop for ProbeManual {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
         let retval = unsafe { ffi::probe_manual_free(self.c) };

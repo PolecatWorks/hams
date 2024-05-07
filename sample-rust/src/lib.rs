@@ -8,7 +8,7 @@ pub mod config;
 pub mod ffi;
 pub mod hams;
 pub mod hamserror;
-mod probes;
+pub mod probes;
 pub mod smoke;
 
 pub use hams::Hams;

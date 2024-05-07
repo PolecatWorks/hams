@@ -140,22 +140,22 @@ impl Hams {
         })?
     }
 
-    /// Insert probe to alive checks
+    /// Insert probe to alive checks. Use BoxedHealthProbe to allow for FFI
     pub fn alive_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
         self.alive.insert(probe)
     }
 
-    /// Remove probe from alive checks
+    /// Remove probe from alive checks, Use BoxedHealthProbe to allow for FFI
     pub fn alive_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
         self.alive.remove(probe)
     }
 
-    /// Insert probe to ready checks
+    /// Insert probe to ready checks. Use BoxedHealthProbe to allow for FFI
     pub fn ready_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
         self.ready.insert(probe)
     }
 
-    /// Remove probe from ready checks
+    /// Remove probe from ready checks. Use BoxedHealthProbe to allow for FFI
     pub fn ready_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
         self.ready.remove(probe)
     }

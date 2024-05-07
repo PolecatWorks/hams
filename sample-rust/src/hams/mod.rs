@@ -63,7 +63,7 @@ impl Hams {
     /// Insert a probe into the alive checks
     ///
     /// This will insert a probe into the alive checks
-    pub fn alive_insert(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
+    pub fn alive_insert_boxed(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
         // let probe_c = probe.c;
         println!("ABOUT to insert probe");
         let retval = unsafe { ffi::hams_alive_insert(self.c, probe.c) };
@@ -74,6 +74,34 @@ impl Hams {
             ));
         }
         println!("did insert");
+        Ok(())
+    }
+
+    pub fn alive_insert(
+        &self,
+        probe: &dyn crate::probes::Probe,
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = probe.boxed().c;
+        let retval = unsafe { ffi::hams_alive_insert(self.c, probe_c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to insert probe into alive checks".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn alive_remove(
+        &self,
+        probe: &dyn crate::probes::Probe,
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = probe.boxed().c;
+        let retval = unsafe { ffi::hams_alive_remove(self.c, probe_c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to remove probe from alive checks".to_string(),
+            ));
+        }
         Ok(())
     }
 }
@@ -109,7 +137,7 @@ mod tests {
         let probe_manual = crate::probes::ProbeManual::new("test_probe", true).unwrap();
 
         // todo!("Add the probe to the hams");
-        hams.alive_insert(probe_manual.boxed()).unwrap();
+        hams.alive_insert_boxed(probe_manual.boxed()).unwrap();
 
         // hams.start().unwrap();
         // hams.stop().unwrap();}

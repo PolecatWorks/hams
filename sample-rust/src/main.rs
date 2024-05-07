@@ -14,6 +14,7 @@ use sample_rust::hams_logger_init;
 use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
+use sample_rust::probes::Probe;
 use sample_rust::Hams;
 
 use sample_rust::ProbeManual;
@@ -87,23 +88,22 @@ pub fn main() -> ExitCode {
             let hams = Hams::new("sample").unwrap();
             println!("New HaMS CREATED");
 
-            let ben = probe0.boxed();
             println!("Probe Boxed");
 
-            hams.alive_insert(ben).expect("insert probe0 into alive");
+            hams.alive_insert(&probe0)
+                .expect("insert probe0 into alive");
             println!("Probe0 inserted into alive");
 
             hams.start().unwrap();
             info!("HaMS Started, now waiting for 3 secs");
 
-            match run_client_test() {
-                Ok(_) => {
-                    info!("Client test ran successfully");
-                }
-                Err(e) => {
-                    info!("Client test failed: {}", e);
-                }
-            }
+            run_client_test().expect("run client test");
+
+            thread::sleep(Duration::from_secs(1));
+
+            hams.alive_remove(&probe0)
+                .expect("remove probe0 from alive");
+            run_client_test().expect("run client test");
 
             thread::sleep(Duration::from_secs(10));
 
