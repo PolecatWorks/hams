@@ -265,6 +265,25 @@ pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool
     )
 }
 
+/// Free Manual Health Probe
+///
+/// # Safety
+/// Free the Manual Health Probe. The object must be created with HaMS library
+#[no_mangle]
+pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = Box::from_raw(ptr);
+
+        let name = &probe.name().unwrap_or("unknown".to_owned());
+
+        info!("Releasing manual probe: {}", name);
+        drop(probe);
+        Ok(1)
+    )
+}
+
 /// Return a boxed health probe from the manual health probe
 /// # Safety
 /// Return a boxed health probe from the manual health probe
@@ -292,25 +311,6 @@ pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
         let name = &probe.name().unwrap_or("unknown".to_owned());
 
         info!("Releasing probe: {}", name);
-        drop(probe);
-        Ok(1)
-    )
-}
-
-/// Free Manual Health Probe
-///
-/// # Safety
-/// Free the Manual Health Probe. The object must be created with HaMS library
-#[no_mangle]
-pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
-    ffi_helpers::null_pointer_check!(ptr);
-
-    catch_panic!(
-        let probe = Box::from_raw(ptr);
-
-        let name = &probe.name().unwrap_or("unknown".to_owned());
-
-        info!("Releasing manual probe: {}", name);
         drop(probe);
         Ok(1)
     )
@@ -384,6 +384,7 @@ pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
 ///
 /// # Safety
 /// Create a kick health probe
+#[no_mangle]
 pub unsafe extern "C" fn probe_kick_new(
     name: *const libc::c_char,
     margin_secs: c_int,
@@ -397,20 +398,6 @@ pub unsafe extern "C" fn probe_kick_new(
 
         let probe = health::probe::kick::Kick::new(name_str, margin);
         Ok(Box::into_raw(Box::new(probe)))
-    )
-}
-
-/// Call kick method
-///
-/// # Safety
-/// Call the kick method on the Kick object
-pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
-    ffi_helpers::null_pointer_check!(ptr);
-
-    catch_panic!(
-        let probe = &mut *ptr;
-        probe.kick();
-        Ok(1)
     )
 }
 
@@ -429,6 +416,21 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
 
         info!("Releasing kick probe: {}", name);
         drop(probe);
+        Ok(1)
+    )
+}
+
+/// Call kick method
+///
+/// # Safety
+/// Call the kick method on the Kick object
+#[no_mangle]
+pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let probe = &mut *ptr;
+        probe.kick();
         Ok(1)
     )
 }

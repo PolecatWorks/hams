@@ -1,5 +1,7 @@
+mod kick;
 mod manual;
 
+pub use kick::ProbeKick;
 pub use manual::ProbeManual;
 
 use crate::ffi;

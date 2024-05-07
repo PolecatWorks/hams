@@ -82,7 +82,7 @@ impl ProbeManual {
     }
 }
 
-impl<'a> Drop for ProbeManual {
+impl Drop for ProbeManual {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
         let retval = unsafe { ffi::probe_manual_free(self.c) };
@@ -90,7 +90,7 @@ impl<'a> Drop for ProbeManual {
             panic!("FAILED to free Probe");
         }
 
-        info!("Probe freed")
+        info!("Manual Probe freed")
     }
 }
 
