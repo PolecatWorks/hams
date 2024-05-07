@@ -16,6 +16,7 @@ pub struct Kick {
 }
 
 impl Kick {
+    /// Create a new Kick probe with the given name and margin
     pub fn new<S: Into<String>>(name: S, margin: Duration) -> Self {
         Self {
             name: name.into(),
@@ -24,10 +25,12 @@ impl Kick {
         }
     }
 
+    /// Reset the timer
     pub fn kick(&mut self) {
         self.latest = Instant::now();
     }
 
+    /// Return a BoexedHealthProbe for the probe
     pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
         BoxedHealthProbe::new(self.clone())
     }

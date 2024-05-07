@@ -14,7 +14,6 @@ use sample_rust::hams_logger_init;
 use sample_rust::hello_world;
 use sample_rust::smoke::smokey;
 
-use sample_rust::probes::Probe;
 use sample_rust::Hams;
 
 use sample_rust::ProbeManual;

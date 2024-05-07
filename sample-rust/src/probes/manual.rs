@@ -1,5 +1,4 @@
 use log::info;
-use std::marker::PhantomData;
 
 use crate::ffi;
 
