@@ -60,6 +60,20 @@ impl Hams {
         Ok(())
     }
 
+    pub fn register_prometheus(
+        &self,
+        my_cb: extern "C" fn() -> *const libc::c_char,
+        my_cb_free: extern "C" fn(*mut libc::c_char),
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let retval = unsafe { ffi::hams_register_prometheus(self.c, my_cb, my_cb_free) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to register prometheus".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Insert a probe into the alive checks
     ///
     /// This will insert a probe into the alive checks

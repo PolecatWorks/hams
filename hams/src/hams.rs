@@ -29,6 +29,15 @@ pub(crate) struct HamsCallback {
 unsafe impl Send for HamsCallback {}
 
 #[derive(Debug, Clone)]
+pub struct PrometheusCallback {
+    pub my_cb: extern "C" fn(ptr: *const c_void) -> *const libc::c_char,
+    pub my_cb_free: extern "C" fn(*const libc::c_char),
+    pub state: *const c_void,
+}
+
+unsafe impl Send for PrometheusCallback {}
+
+#[derive(Debug, Clone)]
 pub struct Hams {
     /// Name of the application this HaMS is for
     pub(crate) name: String,
@@ -52,6 +61,9 @@ pub struct Hams {
     pub(crate) shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<Result<(), HamsError>>>>>,
+
+    /// Callback to be called on prometheus
+    pub(crate) prometheus_cb: Arc<Mutex<Option<PrometheusCallback>>>,
 }
 
 impl Hams {
@@ -76,6 +88,8 @@ impl Hams {
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
+            // prometheus_cb: None,
+            prometheus_cb: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -87,6 +101,23 @@ impl Hams {
         println!("Add shutdown to {}", self.name);
 
         *self.shutdown_cb.lock()? = Some(HamsCallback { user_data, cb });
+        Ok(())
+    }
+
+    pub fn register_prometheus(
+        &mut self,
+        my_cb: extern "C" fn(ptr: *const c_void) -> *const libc::c_char,
+        my_cb_free: extern "C" fn(*const libc::c_char),
+        state: *const c_void,
+    ) -> Result<(), HamsError> {
+        println!("Add prometheus to {}", self.name);
+
+        // self.prometheus_cb = Some(PrometheusCallback { my_cb, my_cb_free, state });
+        *self.prometheus_cb.lock()? = Some(PrometheusCallback {
+            my_cb,
+            my_cb_free,
+            state,
+        });
         Ok(())
     }
 

@@ -116,7 +116,11 @@ fn with_hams(
 }
 
 mod handlers {
-    use crate::health::check::HealthCheck;
+    use std::ffi::CStr;
+
+    use log::info;
+
+    use crate::{error::HamsError, health::check::HealthCheck};
 
     use super::Hams;
     use serde::Serialize;
@@ -183,8 +187,32 @@ mod handlers {
     }
 
     /// Handler for metrics endpoint
-    pub async fn metrics(_hams: Hams) -> Result<impl warp::Reply, Rejection> {
-        let metrics = "Prometheus metrics go here";
+    pub async fn metrics(hams: Hams) -> Result<impl warp::Reply, Rejection> {
+        let x = hams
+            .prometheus_cb
+            .lock()
+            .map_err(|_e| HamsError::PoisonError)?;
+
+        let metrics = match *x {
+            Some(ref cb) => {
+                info!("Metrics are here");
+
+                let c_string = (cb.my_cb)(cb.state);
+
+                let c_string_2 = unsafe { CStr::from_ptr(c_string) };
+                let metric_response = c_string_2.to_str().unwrap().to_string();
+
+                (cb.my_cb_free)(c_string);
+
+                metric_response
+                // "Metrics go here".to_string()
+            }
+            None => {
+                info!("Metrics are NOT here");
+                "No metrics registered".to_string()
+            }
+        };
+
         Ok(warp::reply::json(&metrics))
     }
 
@@ -194,6 +222,23 @@ mod handlers {
 
         use super::*;
         use warp::http::StatusCode;
+
+        /// Test metrics
+        /// This test will fail as the metrics handler works with empty reply when nothing is registered
+        #[tokio::test]
+        #[cfg_attr(miri, ignore)]
+        async fn test_metrics() {
+            let hams = Hams::new("test");
+            let api = hams_service(hams);
+
+            let reply = warp::test::request()
+                .method("GET")
+                .path("/hams/metrics")
+                .reply(&api)
+                .await;
+
+            assert_eq!(reply.status(), StatusCode::OK);
+        }
 
         #[tokio::test]
         #[cfg_attr(miri, ignore)]

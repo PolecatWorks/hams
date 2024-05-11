@@ -45,8 +45,18 @@ extern "C" {
     pub fn hams_alive_remove(hams: *mut Hams, probe: *mut Probe) -> i32;
     pub fn hams_ready_insert(hams: *mut Hams, probe: *mut Probe) -> i32;
     pub fn hams_ready_remove(hams: *mut Hams, probe: *mut Probe) -> i32;
+    pub fn hams_register_prometheus(
+        hams: *mut Hams,
+        my_cb: extern "C" fn() -> *const libc::c_char,
+        my_cb_free: extern "C" fn(*mut libc::c_char),
+    ) -> i32;
 
     pub fn hello_world();
+    pub fn hello_callback(my_cb: extern "C" fn());
+    pub fn hello_callback2(
+        my_cb: extern "C" fn() -> *const libc::c_char,
+        my_cb_free: extern "C" fn(*mut libc::c_char),
+    );
     pub fn hams_version() -> *const libc::c_char;
 
     pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut ManualProbe;

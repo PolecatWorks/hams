@@ -1,4 +1,5 @@
 use std::ffi::CStr;
+use std::ffi::CString;
 
 use ffi_log2::LogParam;
 use hamserror::HamsError;
@@ -21,6 +22,32 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn hello_world() {
     unsafe { ffi::hello_world() }
+}
+
+#[no_mangle]
+pub extern "C" fn prometheus_response() -> *const libc::c_char {
+    println!("Callback from C2");
+
+    let prometheus = String::from("Hello from Rust");
+
+    let c_str_prometheus = CString::new(prometheus).unwrap();
+    c_str_prometheus.into_raw()
+}
+
+#[no_mangle]
+pub extern "C" fn prometheus_response_free(ptr: *mut libc::c_char) {
+    if ptr.is_null() {
+        return;
+    }
+    unsafe {
+        let _ = CString::from_raw(ptr);
+    };
+}
+
+pub fn hello_callback2() {
+    let mut x = String::from("Hello from Rust");
+
+    unsafe { ffi::hello_callback2(prometheus_response, prometheus_response_free) }
 }
 
 pub fn hams_version() -> String {

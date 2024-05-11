@@ -7,10 +7,13 @@ use clap::Parser;
 use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
+
 use log::info;
 use sample_rust::client::run_client_test;
 use sample_rust::config::Config;
+use sample_rust::ffi::hello_callback;
 use sample_rust::hams_logger_init;
+use sample_rust::hello_callback2;
 use sample_rust::hello_world;
 use sample_rust::probes::ProbeKick;
 use sample_rust::smoke::smokey;
@@ -20,6 +23,8 @@ use sample_rust::Hams;
 use sample_rust::ProbeManual;
 use sample_rust::NAME;
 use sample_rust::VERSION;
+
+use sample_rust::{prometheus_response, prometheus_response_free};
 
 #[derive(Subcommand)]
 enum Commands {
@@ -44,6 +49,11 @@ struct Cli {
 
     #[command(subcommand)]
     command: Option<Commands>,
+}
+
+#[no_mangle]
+pub extern "C" fn prometheus_response0() {
+    println!("Callback from C");
 }
 
 pub fn main() -> ExitCode {
@@ -82,6 +92,10 @@ pub fn main() -> ExitCode {
             smokey();
             hello_world();
 
+            hello_callback2();
+
+            unsafe { hello_callback(prometheus_response0) };
+
             let probe0 = ProbeManual::new("probe0", true).unwrap();
             println!("New Manual Probe CREATED");
 
@@ -90,6 +104,9 @@ pub fn main() -> ExitCode {
 
             let hams = Hams::new("sample").unwrap();
             println!("New HaMS CREATED");
+
+            hams.register_prometheus(prometheus_response, prometheus_response_free)
+                .expect("register prometheus CBs");
 
             hams.alive_insert(&probe0)
                 .expect("insert probe0 into alive");
