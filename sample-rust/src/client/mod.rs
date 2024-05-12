@@ -54,7 +54,7 @@ pub fn run_client_test() -> std::result::Result<(), error::MyError> {
             .text()
             // .json::<HashMap<String, String>>()
             .await?;
-        println!("{resp:#?}");
+        println!("{resp}");
 
         Ok(())
     })

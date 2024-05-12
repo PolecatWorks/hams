@@ -118,14 +118,14 @@ fn with_hams(
 mod handlers {
     use std::ffi::CStr;
 
-    use log::info;
+    use log::{error, info};
 
     use crate::{error::HamsError, health::check::HealthCheck};
 
     use super::Hams;
     use serde::Serialize;
     use tokio::time::Instant;
-    use warp::reject::Rejection;
+    use warp::{http::Response, reject::Rejection};
 
     /// Reply structure for Version response
     #[derive(Serialize)]
@@ -213,7 +213,13 @@ mod handlers {
             }
         };
 
-        Ok(warp::reply::json(&metrics))
+        Response::builder()
+            .header("Content-Type", "text/plain; version=0.0.4")
+            .body(metrics)
+            .map_err(|e| {
+                error!("Error building response: {}", e);
+                warp::reject::reject()
+            })
     }
 
     #[cfg(test)]
