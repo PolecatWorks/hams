@@ -30,8 +30,8 @@ unsafe impl Send for HamsCallback {}
 
 #[derive(Debug, Clone)]
 pub struct PrometheusCallback {
-    pub my_cb: extern "C" fn(ptr: *const c_void) -> *const libc::c_char,
-    pub my_cb_free: extern "C" fn(*const libc::c_char),
+    pub my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
+    pub my_cb_free: extern "C" fn(*mut libc::c_char),
     pub state: *const c_void,
 }
 
@@ -106,8 +106,8 @@ impl Hams {
 
     pub fn register_prometheus(
         &mut self,
-        my_cb: extern "C" fn(ptr: *const c_void) -> *const libc::c_char,
-        my_cb_free: extern "C" fn(*const libc::c_char),
+        my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
+        my_cb_free: extern "C" fn(*mut libc::c_char),
         state: *const c_void,
     ) -> Result<(), HamsError> {
         println!("Add prometheus to {}", self.name);
@@ -284,6 +284,53 @@ mod tests {
 
     use super::*;
     use std::time::Duration;
+
+    /// Create a hams then assign the prometheus callback
+    /// Check that callback is responding correctly
+    #[test]
+    fn test_prometheus_callback() {
+        let mut hams = Hams::new("test");
+
+        extern "C" fn prometheus(ptr: *const c_void) -> *mut libc::c_char {
+            let state = unsafe { &*(ptr as *const String) };
+
+            let prometheus = format!("test {state}");
+            let c_str_prometheus = std::ffi::CString::new(prometheus).unwrap();
+
+            c_str_prometheus.into_raw()
+        }
+
+        extern "C" fn prometheus_free(ptr: *mut libc::c_char) {
+            unsafe {
+                if !ptr.is_null() {
+                    drop(std::ffi::CString::from_raw(ptr));
+                }
+            }
+        }
+
+        let prometheus_cb = PrometheusCallback {
+            my_cb: prometheus,
+            my_cb_free: prometheus_free,
+            state: &"splat".to_string() as *const String as *const c_void,
+        };
+
+        hams.register_prometheus(
+            prometheus_cb.my_cb,
+            prometheus_cb.my_cb_free,
+            prometheus_cb.state,
+        )
+        .expect("Registered prometheus");
+
+        let prometheus_cb = hams.prometheus_cb.lock().unwrap();
+        let prometheus_cb = prometheus_cb.as_ref().unwrap();
+
+        let ptr = (prometheus_cb.my_cb)(prometheus_cb.state);
+        let c_str = unsafe { std::ffi::CStr::from_ptr(ptr) };
+        let str_slice = c_str.to_str().unwrap();
+        assert_eq!(str_slice, "test splat");
+
+        (prometheus_cb.my_cb_free)(ptr);
+    }
 
     /// This is a test to ensure that the CancellationToken can be cancelled multiple times
     #[test]

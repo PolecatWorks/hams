@@ -152,11 +152,56 @@ pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
 /// # Safety
 /// Register the prometheus callback
 /// This will register the prometheus callback with the HaMS object
+/// ```rust
+/// let x = 3;
+/// assert_eq!(x, 3);
+///
+/// ```
+/// # Safety
+///
+/// Register the prometheus callback
+/// This will register the prometheus callback with the HaMS object
+/// ```rust
+/// use libc;
+/// use self::{hams_new,hams_register_prometheus};
+///
+/// // Define the callback function
+/// extern "C" fn prometheus_callback(state: *const libc::c_void) -> *mut libc::c_char {
+///       let prometheus = String::from("test");
+///       let c_str_prometheus = std::ffi::CString::new(prometheus).unwrap();
+///       c_str_prometheus.into_raw()
+/// }
+///
+/// // Define the callback function to free the allocated memory
+/// extern "C" fn prometheus_callback_free(ptr: *mut libc::c_char) {
+///     unsafe {
+///         if !ptr.is_null() {
+///             std::ffi::CString::from_raw(ptr);
+///         }
+///     }
+/// }
+///
+/// // Create a HaMS object
+/// let name = std::ffi::CString::new("MyHaMS").unwrap();
+/// let hams = unsafe { hams_new(name.as_ptr()) };
+///
+/// // Register the prometheus callback
+/// let result = unsafe {
+///     hams_register_prometheus(
+///         hams,
+///         prometheus_callback,
+///         prometheus_callback_free,
+///         std::ptr::null()
+///     )
+/// };
+///
+/// assert_eq!(result, 1);
+/// ```
 #[no_mangle]
 pub unsafe extern "C" fn hams_register_prometheus(
     ptr: *mut Hams,
-    my_cb: extern "C" fn(ptr: *const c_void) -> *const libc::c_char,
-    my_cb_free: extern "C" fn(*const libc::c_char),
+    my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
+    my_cb_free: extern "C" fn(*mut libc::c_char),
     state: *const c_void,
 ) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
@@ -487,6 +532,51 @@ mod tests {
         let retval = hams_logger_init(log_param());
 
         assert_ne!(retval, 0);
+    }
+
+    /// Test the register_prometheus function
+    /// This will register the prometheus callback with the HaMS object
+    #[test]
+    fn register_prometheus() {
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+        assert_ne!(my_hams, ptr::null_mut());
+
+        println!("initialised HaMS");
+
+        // Define the callback function
+        extern "C" fn prometheus_callback(ptr: *const c_void) -> *mut libc::c_char {
+            let state = unsafe { &*(ptr as *const String) };
+
+            let prometheus = format!("test {state}");
+            let c_str_prometheus = std::ffi::CString::new(prometheus).unwrap();
+            c_str_prometheus.into_raw()
+        }
+
+        // Define the callback function to free the allocated memory
+        extern "C" fn prometheus_callback_free(ptr: *mut libc::c_char) {
+            unsafe {
+                if !ptr.is_null() {
+                    drop(std::ffi::CString::from_raw(ptr));
+                }
+            }
+        }
+
+        let result = unsafe {
+            hams_register_prometheus(
+                my_hams,
+                prometheus_callback,
+                prometheus_callback_free,
+                ptr::null(),
+            )
+        };
+
+        assert_eq!(result, 1);
+
+        let retval = unsafe { hams_free(my_hams) };
+
+        assert_eq!(retval, 1);
     }
 
     #[test]
