@@ -1,5 +1,5 @@
 [package]
-name = "hams"
+name = "hams-core"
 # Health And Monitoring System
 version = "0.1.0"
 edition = "2021"
