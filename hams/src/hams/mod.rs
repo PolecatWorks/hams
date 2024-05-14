@@ -1,3 +1,4 @@
+use libc::c_void;
 use log::info;
 
 use crate::{ffi, probes::BoxedProbe};
@@ -62,10 +63,11 @@ impl Hams {
 
     pub fn register_prometheus(
         &self,
-        my_cb: extern "C" fn() -> *const libc::c_char,
+        my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,
         my_cb_free: extern "C" fn(*mut libc::c_char),
+        state: *const c_void,
     ) -> Result<(), crate::hamserror::HamsError> {
-        let retval = unsafe { ffi::hams_register_prometheus(self.c, my_cb, my_cb_free) };
+        let retval = unsafe { ffi::hams_register_prometheus(self.c, my_cb, my_cb_free, state) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to register prometheus".to_string(),

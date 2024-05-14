@@ -1,4 +1,5 @@
 use ffi_log2::LogParam;
+use libc::c_void;
 
 /// Opaque object representing HaMS objects.
 /// Low level API access to the CAPI based on Rustonomican book (https://doc.rust-lang.org/nomicon/ffi.html#representing-opaque-structs)
@@ -32,7 +33,7 @@ pub struct Probe {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-#[link(name = "hams", kind = "dylib")]
+#[link(name = "hams_core", kind = "dylib")]
 extern "C" {
     /// Configure logging for HaMS
     pub fn hams_logger_init(param: LogParam) -> i32;
@@ -47,8 +48,9 @@ extern "C" {
     pub fn hams_ready_remove(hams: *mut Hams, probe: *mut Probe) -> i32;
     pub fn hams_register_prometheus(
         hams: *mut Hams,
-        my_cb: extern "C" fn() -> *const libc::c_char,
+        my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,
         my_cb_free: extern "C" fn(*mut libc::c_char),
+        state: *const c_void,
     ) -> i32;
 
     pub fn hello_world();
