@@ -24,6 +24,8 @@ jobs:
         key: cache-rust-target-${{ hashFiles('**/Cargo.toml') }}
     - name: Build SO - hams-core
       run: cargo build -p hams-core --verbose
+    - name: Check output
+      run: ls -l target/debug
     - name: Build
       run: cargo build --verbose
     - name: Run tests
