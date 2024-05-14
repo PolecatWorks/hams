@@ -1,18 +1,20 @@
 use std::{
     collections::HashSet,
     sync::{Arc, Mutex},
-    time::Instant,
 };
 
 use serde::Serialize;
+use tokio::time::Instant;
 
 use super::probe::{BoxedHealthProbe, HealthProbe, HealthProbeResult};
 
 /// Reply structure to return from a health check
-#[derive(Debug, Eq, PartialEq, Serialize)]
+#[derive(Debug, Serialize)]
 pub struct HealthCheckResult {
     pub(crate) name: String,
     pub(crate) valid: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) details: Option<Vec<HealthProbeResult>>,
 }
 
 impl warp::Reply for HealthCheckResult {
@@ -36,7 +38,7 @@ impl warp::Reply for HealthCheckResult {
 /// This seems to capture the issue: https://users.rust-lang.org/t/why-this-impl-type-lifetime-may-not-live-long-enough/67855
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
-    name: String,
+    pub name: String,
     pub(crate) probes: Arc<Mutex<HashSet<BoxedHealthProbe<'static>>>>,
 }
 
@@ -50,13 +52,13 @@ impl HealthCheck {
     }
 
     /// Insert a probe into the HealthCheck
-    pub fn insert(&self, probe: BoxedHealthProbe<'static>) {
-        self.probes.lock().unwrap().insert(probe);
+    pub fn insert(&self, probe: BoxedHealthProbe<'static>) -> bool {
+        self.probes.lock().unwrap().insert(probe)
     }
 
     /// Remove a probe from the HealthCheck
-    pub fn remove(&self, probe: &BoxedHealthProbe<'static>) {
-        self.probes.lock().unwrap().remove(probe);
+    pub fn remove(&self, probe: &BoxedHealthProbe<'static>) -> bool {
+        self.probes.lock().unwrap().remove(probe)
     }
 
     /// Check the health of the HealthCheck
@@ -66,16 +68,19 @@ impl HealthCheck {
             .lock()
             .unwrap()
             .iter()
-            .all(|probe| probe.check(time).unwrap_or_else(|_err| false));
+            .all(|probe| probe.check(time).unwrap_or(false));
+
         HealthCheckResult {
             name: self.name.clone(),
             valid,
+            details: None,
         }
     }
 
     /// Check the health of the HealthCheck and return a vector of results of type [HealthProbeResult]
-    pub fn check_reply(&self, time: Instant) -> Vec<HealthProbeResult> {
-        self.probes
+    pub fn check_verbose(&self, time: Instant) -> HealthCheckResult {
+        let checks: Vec<_> = self
+            .probes
             .lock()
             .unwrap()
             .iter()
@@ -83,7 +88,13 @@ impl HealthCheck {
                 name: probe.name().unwrap_or("Unknown".to_string()),
                 valid: probe.check(time).unwrap_or(false),
             })
-            .collect()
+            .collect();
+
+        HealthCheckResult {
+            name: self.name.clone(),
+            valid: checks.iter().all(|check| check.valid),
+            details: Some(checks),
+        }
     }
 }
 
@@ -103,16 +114,42 @@ mod tests {
     #[test]
     fn test_health_probe_remove() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", true));
-        health_check.insert(probe);
-        let replies = health_check.check_reply(Instant::now());
-        assert_eq!(replies.len(), 2);
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(&probe);
-        let replies = health_check.check_reply(Instant::now());
-        assert_eq!(replies.len(), 1);
+
+        let manual0 = Manual::new("test_probe0", true);
+        health_check.insert(manual0.ffi_boxed());
+
+        let manual1 = Manual::new("test_probe1", true);
+        health_check.insert(manual1.ffi_boxed());
+
+        let replies = health_check.check_verbose(Instant::now());
+        assert_eq!(replies.details.unwrap().len(), 2);
+
+        // let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
+        health_check.remove(&manual0.ffi_boxed());
+        let replies = health_check.check_verbose(Instant::now());
+        let details = replies.details.unwrap();
+        assert_eq!(details.len(), 1);
+
+        health_check.remove(&manual0.ffi_boxed());
+        assert_eq!(details.len(), 1);
+
+        health_check.remove(&manual1.ffi_boxed());
+        let replies = health_check.check_verbose(Instant::now());
+        assert_eq!(replies.details.unwrap().len(), 0);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_health_probe_by_ref() {
+        // NOTE: This it is not a good idea to use an address as a unique ID.
+        // reference: https://stackoverflow.com/questions/72148631/how-can-i-hash-by-a-raw-pointer
+        let health_check = HealthCheck::new("test");
+
+        let manual0 = Manual::new("test_probe0", true);
+        assert!(health_check.insert(manual0.ffi_boxed()));
+
+        let manual1 = Manual::new("test_probe0", true);
+        assert!(health_check.insert(manual1.ffi_boxed()));
     }
 
     #[test]
@@ -120,10 +157,11 @@ mod tests {
         let health_check = HealthCheck::new("test");
         let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
         health_check.insert(probe);
-        let replies = health_check.check_reply(Instant::now());
-        assert_eq!(replies.len(), 1);
-        assert_eq!(replies[0].name, "test_probe");
-        assert_eq!(replies[0].valid, true);
+        let replies = health_check.check_verbose(Instant::now());
+        let details = replies.details.unwrap();
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0].name, "test_probe");
+        assert!(details[0].valid);
         let check = health_check.check(Instant::now());
         assert!(check.valid);
     }
@@ -133,10 +171,11 @@ mod tests {
         let health_check = HealthCheck::new("test");
         let probe = BoxedHealthProbe::new(Manual::new("test_probe", false));
         health_check.insert(probe);
-        let replies = health_check.check_reply(Instant::now());
-        assert_eq!(replies.len(), 1);
-        assert_eq!(replies[0].name, "test_probe");
-        assert_eq!(replies[0].valid, false);
+        let replies = health_check.check_verbose(Instant::now());
+        let details = replies.details.unwrap();
+        assert_eq!(details.len(), 1);
+        assert_eq!(details[0].name, "test_probe");
+        assert!(!details[0].valid);
     }
 
     #[test]
@@ -146,8 +185,8 @@ mod tests {
         health_check.insert(probe);
         let probe = BoxedHealthProbe::new(Manual::new("test_probe2", true));
         health_check.insert(probe);
-        let replies = health_check.check_reply(Instant::now());
-        assert_eq!(replies.len(), 2);
+        let replies = health_check.check_verbose(Instant::now());
+        assert_eq!(replies.details.unwrap().len(), 2);
         let check = health_check.check(Instant::now());
         assert!(check.valid);
     }
@@ -159,8 +198,8 @@ mod tests {
         health_check.insert(probe);
         let probe = BoxedHealthProbe::new(Manual::new("test_probe2", false));
         health_check.insert(probe);
-        let replies = health_check.check_reply(Instant::now());
-        assert_eq!(replies.len(), 2);
+        let replies = health_check.check_verbose(Instant::now());
+        assert_eq!(replies.details.unwrap().len(), 2);
         let check = health_check.check(Instant::now());
         assert!(!check.valid);
     }

@@ -9,6 +9,9 @@ use thiserror::Error;
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {
+    /// Probe is not good
+    #[error("Probe is not good")]
+    ProbeNotGood(String),
     /// Error when service is not running
     #[error("Service is not running")]
     NotRunning,

@@ -1,6 +1,8 @@
+use tokio::time::Instant;
+
 use crate::error::HamsError;
 use crate::health::probe::HealthProbe;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use super::BoxedHealthProbe;
 
@@ -14,6 +16,7 @@ pub struct Kick {
 }
 
 impl Kick {
+    /// Create a new Kick probe with the given name and margin
     pub fn new<S: Into<String>>(name: S, margin: Duration) -> Self {
         Self {
             name: name.into(),
@@ -22,10 +25,12 @@ impl Kick {
         }
     }
 
+    /// Reset the timer
     pub fn kick(&mut self) {
         self.latest = Instant::now();
     }
 
+    /// Return a BoexedHealthProbe for the probe
     pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
         BoxedHealthProbe::new(self.clone())
     }
@@ -39,6 +44,9 @@ impl HealthProbe for Kick {
     fn check(&self, time: Instant) -> Result<bool, HamsError> {
         Ok(time < self.latest + self.margin)
     }
+    fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
+        BoxedHealthProbe::new(self.clone())
+    }
 }
 
 #[cfg(test)]
@@ -48,15 +56,21 @@ mod tests {
     #[test]
     fn test_kick() {
         let mut probe = Kick::new("test", Duration::from_secs(1));
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         probe.kick();
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         //No need to sleep, we can just check the time
-        assert_eq!(
-            probe
-                .check(Instant::now() + Duration::from_secs(2))
-                .unwrap(),
-            false
-        );
+        assert!(!probe
+            .check(Instant::now() + Duration::from_secs(2))
+            .unwrap());
+    }
+
+    // Test the boxed_probe method
+    #[test]
+    fn test_boxed_probe() {
+        let probe = Kick::new("test", Duration::from_secs(1));
+        let boxed_probe = probe.boxed_probe();
+        assert_eq!(boxed_probe.name().unwrap(), "test");
+        assert!(boxed_probe.check(Instant::now()).unwrap());
     }
 }

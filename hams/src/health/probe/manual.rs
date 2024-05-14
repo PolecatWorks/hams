@@ -1,10 +1,9 @@
+use tokio::time::Instant;
+
 use super::{BoxedHealthProbe, HealthProbe};
 use crate::error::HamsError;
 
-use std::{
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::sync::{Arc, Mutex};
 
 #[derive(Debug, Hash, PartialEq)]
 struct Inner {
@@ -44,9 +43,9 @@ impl Manual {
         inner.valid = !inner.valid;
     }
 
-    pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
-        BoxedHealthProbe::new(self.clone())
-    }
+    // pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
+    //     BoxedHealthProbe::new(self.clone())
+    // }
 }
 
 impl HealthProbe for Manual {
@@ -57,6 +56,9 @@ impl HealthProbe for Manual {
     fn check(&self, _time: Instant) -> Result<bool, HamsError> {
         Ok(self.enabled.lock().unwrap().valid)
     }
+    fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
+        BoxedHealthProbe::new(self.clone())
+    }
 }
 
 #[cfg(test)]
@@ -66,15 +68,15 @@ mod tests {
     #[test]
     fn test_manual() {
         let mut probe = Manual::new("test", true);
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         probe.disable();
-        assert_eq!(probe.check(Instant::now()).unwrap(), false);
+        assert!(!probe.check(Instant::now()).unwrap());
         probe.enable();
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
         probe.toggle();
-        assert_eq!(probe.check(Instant::now()).unwrap(), false);
+        assert!(!probe.check(Instant::now()).unwrap());
         probe.toggle();
-        assert_eq!(probe.check(Instant::now()).unwrap(), true);
+        assert!(probe.check(Instant::now()).unwrap());
     }
 
     // Test that clone of Manual refers to same inner
@@ -95,7 +97,7 @@ mod tests {
         let mut manual = Manual::new("test", true);
 
         // let probe = BoxedHealthProbe::new(manual.clone());
-        let probe = manual.boxed_probe();
+        let probe = manual.ffi_boxed();
 
         assert!(probe.check(Instant::now()).unwrap());
 
@@ -109,7 +111,7 @@ mod tests {
 
         assert_eq!(check.probes.lock().unwrap().len(), 1);
 
-        check.remove(&manual.boxed_probe());
+        check.remove(&manual.ffi_boxed());
 
         assert_eq!(check.probes.lock().unwrap().len(), 0);
     }

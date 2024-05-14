@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     error::HamsError,
-    health::check::HealthCheck,
+    health::{check::HealthCheck, probe::BoxedHealthProbe},
     tokio_tools::run_in_tokio,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
@@ -29,6 +29,15 @@ pub(crate) struct HamsCallback {
 unsafe impl Send for HamsCallback {}
 
 #[derive(Debug, Clone)]
+pub struct PrometheusCallback {
+    pub my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
+    pub my_cb_free: extern "C" fn(*mut libc::c_char),
+    pub state: *const c_void,
+}
+
+unsafe impl Send for PrometheusCallback {}
+
+#[derive(Debug, Clone)]
 pub struct Hams {
     /// Name of the application this HaMS is for
     pub(crate) name: String,
@@ -42,8 +51,8 @@ pub struct Hams {
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
-    alive: HealthCheck,
-    ready: HealthCheck,
+    pub alive: HealthCheck,
+    pub ready: HealthCheck,
 
     /// Token to cancel the service
     cancellation_token: CancellationToken,
@@ -52,6 +61,9 @@ pub struct Hams {
     pub(crate) shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<Result<(), HamsError>>>>>,
+
+    /// Callback to be called on prometheus
+    pub(crate) prometheus_cb: Arc<Mutex<Option<PrometheusCallback>>>,
 }
 
 impl Hams {
@@ -76,6 +88,8 @@ impl Hams {
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
+            // prometheus_cb: None,
+            prometheus_cb: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -87,6 +101,23 @@ impl Hams {
         println!("Add shutdown to {}", self.name);
 
         *self.shutdown_cb.lock()? = Some(HamsCallback { user_data, cb });
+        Ok(())
+    }
+
+    pub fn register_prometheus(
+        &mut self,
+        my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
+        my_cb_free: extern "C" fn(*mut libc::c_char),
+        state: *const c_void,
+    ) -> Result<(), HamsError> {
+        println!("Add prometheus to {}", self.name);
+
+        // self.prometheus_cb = Some(PrometheusCallback { my_cb, my_cb_free, state });
+        *self.prometheus_cb.lock()? = Some(PrometheusCallback {
+            my_cb,
+            my_cb_free,
+            state,
+        });
         Ok(())
     }
 
@@ -138,6 +169,26 @@ impl Hams {
             info!("Thread join error");
             HamsError::JoinError2
         })?
+    }
+
+    /// Insert probe to alive checks. Use BoxedHealthProbe to allow for FFI
+    pub fn alive_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
+        self.alive.insert(probe)
+    }
+
+    /// Remove probe from alive checks, Use BoxedHealthProbe to allow for FFI
+    pub fn alive_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
+        self.alive.remove(probe)
+    }
+
+    /// Insert probe to ready checks. Use BoxedHealthProbe to allow for FFI
+    pub fn ready_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
+        self.ready.insert(probe)
+    }
+
+    /// Remove probe from ready checks. Use BoxedHealthProbe to allow for FFI
+    pub fn ready_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
+        self.ready.remove(probe)
     }
 
     async fn start_async(&mut self, ct: CancellationToken) -> Result<(), HamsError> {
@@ -227,10 +278,59 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
 #[cfg(test)]
 mod tests {
-    use crate::health::probe::{manual::Manual, BoxedHealthProbe};
+    use tokio::time::Instant;
+
+    use crate::health::probe::{manual::Manual, HealthProbe};
 
     use super::*;
     use std::time::Duration;
+
+    /// Create a hams then assign the prometheus callback
+    /// Check that callback is responding correctly
+    #[test]
+    fn test_prometheus_callback() {
+        let mut hams = Hams::new("test");
+
+        extern "C" fn prometheus(ptr: *const c_void) -> *mut libc::c_char {
+            let state = unsafe { &*(ptr as *const String) };
+
+            let prometheus = format!("test {state}");
+            let c_str_prometheus = std::ffi::CString::new(prometheus).unwrap();
+
+            c_str_prometheus.into_raw()
+        }
+
+        extern "C" fn prometheus_free(ptr: *mut libc::c_char) {
+            unsafe {
+                if !ptr.is_null() {
+                    drop(std::ffi::CString::from_raw(ptr));
+                }
+            }
+        }
+
+        let prometheus_cb = PrometheusCallback {
+            my_cb: prometheus,
+            my_cb_free: prometheus_free,
+            state: &"splat".to_string() as *const String as *const c_void,
+        };
+
+        hams.register_prometheus(
+            prometheus_cb.my_cb,
+            prometheus_cb.my_cb_free,
+            prometheus_cb.state,
+        )
+        .expect("Registered prometheus");
+
+        let prometheus_cb = hams.prometheus_cb.lock().unwrap();
+        let prometheus_cb = prometheus_cb.as_ref().unwrap();
+
+        let ptr = (prometheus_cb.my_cb)(prometheus_cb.state);
+        let c_str = unsafe { std::ffi::CStr::from_ptr(ptr) };
+        let str_slice = c_str.to_str().unwrap();
+        assert_eq!(str_slice, "test splat");
+
+        (prometheus_cb.my_cb_free)(ptr);
+    }
 
     /// This is a test to ensure that the CancellationToken can be cancelled multiple times
     #[test]
@@ -250,17 +350,51 @@ mod tests {
     }
 
     // Test add and remove alive and ready checks
-    #[cfg_attr(miri, ignore)]
+    // #[cfg_attr(miri, ignore)]
     #[test]
     fn test_hams_health() {
-        let hams = Hams::new("test");
+        let mut hams = Hams::new("test");
 
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        hams.alive.insert(probe);
-        // hams.alive.remove(probe);
+        let probe0 = Manual::new("test_probe0", true);
+        hams.alive.insert(probe0.ffi_boxed());
 
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        hams.ready.insert(probe);
-        // hams.ready.remove(probe);
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 1);
+
+        let probe1 = Manual::new("test_probe1", true);
+        assert!(hams.alive_insert(BoxedHealthProbe::new(probe1.clone())));
+
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 2);
+
+        assert!(hams.alive_remove(&BoxedHealthProbe::new(probe0.clone())));
+
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 1);
+
+        assert!(hams.alive_remove(&probe1.ffi_boxed()));
+        // Fail when we try to remove the same probe again
+        assert!(!hams.alive_remove(&probe1.ffi_boxed()));
+
+        let reply = hams.alive.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 0);
+
+        let probe2 = Manual::new("test_probe2", true);
+        assert!(hams.ready_insert(probe0.ffi_boxed()));
+        assert!(hams.ready_insert(probe1.ffi_boxed()));
+        assert!(hams.ready_insert(probe2.ffi_boxed()));
+
+        // Fail when we try to insert the same probe again
+        assert!(!hams.ready_insert(probe2.ffi_boxed()));
+
+        let reply = hams.ready.check_verbose(Instant::now());
+        assert_eq!(reply.details.unwrap().len(), 3);
+
+        // Remove from ready out of order compared to insert
+        assert!(hams.ready_remove(&probe1.ffi_boxed()));
+        assert!(!hams.ready_remove(&probe1.ffi_boxed()));
+
+        // Check the probe added to Alive as well as Ready
+        hams.alive_insert(probe0.ffi_boxed());
     }
 }
