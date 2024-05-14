@@ -10,7 +10,7 @@
 [workspace]
 members = [
     "sample-rust",
-    "hams",
+    "hams-core",
 ]
 resolver = "2"
 # exclude = ["rust_cli"]
