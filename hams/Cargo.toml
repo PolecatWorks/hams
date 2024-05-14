@@ -43,7 +43,7 @@ codegen-units = 1
 crate-type = [ "cdylib" ]
 
 [dev-dependencies]
-cargo-tarpaulin = "~0.28"
+cargo-tarpaulin = "~0.30"
 criterion = { version = "~0.5", features = ["html_reports"] }
 
 [[bench]]

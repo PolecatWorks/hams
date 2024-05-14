@@ -45,7 +45,7 @@ pub extern "C" fn prometheus_response_free(ptr: *mut libc::c_char) {
 }
 
 pub fn hello_callback2() {
-    let mut x = String::from("Hello from Rust");
+    let x = String::from("Hello from Rust");
 
     unsafe { ffi::hello_callback2(prometheus_response, prometheus_response_free) }
 }

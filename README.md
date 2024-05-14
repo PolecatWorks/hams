@@ -56,6 +56,7 @@ List of topics that need work
   * Health can pickup signals and then make shutdown callback
   * Health does not shutdown based on signals only on command from main thread
   * [*] SIG interrupts are detected by hams but not acted upon.. Except to make call against shutdown callback.
+* [ ] Create a rust lib to put nice Ergonomics around the rust FFI interface and expose as a library that is used by sample-rust or sample-rust2
 
 # Useful Reference
 List of useful sites to review
