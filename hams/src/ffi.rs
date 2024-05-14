@@ -33,7 +33,7 @@ pub struct Probe {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
-#[link(name = "hams", kind = "dylib")]
+#[link(name = "hams_core", kind = "dylib")]
 extern "C" {
     /// Configure logging for HaMS
     pub fn hams_logger_init(param: LogParam) -> i32;
