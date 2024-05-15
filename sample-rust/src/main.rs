@@ -18,17 +18,17 @@ use log::info;
 // use sample_rust::client::run_client_test;
 use config::Config;
 // use hams::ffi::hello_callback;
-use hams::hams_logger_init;
+use hamsrs::hams_logger_init;
 // use sample_rust::hello_callback2;
 // use sample_rust::hello_world;
-use hams::probes::ProbeKick;
+use hamsrs::probes::ProbeKick;
 // use sample_rust::smoke::smokey;
 
-use hams::Hams;
+use hamsrs::Hams;
 
-use hams::ProbeManual;
-use hams::NAME;
-use hams::VERSION;
+use hamsrs::ProbeManual;
+use hamsrs::NAME;
+use hamsrs::VERSION;
 
 use sample::{prometheus_response, prometheus_response_free};
 
@@ -95,7 +95,7 @@ pub fn main() -> ExitCode {
         Some(Commands::Start {}) => {
             println!("Starting the service");
             println!("Sample version: {}:{}", NAME, VERSION);
-            let hams_version = hams::hams_version();
+            let hams_version = hamsrs::hams_version();
             println!("HaMS version: {}", hams_version);
 
             let probe0 = ProbeManual::new("probe0", true).unwrap();
