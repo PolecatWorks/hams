@@ -1,11 +1,51 @@
 [package]
 name = "hams"
+# Health And Monitoring System
 version = "0.1.0"
 edition = "2021"
+authors = ["Ben Greene <BenJGreene@gmail.com>"]
+
+
+[features]
+default = ["warp"]
+warp = ["dep:warp"]
+
 
 [dependencies]
 log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
+ffi_helpers = "~0.3"
 libc = "~0.2"
+tokio = { version = "~1.37", features = ["full"] }
+futures = "~0.3"
+serde = { version = "~1.0", features = ['std', 'derive'] }
+serde_json = { version="~1.0" }
+aquamarine = { version =  "~0.5" }
+thin_trait_object = { version = "~1.1" }
 thiserror = "~1.0"
-hams-core = { path = "../hams-core"}
+tokio-util = "~0.7"
+
+warp = { version = "^0.3", optional = true }
+
+[build-dependencies]
+cbindgen = "~0.26"
+
+
+[profile.release]
+lto = true
+codegen-units = 1
+# strip = true # Automatically strip symbols from the binary. (ONLY available in nightly)
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+
+[lib]
+crate-type = [ "cdylib" ]
+
+[dev-dependencies]
+cargo-tarpaulin = "~0.30"
+criterion = { version = "~0.5", features = ["html_reports"] }
+
+[[bench]]
+name = "access"
+harness = false

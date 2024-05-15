@@ -9,8 +9,8 @@
 
 [workspace]
 members = [
-    "hams-core",
     "hams",
+    "hamsrs",
     "sample-rust",
 ]
 resolver = "2"
