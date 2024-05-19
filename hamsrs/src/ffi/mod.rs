@@ -1,5 +1,9 @@
+pub mod ffitraits;
+
 use ffi_log2::LogParam;
 use libc::c_void;
+
+use self::ffitraits::BoxedHealthProbe;
 
 /// Opaque object representing HaMS objects.
 /// Low level API access to the CAPI based on Rustonomican book (https://doc.rust-lang.org/nomicon/ffi.html#representing-opaque-structs)
@@ -27,11 +31,12 @@ pub struct KickProbe {
 
 /// Opaque object representing HaMS Probe objects.
 /// Low level API access to the CAPI
-#[repr(C)]
-pub struct Probe {
-    _data: [u8; 0],
-    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
-}
+// #[repr(C)]
+// pub struct Probe {
+//     _data: [u8; 0],
+//     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+// }
+pub type Probe = BoxedHealthProbe<'static>;
 
 #[link(name = "hams", kind = "dylib")]
 extern "C" {

@@ -14,15 +14,10 @@ mod client;
 mod config;
 mod sample;
 
-use log::info;
-// use sample_rust::client::run_client_test;
 use config::Config;
-// use hams::ffi::hello_callback;
 use hamsrs::hams_logger_init;
-// use sample_rust::hello_callback2;
-// use sample_rust::hello_world;
 use hamsrs::probes::ProbeKick;
-// use sample_rust::smoke::smokey;
+use log::info;
 
 use hamsrs::Hams;
 
