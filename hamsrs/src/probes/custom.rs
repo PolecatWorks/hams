@@ -86,3 +86,21 @@ impl Drop for ProbeCustom {
         info!("Custom Probe freed")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_custom_probe() {
+        let mut probe = ProbeCustom::new("test", true).unwrap();
+        assert_eq!(probe.name().unwrap(), "test");
+        assert!(probe.check().unwrap());
+        probe.disable().unwrap();
+        assert!(!probe.check().unwrap());
+        probe.enable().unwrap();
+        assert!(probe.check().unwrap());
+        probe.toggle().unwrap();
+        assert!(!probe.check().unwrap());
+    }
+}

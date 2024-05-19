@@ -113,4 +113,14 @@ mod tests {
 
         drop(probe_manual);
     }
+
+    /// Add Manual Probe to Hams
+    #[test]
+    fn add_manual_probe_to_hams() {
+        let hams = crate::hams::Hams::new("test").unwrap();
+        let probe_manual = ProbeManual::new("test_probe", true).unwrap();
+
+        hams.alive_insert(&probe_manual).unwrap();
+        hams.alive_remove(&probe_manual).unwrap();
+    }
 }

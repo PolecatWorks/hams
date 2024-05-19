@@ -57,6 +57,7 @@ extern "C" {
         my_cb_free: extern "C" fn(*mut libc::c_char),
         state: *const c_void,
     ) -> i32;
+    pub fn hams_deregister_prometheus(hams: *mut Hams) -> i32;
 
     pub fn hello_world();
     pub fn hello_callback(my_cb: extern "C" fn());
