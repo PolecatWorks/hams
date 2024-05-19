@@ -76,6 +76,18 @@ impl Hams {
         Ok(())
     }
 
+    /// De-register the prometheus
+    /// This will stop the prometheus metrics from being served
+    pub fn deregister_prometheus(&self) -> Result<(), crate::hamserror::HamsError> {
+        let retval = unsafe { ffi::hams_deregister_prometheus(self.c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to deregister prometheus".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Insert a probe into the alive checks
     ///
     /// This will insert a probe into the alive checks

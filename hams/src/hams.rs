@@ -121,6 +121,15 @@ impl Hams {
         Ok(())
     }
 
+    /// Deregister Prometheus
+    pub fn deregister_prometheus(&mut self) -> Result<(), HamsError> {
+        println!("Remove prometheus from {}", self.name);
+
+        // self.prometheus_cb = None;
+        *self.prometheus_cb.lock()? = None;
+        Ok(())
+    }
+
     pub fn start(&mut self) -> Result<(), HamsError> {
         info!("Starting HaMS {}", self.name);
 

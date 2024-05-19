@@ -215,6 +215,20 @@ pub unsafe extern "C" fn hams_register_prometheus(
     )
 }
 
+/// Degregister promethues from HaMS
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn hams_deregister_prometheus(ptr: *mut Hams) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    catch_panic!(
+        let hams = unsafe {&mut *ptr};
+        info!("Deregistering Prometheus callback for {}", hams.name);
+        hams.deregister_prometheus();
+        Ok(1)
+    )
+}
+
 /// # Safety
 ///
 /// Start the HaMS service. This requires a valid hams object constructed from hams_init
@@ -571,7 +585,9 @@ mod tests {
                 ptr::null(),
             )
         };
+        assert_eq!(result, 1);
 
+        let result = unsafe { hams_deregister_prometheus(my_hams) };
         assert_eq!(result, 1);
 
         let retval = unsafe { hams_free(my_hams) };

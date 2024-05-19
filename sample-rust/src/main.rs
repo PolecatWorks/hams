@@ -128,6 +128,8 @@ pub fn main() -> ExitCode {
             hams.alive_remove(&probe0)
                 .expect("remove probe0 from alive");
 
+            hams.deregister_prometheus().expect("deregister prometheus");
+
             run_client_test().expect("run client test");
 
             thread::sleep(Duration::from_secs(10));
