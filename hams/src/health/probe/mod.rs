@@ -9,6 +9,7 @@ use thin_trait_object::thin_trait_object;
 
 use crate::error::HamsError;
 
+use async_trait::async_trait;
 use std::fmt;
 
 pub mod kick;
@@ -35,10 +36,24 @@ impl Display for HealthProbeResult {
     }
 }
 
+#[async_trait]
+trait AsyncHealthProbe {
+    fn name(&self) -> Result<String, HamsError>;
+    async fn check(&self, time: Instant) -> Result<bool, HamsError>;
+}
+
+// #[thin_trait_object(
+//     vtable(
+//         // name of the vtable struct
+//         #[repr(C)]
+//         #[derive(PartialEq)]
+//         pub HealthProbeVTable
+//     )
+// )]
+
 /// A boxed HealthProbe for use over FFI
 #[thin_trait_object]
-/// Trait for health probes
-pub trait HealthProbe {
+pub trait HealthProbe: Sync + Send {
     /// Name of the probe
     fn name(&self) -> Result<String, HamsError>;
     /// Check the health of the probe
@@ -47,8 +62,6 @@ pub trait HealthProbe {
     /// Return a boxed version of the probe that is FFI safe
     fn ffi_boxed(&self) -> BoxedHealthProbe<'static>;
 }
-
-unsafe impl Send for BoxedHealthProbe<'_> {}
 
 impl<'a> Hash for BoxedHealthProbe<'a> {
     // NOTE: Use a unique identifier to distinguish probes. NOT the probe address.
@@ -75,6 +88,91 @@ impl fmt::Debug for BoxedHealthProbe<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct AsyncProbe0 {
+        name: String,
+        check: bool,
+    }
+
+    #[async_trait]
+    impl AsyncHealthProbe for AsyncProbe0 {
+        fn name(&self) -> Result<String, HamsError> {
+            Ok(self.name.clone())
+        }
+
+        async fn check(&self, _time: Instant) -> Result<bool, HamsError> {
+            Ok(self.check)
+        }
+    }
+
+    struct AsyncProbe1 {
+        name: String,
+        check: bool,
+    }
+
+    #[async_trait]
+    impl AsyncHealthProbe for AsyncProbe1 {
+        fn name(&self) -> Result<String, HamsError> {
+            Ok(self.name.clone())
+        }
+
+        async fn check(&self, _time: Instant) -> Result<bool, HamsError> {
+            Ok(self.check)
+        }
+    }
+
+    struct FFIProbe {
+        probe: BoxedHealthProbe<'static>,
+    }
+
+    #[async_trait]
+    impl AsyncHealthProbe for FFIProbe {
+        fn name(&self) -> Result<String, HamsError> {
+            self.probe.name()
+        }
+
+        async fn check(&self, time: Instant) -> Result<bool, HamsError> {
+            self.probe.check(time)
+        }
+    }
+
+    /// Confirm check and name work for AsyncHealthProbe
+    #[tokio::test]
+    async fn test_async_health_probe() {
+        let probe = AsyncProbe0 {
+            name: "test".to_string(),
+            check: true,
+        };
+        assert_eq!(probe.name().unwrap(), "test");
+        assert!(probe.check(Instant::now()).await.unwrap());
+    }
+
+    /// Create a vec of AsyncHealthProbe and run check on each
+    #[tokio::test]
+    async fn test_async_health_probe_vec() {
+        let probe0 = AsyncProbe0 {
+            name: "test0".to_string(),
+            check: true,
+        };
+        let probe1 = AsyncProbe1 {
+            name: "test1".to_string(),
+            check: false,
+        };
+        let probe2 = FFIProbe {
+            probe: BoxedHealthProbe::new(Probe0 {
+                name: "test2".to_string(),
+                check: true,
+            }),
+        };
+
+        let probes: Vec<Box<dyn AsyncHealthProbe>> =
+            vec![Box::new(probe0), Box::new(probe1), Box::new(probe2)];
+        let mut results = Vec::new();
+        for probe in probes {
+            results.push(probe.check(Instant::now()).await.unwrap());
+        }
+        assert_eq!(results, vec![true, false, true]);
+    }
 
     #[test]
     fn test_health_probe_result() {
