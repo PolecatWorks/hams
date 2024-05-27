@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     error::HamsError,
-    health::{check::HealthCheck, probe::BoxedHealthProbe},
+    health::{self, check::HealthCheck, probe::BoxedHealthProbe},
     tokio_tools::run_in_tokio,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
@@ -51,6 +51,11 @@ pub struct Hams {
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
+    // preflights run successfully before the service starts
+    pub preflights: HealthCheck,
+    // shutdowns run after the service has been requested to stop
+    pub shutdowns: HealthCheck,
+
     pub alive: HealthCheck,
     pub ready: HealthCheck,
 
@@ -85,6 +90,10 @@ impl Hams {
 
             cancellation_token: ct,
             port: 8079,
+
+            preflights: HealthCheck::new("preflights"),
+            shutdowns: HealthCheck::new("shutdowns"),
+
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),

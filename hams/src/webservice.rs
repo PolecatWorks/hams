@@ -45,6 +45,8 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
             HamsError::NoThread => todo!(),
             HamsError::NulError(_) => todo!(),
             HamsError::ProbeNotGood(probename) => (StatusCode::NOT_ACCEPTABLE, json(probename)),
+            HamsError::PreflightCheck => todo!(),
+            HamsError::ShutdownCheck => todo!(),
             // Add match arms for the remaining error variants here
         }
     } else {

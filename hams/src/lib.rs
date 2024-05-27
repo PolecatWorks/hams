@@ -5,6 +5,7 @@
 pub mod error;
 
 mod hams;
+mod preflight;
 mod tokio_tools;
 mod webservice;
 

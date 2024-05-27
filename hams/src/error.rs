@@ -15,6 +15,12 @@ pub enum HamsError {
     /// Error when service is not running
     #[error("Service is not running")]
     NotRunning,
+    /// Error when running preflight check
+    #[error("Preflight check failed")]
+    PreflightCheck,
+    /// Error when running shutdown check
+    #[error("Shutdown check failed")]
+    ShutdownCheck,
     /// Error when start is called but service is already running
     #[error("Service is already running and cannot be started again")]
     AlreadyRunning,
