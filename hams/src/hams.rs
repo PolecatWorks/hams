@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     error::HamsError,
-    health::{self, check::HealthCheck, probe::BoxedHealthProbe},
+    health::{check::HealthCheck, probe::BoxedHealthProbe},
     tokio_tools::run_in_tokio,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };

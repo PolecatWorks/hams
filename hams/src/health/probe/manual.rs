@@ -97,7 +97,7 @@ mod tests {
         let mut manual = Manual::new("test", true);
 
         // let probe = BoxedHealthProbe::new(manual.clone());
-        let probe = manual.ffi_boxed();
+        let probe = BoxedHealthProbe::new(manual.clone());
 
         assert!(probe.check(Instant::now()).unwrap());
 
@@ -111,7 +111,7 @@ mod tests {
 
         assert_eq!(check.probes.lock().unwrap().len(), 1);
 
-        check.remove(&manual.ffi_boxed());
+        check.remove(&BoxedHealthProbe::new(manual.clone()));
 
         assert_eq!(check.probes.lock().unwrap().len(), 0);
     }

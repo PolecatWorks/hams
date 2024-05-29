@@ -11,6 +11,7 @@ use crate::error::HamsError;
 
 use async_trait::async_trait;
 use std::fmt;
+use std::fmt::Debug;
 
 pub mod kick;
 pub mod manual;
@@ -37,10 +38,24 @@ impl Display for HealthProbeResult {
 }
 
 #[async_trait]
-trait AsyncHealthProbe {
+pub(crate) trait AsyncHealthProbe: Debug + Sync + Send {
+    // pub(crate) trait AsyncHealthProbe: Debug + Sync + Send + Eq + Hash {
     fn name(&self) -> Result<String, HamsError>;
     async fn check(&self, time: Instant) -> Result<bool, HamsError>;
 }
+
+impl Hash for dyn AsyncHealthProbe {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.name().unwrap().hash(state);
+    }
+}
+
+impl PartialEq for dyn AsyncHealthProbe {
+    fn eq(&self, other: &Self) -> bool {
+        self.name().unwrap() == other.name().unwrap()
+    }
+}
+impl Eq for dyn AsyncHealthProbe {}
 
 // #[thin_trait_object(
 //     vtable(
@@ -51,7 +66,7 @@ trait AsyncHealthProbe {
 //     )
 // )]
 
-/// A boxed HealthProbe for use over FFI
+// A boxed HealthProbe for use over FFI
 #[thin_trait_object]
 pub trait HealthProbe: Sync + Send {
     /// Name of the probe
@@ -62,6 +77,13 @@ pub trait HealthProbe: Sync + Send {
     /// Return a boxed version of the probe that is FFI safe
     fn ffi_boxed(&self) -> BoxedHealthProbe<'static>;
 }
+
+// impl BoxedHealthProbe {
+//     /// Create a new BoxedHealthProbe from a HealthProbe
+//     pub fn boxme(probe: &impl HealthProbe + 'static) -> Self {
+//         BoxedHealthProbe::new(probe.clone())
+//     }
+// }
 
 impl<'a> Hash for BoxedHealthProbe<'a> {
     // NOTE: Use a unique identifier to distinguish probes. NOT the probe address.
@@ -89,6 +111,7 @@ impl fmt::Debug for BoxedHealthProbe<'_> {
 mod tests {
     use super::*;
 
+    #[derive(Debug, PartialEq, Eq, Hash)]
     struct AsyncProbe0 {
         name: String,
         check: bool,
@@ -105,6 +128,7 @@ mod tests {
         }
     }
 
+    #[derive(Debug, Hash, PartialEq, Eq)]
     struct AsyncProbe1 {
         name: String,
         check: bool,
@@ -121,6 +145,7 @@ mod tests {
         }
     }
 
+    #[derive(Debug, PartialEq, Eq, Hash)]
     struct FFIProbe {
         probe: BoxedHealthProbe<'static>,
     }
@@ -201,6 +226,18 @@ mod tests {
         fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
             BoxedHealthProbe::new(self.clone())
         }
+    }
+
+    #[test]
+    fn health_probe_to_from_boxed() {
+        let probe = Probe0 {
+            name: "test".to_string(),
+            check: true,
+        };
+
+        let boxed = BoxedHealthProbe::new(probe.clone());
+
+        assert_eq!(boxed.name().unwrap(), "test");
     }
 
     #[test]

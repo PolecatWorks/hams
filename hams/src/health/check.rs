@@ -6,7 +6,7 @@ use std::{
 use serde::Serialize;
 use tokio::time::Instant;
 
-use super::probe::{BoxedHealthProbe, HealthProbe, HealthProbeResult};
+use super::probe::{AsyncHealthProbe, BoxedHealthProbe, HealthProbe, HealthProbeResult};
 
 /// Reply structure to return from a health check
 #[derive(Debug, Serialize)]
@@ -40,6 +40,7 @@ impl warp::Reply for HealthCheckResult {
 pub struct HealthCheck {
     pub name: String,
     pub(crate) probes: Arc<Mutex<HashSet<BoxedHealthProbe<'static>>>>,
+    pub(crate) probes2: Arc<Mutex<HashSet<Box<dyn AsyncHealthProbe>>>>,
 }
 
 impl HealthCheck {
@@ -48,12 +49,17 @@ impl HealthCheck {
         Self {
             name: name.into(),
             probes: Arc::new(Mutex::new(HashSet::new())),
+            probes2: Arc::new(Mutex::new(HashSet::new())),
         }
     }
 
     /// Insert a probe into the HealthCheck
     pub fn insert(&self, probe: BoxedHealthProbe<'static>) -> bool {
         self.probes.lock().unwrap().insert(probe)
+    }
+
+    pub(crate) fn insert2(&self, probe: Box<impl AsyncHealthProbe + 'static>) -> bool {
+        self.probes2.lock().unwrap().insert(probe)
     }
 
     /// Remove a probe from the HealthCheck
@@ -116,24 +122,24 @@ mod tests {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        health_check.insert(manual0.ffi_boxed());
+        health_check.insert(BoxedHealthProbe::new(manual0.clone()));
 
         let manual1 = Manual::new("test_probe1", true);
-        health_check.insert(manual1.ffi_boxed());
+        health_check.insert(BoxedHealthProbe::new(manual1.clone()));
 
         let replies = health_check.check_verbose(Instant::now());
         assert_eq!(replies.details.unwrap().len(), 2);
 
         // let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(&manual0.ffi_boxed());
+        health_check.remove(&BoxedHealthProbe::new(manual0.clone()));
         let replies = health_check.check_verbose(Instant::now());
         let details = replies.details.unwrap();
         assert_eq!(details.len(), 1);
 
-        health_check.remove(&manual0.ffi_boxed());
+        health_check.remove(&BoxedHealthProbe::new(manual0.clone()));
         assert_eq!(details.len(), 1);
 
-        health_check.remove(&manual1.ffi_boxed());
+        health_check.remove(&BoxedHealthProbe::new(manual1.clone()));
         let replies = health_check.check_verbose(Instant::now());
         assert_eq!(replies.details.unwrap().len(), 0);
     }
@@ -146,10 +152,10 @@ mod tests {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        assert!(health_check.insert(manual0.ffi_boxed()));
+        assert!(health_check.insert(BoxedHealthProbe::new(manual0.clone())));
 
         let manual1 = Manual::new("test_probe0", true);
-        assert!(health_check.insert(manual1.ffi_boxed()));
+        assert!(health_check.insert(BoxedHealthProbe::new(manual1.clone())));
     }
 
     #[test]
