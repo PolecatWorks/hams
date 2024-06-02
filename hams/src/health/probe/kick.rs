@@ -44,9 +44,6 @@ impl HealthProbe for Kick {
     fn check(&self, time: Instant) -> Result<bool, HamsError> {
         Ok(time < self.latest + self.margin)
     }
-    fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
-        BoxedHealthProbe::new(self.clone())
-    }
 }
 
 #[cfg(test)]

@@ -1,6 +1,6 @@
 use tokio::time::Instant;
 
-use super::{BoxedHealthProbe, HealthProbe};
+use super::HealthProbe;
 use crate::error::HamsError;
 
 use std::sync::{Arc, Mutex};
@@ -56,13 +56,19 @@ impl HealthProbe for Manual {
     fn check(&self, _time: Instant) -> Result<bool, HamsError> {
         Ok(self.enabled.lock().unwrap().valid)
     }
-    fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
-        BoxedHealthProbe::new(self.clone())
-    }
 }
+
+// impl Into<FFIProbe> for Manual {
+//     fn into(self) -> FFIProbe {
+//         FFIProbe::from(BoxedHealthProbe::new(self))
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
+    use crate::health::check::blocking_probe_remove;
+    use crate::health::probe::{AsyncHealthProbe, BoxedHealthProbe, FFIProbe};
+
     use super::*;
 
     #[test]
@@ -92,8 +98,8 @@ mod tests {
     }
 
     // Test that the probe can be inserted into a HealthCheck
-    #[test]
-    fn test_insert() {
+    #[tokio::test]
+    async fn test_insert() {
         let mut manual = Manual::new("test", true);
 
         // let probe = BoxedHealthProbe::new(manual.clone());
@@ -107,12 +113,17 @@ mod tests {
 
         let check = crate::health::check::HealthCheck::new("test");
 
-        check.insert(probe);
+        check.async_insert(FFIProbe::from(manual.clone())).await;
 
-        assert_eq!(check.probes.lock().unwrap().len(), 1);
+        assert_eq!(check.probes.lock().await.len(), 1);
 
-        check.remove(&BoxedHealthProbe::new(manual.clone()));
+        let new_probe = BoxedHealthProbe::new(manual.clone());
 
-        assert_eq!(check.probes.lock().unwrap().len(), 0);
+        let x = Box::new(FFIProbe::from(new_probe)) as Box<dyn AsyncHealthProbe>;
+
+        blocking_probe_remove(&check, &manual).await;
+        // check.remove(&x);
+
+        assert_eq!(check.probes.lock().await.len(), 0);
     }
 }

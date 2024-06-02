@@ -57,6 +57,55 @@ impl PartialEq for dyn AsyncHealthProbe {
 }
 impl Eq for dyn AsyncHealthProbe {}
 
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub struct FFIProbe {
+    probe: BoxedHealthProbe<'static>,
+}
+
+impl<T> From<T> for FFIProbe
+where
+    T: HealthProbe + 'static,
+{
+    fn from(probe: T) -> Self {
+        FFIProbe {
+            probe: BoxedHealthProbe::new(probe),
+        }
+    }
+}
+
+#[async_trait]
+impl AsyncHealthProbe for FFIProbe {
+    fn name(&self) -> Result<String, HamsError> {
+        self.probe.name()
+    }
+
+    async fn check(&self, time: Instant) -> Result<bool, HamsError> {
+        self.probe.check(time)
+    }
+}
+
+impl<T> From<T> for Box<dyn AsyncHealthProbe>
+where
+    T: HealthProbe + 'static,
+{
+    fn from(value: T) -> Self {
+        Box::new(FFIProbe::from(value))
+    }
+}
+
+// impl From<BoxedHealthProbe<'static>> for FFIProbe {
+//     fn from(probe: BoxedHealthProbe<'static>) -> Self {
+//         FFIProbe { probe }
+//     }
+// }
+
+// impl From<Box<dyn HealthProbe>> for Box<dyn AsyncHealthProbe> {
+//     fn from(probe: Box< dyn HealthProbe>) -> Self {
+//         let bx = BoxedHealthProbe::new(*probe);
+//         Box::new(FFIProbe::from(probe))
+//     }
+// }
+
 // #[thin_trait_object(
 //     vtable(
 //         // name of the vtable struct
@@ -74,8 +123,8 @@ pub trait HealthProbe: Sync + Send {
     /// Check the health of the probe
     fn check(&self, time: Instant) -> Result<bool, HamsError>;
 
-    /// Return a boxed version of the probe that is FFI safe
-    fn ffi_boxed(&self) -> BoxedHealthProbe<'static>;
+    // /// Return a boxed version of the probe that is FFI safe
+    // fn ffi_boxed(&self) -> BoxedHealthProbe<'static>;
 }
 
 // impl BoxedHealthProbe {
@@ -222,9 +271,6 @@ mod tests {
 
         fn check(&self, _time: Instant) -> Result<bool, HamsError> {
             Ok(self.check)
-        }
-        fn ffi_boxed(&self) -> BoxedHealthProbe<'static> {
-            BoxedHealthProbe::new(self.clone())
         }
     }
 

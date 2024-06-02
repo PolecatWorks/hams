@@ -159,7 +159,7 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn check_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let health_check = check.check(Instant::now());
+        let health_check = check.check(Instant::now()).await;
 
         let valid = health_check.valid;
         Ok(warp::reply::with_status(
@@ -174,7 +174,7 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn check_verbose_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let health_check = check.check_verbose(Instant::now());
+        let health_check = check.check_verbose(Instant::now()).await;
 
         let valid = health_check.valid;
 
