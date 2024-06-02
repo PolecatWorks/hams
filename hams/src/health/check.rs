@@ -1,12 +1,12 @@
-use std::{
-    collections::HashSet,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashSet, sync::Arc};
 
+use futures::future::join_all;
 use serde::Serialize;
-use tokio::time::Instant;
+use tokio::{sync::Mutex, task, time::Instant};
 
-use super::probe::{BoxedHealthProbe, HealthProbe, HealthProbeResult};
+use crate::health::probe::HealthProbe;
+
+use super::probe::{AsyncHealthProbe, HealthProbeResult};
 
 /// Reply structure to return from a health check
 #[derive(Debug, Serialize)]
@@ -39,8 +39,11 @@ impl warp::Reply for HealthCheckResult {
 #[derive(Debug, Clone)]
 pub struct HealthCheck {
     pub name: String,
-    pub(crate) probes: Arc<Mutex<HashSet<BoxedHealthProbe<'static>>>>,
+    pub(crate) probes: Arc<Mutex<HashSet<Box<dyn AsyncHealthProbe>>>>,
 }
+
+// TODO: This does not look right to add Send to HealthCheck
+unsafe impl Send for HealthCheck {}
 
 impl HealthCheck {
     /// Create a new HealthCheck with a name
@@ -52,23 +55,63 @@ impl HealthCheck {
     }
 
     /// Insert a probe into the HealthCheck
-    pub fn insert(&self, probe: BoxedHealthProbe<'static>) -> bool {
-        self.probes.lock().unwrap().insert(probe)
+    pub(crate) fn insert(&self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.probes.blocking_lock().insert(probe)
+    }
+
+    /// Create an async version of the insert function to wrap around the blocking one and allow async insert
+    /// This should only be used in test
+    #[cfg(test)]
+    pub(crate) async fn async_insert_dyn(
+        &self,
+        probe: Box<dyn AsyncHealthProbe + 'static>,
+    ) -> bool {
+        let check = self.clone();
+
+        task::spawn_blocking(move || check.insert(probe))
+            .await
+            .expect("insert to probe")
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn async_insert<T: AsyncHealthProbe + 'static>(&self, probe: T) -> bool {
+        let check = self.clone();
+
+        task::spawn_blocking(move || check.insert(Box::new(probe)))
+            .await
+            .expect("insert to probe")
     }
 
     /// Remove a probe from the HealthCheck
-    pub fn remove(&self, probe: &BoxedHealthProbe<'static>) -> bool {
-        self.probes.lock().unwrap().remove(probe)
+    pub(crate) fn remove(&self, probe: &Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.probes.blocking_lock().remove(probe)
     }
 
+    // #[cfg(test)]
+    // pub(crate) async fn async_remove_dyn(&self, probe: &Box<dyn AsyncHealthProbe + 'static>) -> bool {
+    //     let check = self.clone();
+
+    //     task::spawn_blocking(move || {
+    //         check.remove(probe)
+    //     }).await.expect("remove a probe")
+    // }
+
     /// Check the health of the HealthCheck
-    pub fn check(&self, time: Instant) -> HealthCheckResult {
-        let valid = self
-            .probes
-            .lock()
-            .unwrap()
+    pub async fn check(&self, time: Instant) -> HealthCheckResult {
+        let checks = self.probes.lock().await;
+
+        // TODO: The use of std Mutex (MutexGuard cannot be sent over an async bondary)
+        // Can we code this so that the MutexGuard is not sent over the async boundary? OR do we need to use the tokio::Mutex
+        // Downside of that is that we need to use mutex:: blocking_lock() where executing on the synchronous
+        // NOTE: Did attempt to clone the AsyncHealthProbes to use outside the mutex BUT that does not work as the AsyncHealthProbe is dyn so cannot be Sized as it is erased.
+
+        // TODOL Consider to buffer this so that we run multiple checks in parallel
+        let valid = checks
             .iter()
-            .all(|probe| probe.check(time).unwrap_or(false));
+            .map(|probe| async { probe.check(time).await.unwrap_or(false) });
+
+        let valids = join_all(valid).await;
+        let valid = valids.into_iter().all(|check| check);
 
         HealthCheckResult {
             name: self.name.clone(),
@@ -78,17 +121,22 @@ impl HealthCheck {
     }
 
     /// Check the health of the HealthCheck and return a vector of results of type [HealthProbeResult]
-    pub fn check_verbose(&self, time: Instant) -> HealthCheckResult {
-        let checks: Vec<_> = self
-            .probes
-            .lock()
-            .unwrap()
+    pub async fn check_verbose(&self, time: Instant) -> HealthCheckResult {
+        let my_probes = self.probes.lock().await;
+
+        let checks: Vec<_> = my_probes
             .iter()
-            .map(|probe| HealthProbeResult {
-                name: probe.name().unwrap_or("Unknown".to_string()),
-                valid: probe.check(time).unwrap_or(false),
+            .map(|probe| async {
+                HealthProbeResult {
+                    name: probe.name().unwrap_or("Unknown".to_string()),
+                    valid: probe.check(time).await.unwrap_or(false),
+                }
             })
             .collect();
+
+        let checks = futures::future::join_all(checks).await;
+
+        // let checks: Vec<HealthProbeResult> = vec!();
 
         HealthCheckResult {
             name: self.name.clone(),
@@ -99,42 +147,72 @@ impl HealthCheck {
 }
 
 #[cfg(test)]
+pub(crate) async fn blocking_probe_remove<T: HealthProbe + Clone + 'static>(
+    check: &HealthCheck,
+    probe: &T,
+) -> bool {
+    let check = check.clone();
+    let probe = (*probe).clone();
+
+    task::spawn_blocking(move || check.remove(&probe.into()))
+        .await
+        .expect("removed alive")
+}
+
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::health::probe::manual::Manual;
+    use crate::health::{
+        self,
+        probe::{manual::Manual, BoxedHealthProbe, FFIProbe},
+    };
 
-    #[test]
-    fn test_health_check() {
+    #[tokio::test]
+    async fn test_health_check() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.insert(probe);
-        assert!(health_check.check(Instant::now()).valid);
+        let probe = Manual::new("test_probe", true);
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe.clone()))
+                .await
+        );
+        // health_check.insert(probe.into());
+        assert!(health_check.check(Instant::now()).await.valid);
     }
 
-    #[test]
-    fn test_health_probe_remove() {
+    #[tokio::test]
+    async fn test_health_probe_remove() {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        health_check.insert(manual0.ffi_boxed());
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(manual0.clone()))
+                .await
+        );
 
         let manual1 = Manual::new("test_probe1", true);
-        health_check.insert(manual1.ffi_boxed());
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(manual1.clone()))
+                .await
+        );
 
-        let replies = health_check.check_verbose(Instant::now());
+        let replies = health_check.check_verbose(Instant::now()).await;
         assert_eq!(replies.details.unwrap().len(), 2);
 
         // let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.remove(&manual0.ffi_boxed());
-        let replies = health_check.check_verbose(Instant::now());
+        assert!(blocking_probe_remove(&health_check, &manual0).await);
+        // health_check.remove(&BoxedHealthProbe::new(manual0.clone()).into());
+        let replies = health_check.check_verbose(Instant::now()).await;
         let details = replies.details.unwrap();
         assert_eq!(details.len(), 1);
 
-        health_check.remove(&manual0.ffi_boxed());
+        assert!(!blocking_probe_remove(&health_check, &manual0).await);
         assert_eq!(details.len(), 1);
 
-        health_check.remove(&manual1.ffi_boxed());
-        let replies = health_check.check_verbose(Instant::now());
+        assert!(blocking_probe_remove(&health_check, &manual1).await);
+        let replies = health_check.check_verbose(Instant::now()).await;
         assert_eq!(replies.details.unwrap().len(), 0);
     }
 
@@ -146,61 +224,92 @@ mod tests {
         let health_check = HealthCheck::new("test");
 
         let manual0 = Manual::new("test_probe0", true);
-        assert!(health_check.insert(manual0.ffi_boxed()));
+        assert!(health_check.insert(Box::new(FFIProbe::from(manual0))));
 
         let manual1 = Manual::new("test_probe0", true);
-        assert!(health_check.insert(manual1.ffi_boxed()));
+        assert!(health_check.insert(Box::new(FFIProbe::from(manual1))));
     }
 
-    #[test]
-    fn test_health_check_reply() {
+    #[tokio::test]
+    async fn test_health_check_reply() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.insert(probe);
-        let replies = health_check.check_verbose(Instant::now());
+        let probe = Manual::new("test_probe", true);
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe.clone()))
+                .await
+        );
+
+        let replies = health_check.check_verbose(Instant::now()).await;
         let details = replies.details.unwrap();
         assert_eq!(details.len(), 1);
         assert_eq!(details[0].name, "test_probe");
         assert!(details[0].valid);
         let check = health_check.check(Instant::now());
-        assert!(check.valid);
+        assert!(check.await.valid);
     }
 
-    #[test]
-    fn test_health_check_reply_fail() {
+    #[tokio::test]
+    async fn test_health_check_reply_fail() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", false));
-        health_check.insert(probe);
-        let replies = health_check.check_verbose(Instant::now());
+        let probe = Manual::new("test_probe", false);
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe.clone()))
+                .await
+        );
+        let replies = health_check.check_verbose(Instant::now()).await;
         let details = replies.details.unwrap();
         assert_eq!(details.len(), 1);
         assert_eq!(details[0].name, "test_probe");
         assert!(!details[0].valid);
     }
 
-    #[test]
-    fn test_health_check_reply_multiple() {
+    #[tokio::test]
+    async fn test_health_check_reply_multiple() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", true));
-        health_check.insert(probe);
-        let replies = health_check.check_verbose(Instant::now());
+        let probe0 = Manual::new("test_probe", true);
+
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe0.clone()))
+                .await
+        );
+
+        let probe1 = Manual::new("test_probe2", true);
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe1.clone()))
+                .await
+        );
+
+        let replies = health_check.check_verbose(Instant::now()).await;
         assert_eq!(replies.details.unwrap().len(), 2);
         let check = health_check.check(Instant::now());
-        assert!(check.valid);
+        assert!(check.await.valid);
     }
 
-    #[test]
-    fn test_health_check_reply_failures() {
+    #[tokio::test]
+    async fn test_health_check_reply_failures() {
         let health_check = HealthCheck::new("test");
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe", true));
-        health_check.insert(probe);
-        let probe = BoxedHealthProbe::new(Manual::new("test_probe2", false));
-        health_check.insert(probe);
-        let replies = health_check.check_verbose(Instant::now());
+        let probe0 = Manual::new("test_probe", true);
+
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe0.clone()))
+                .await
+        );
+
+        let probe1 = Manual::new("test_probe2", false);
+        assert!(
+            health_check
+                .async_insert(FFIProbe::from(probe1.clone()))
+                .await
+        );
+
+        let replies = health_check.check_verbose(Instant::now()).await;
         assert_eq!(replies.details.unwrap().len(), 2);
         let check = health_check.check(Instant::now());
-        assert!(!check.valid);
+        assert!(!check.await.valid);
     }
 }

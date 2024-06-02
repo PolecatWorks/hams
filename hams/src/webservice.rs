@@ -45,6 +45,8 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
             HamsError::NoThread => todo!(),
             HamsError::NulError(_) => todo!(),
             HamsError::ProbeNotGood(probename) => (StatusCode::NOT_ACCEPTABLE, json(probename)),
+            HamsError::PreflightCheck => todo!(),
+            HamsError::ShutdownCheck => todo!(),
             // Add match arms for the remaining error variants here
         }
     } else {
@@ -157,7 +159,7 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn check_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let health_check = check.check(Instant::now());
+        let health_check = check.check(Instant::now()).await;
 
         let valid = health_check.valid;
         Ok(warp::reply::with_status(
@@ -172,7 +174,7 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn check_verbose_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let health_check = check.check_verbose(Instant::now());
+        let health_check = check.check_verbose(Instant::now()).await;
 
         let valid = health_check.valid;
 

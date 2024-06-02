@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     error::HamsError,
-    health::{check::HealthCheck, probe::BoxedHealthProbe},
+    health::{check::HealthCheck, probe::AsyncHealthProbe},
     tokio_tools::run_in_tokio,
     // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
 };
@@ -51,6 +51,11 @@ pub struct Hams {
     /// Provide the port on which to serve the HaMS readyness and liveness
     port: u16,
 
+    // preflights run successfully before the service starts
+    pub preflights: HealthCheck,
+    // shutdowns run after the service has been requested to stop
+    pub shutdowns: HealthCheck,
+
     pub alive: HealthCheck,
     pub ready: HealthCheck,
 
@@ -64,6 +69,8 @@ pub struct Hams {
 
     /// Callback to be called on prometheus
     pub(crate) prometheus_cb: Arc<Mutex<Option<PrometheusCallback>>>,
+    // /// Tokio runtime
+    // pub(crate) rt: Arc<Mutex<Option<tokio::runtime::Runtime>>>,
 }
 
 impl Hams {
@@ -85,11 +92,16 @@ impl Hams {
 
             cancellation_token: ct,
             port: 8079,
+
+            preflights: HealthCheck::new("preflights"),
+            shutdowns: HealthCheck::new("shutdowns"),
+
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             shutdown_cb: Arc::new(Mutex::new(None)),
             // prometheus_cb: None,
             prometheus_cb: Arc::new(Mutex::new(None)),
+            // rt: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -181,22 +193,22 @@ impl Hams {
     }
 
     /// Insert probe to alive checks. Use BoxedHealthProbe to allow for FFI
-    pub fn alive_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
+    pub fn alive_insert(&mut self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
         self.alive.insert(probe)
     }
 
     /// Remove probe from alive checks, Use BoxedHealthProbe to allow for FFI
-    pub fn alive_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
+    pub fn alive_remove(&mut self, probe: &Box<dyn AsyncHealthProbe + 'static>) -> bool {
         self.alive.remove(probe)
     }
 
     /// Insert probe to ready checks. Use BoxedHealthProbe to allow for FFI
-    pub fn ready_insert(&mut self, probe: BoxedHealthProbe<'static>) -> bool {
+    pub fn ready_insert(&mut self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
         self.ready.insert(probe)
     }
 
     /// Remove probe from ready checks. Use BoxedHealthProbe to allow for FFI
-    pub fn ready_remove(&mut self, probe: &BoxedHealthProbe<'static>) -> bool {
+    pub fn ready_remove(&mut self, probe: &Box<dyn AsyncHealthProbe + 'static>) -> bool {
         self.ready.remove(probe)
     }
 
@@ -287,9 +299,10 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
 #[cfg(test)]
 mod tests {
-    use tokio::time::Instant;
+    use tokio::{task, time::Instant};
 
-    use crate::health::probe::{manual::Manual, HealthProbe};
+    use crate::health::check::blocking_probe_remove;
+    use crate::health::probe::{manual::Manual, FFIProbe, HealthProbe};
 
     use super::*;
     use std::time::Duration;
@@ -360,50 +373,82 @@ mod tests {
 
     // Test add and remove alive and ready checks
     // #[cfg_attr(miri, ignore)]
-    #[test]
-    fn test_hams_health() {
+    #[tokio::test]
+    async fn test_hams_health() {
         let mut hams = Hams::new("test");
 
         let probe0 = Manual::new("test_probe0", true);
-        hams.alive.insert(probe0.ffi_boxed());
+
+        assert!(
+            hams.alive
+                .async_insert(FFIProbe::from(probe0.clone()))
+                .await
+        );
 
         let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.details.unwrap().len(), 1);
+        assert_eq!(reply.await.details.unwrap().len(), 1);
 
         let probe1 = Manual::new("test_probe1", true);
-        assert!(hams.alive_insert(BoxedHealthProbe::new(probe1.clone())));
+
+        assert!(
+            hams.alive
+                .async_insert(FFIProbe::from(probe1.clone()))
+                .await
+        );
 
         let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.details.unwrap().len(), 2);
+        assert_eq!(reply.await.details.unwrap().len(), 2);
 
-        assert!(hams.alive_remove(&BoxedHealthProbe::new(probe0.clone())));
+        assert!(blocking_probe_remove(&hams.alive, &probe0).await);
 
         let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.details.unwrap().len(), 1);
+        assert_eq!(reply.await.details.unwrap().len(), 1);
 
-        assert!(hams.alive_remove(&probe1.ffi_boxed()));
+        assert!(blocking_probe_remove(&hams.alive, &probe1).await);
+
         // Fail when we try to remove the same probe again
-        assert!(!hams.alive_remove(&probe1.ffi_boxed()));
+        assert!(!blocking_probe_remove(&hams.alive, &probe1).await);
 
         let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.details.unwrap().len(), 0);
+        assert_eq!(reply.await.details.unwrap().len(), 0);
 
         let probe2 = Manual::new("test_probe2", true);
-        assert!(hams.ready_insert(probe0.ffi_boxed()));
-        assert!(hams.ready_insert(probe1.ffi_boxed()));
-        assert!(hams.ready_insert(probe2.ffi_boxed()));
+        assert!(
+            hams.ready
+                .async_insert(FFIProbe::from(probe0.clone()))
+                .await
+        );
+        assert!(
+            hams.ready
+                .async_insert(FFIProbe::from(probe1.clone()))
+                .await
+        );
+        assert!(
+            hams.ready
+                .async_insert(FFIProbe::from(probe2.clone()))
+                .await
+        );
 
-        // Fail when we try to insert the same probe again
-        assert!(!hams.ready_insert(probe2.ffi_boxed()));
+        // // Fail when we try to insert the same probe again
+        assert!(
+            !hams
+                .ready
+                .async_insert(FFIProbe::from(probe2.clone()))
+                .await
+        );
 
         let reply = hams.ready.check_verbose(Instant::now());
-        assert_eq!(reply.details.unwrap().len(), 3);
+        assert_eq!(reply.await.details.unwrap().len(), 3);
 
-        // Remove from ready out of order compared to insert
-        assert!(hams.ready_remove(&probe1.ffi_boxed()));
-        assert!(!hams.ready_remove(&probe1.ffi_boxed()));
+        // // Remove from ready out of order compared to insert
+        assert!(blocking_probe_remove(&hams.ready, &probe1).await);
+        assert!(!blocking_probe_remove(&hams.ready, &probe1).await);
 
-        // Check the probe added to Alive as well as Ready
-        hams.alive_insert(probe0.ffi_boxed());
+        // // Check the probe added to Alive as well as Ready
+        assert!(
+            hams.alive
+                .async_insert(FFIProbe::from(probe0.clone()))
+                .await
+        );
     }
 }

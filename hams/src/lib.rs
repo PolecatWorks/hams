@@ -5,6 +5,7 @@
 pub mod error;
 
 mod hams;
+mod preflight;
 mod tokio_tools;
 mod webservice;
 
@@ -14,7 +15,7 @@ pub mod health;
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
 
-use crate::health::probe::HealthProbe;
+use crate::health::probe::{AsyncHealthProbe, FFIProbe, HealthProbe};
 
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
@@ -25,6 +26,7 @@ use health::probe::BoxedHealthProbe;
 use libc::{c_int, c_void};
 use log::info;
 use std::ffi::CStr;
+use std::panic::AssertUnwindSafe;
 use std::process;
 use tokio::time::Instant;
 
@@ -138,9 +140,9 @@ pub unsafe extern "C" fn hams_new(name: *const libc::c_char) -> *mut Hams {
 pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
-    catch_panic!(
-        let hams = unsafe { Box::from_raw(ptr) };
+    let hams = AssertUnwindSafe(unsafe { Box::from_raw(ptr) });
 
+    catch_panic!(
         let name = &hams.as_ref().name;
 
         info!("Releasing hams: {}", name);
@@ -205,26 +207,32 @@ pub unsafe extern "C" fn hams_register_prometheus(
     state: *const c_void,
 ) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    info!("Registering Prometheus callback for {}", hams.name);
 
     catch_panic!(
-        let hams = unsafe {&mut *ptr};
-        info!("Registering Prometheus callback for {}", hams.name);
-        hams.register_prometheus(my_cb, my_cb_free, state)?;
+        AssertUnwindSafe(hams).register_prometheus(my_cb, my_cb_free, state).expect("Register prometheus callbacks");
 
         Ok(1)
     )
+
+    // )
 }
 
 /// Degregister promethues from HaMS
+///
+/// https://stackoverflow.com/questions/65762689/how-can-assertunwindsafe-be-used-with-the-catchunwind-future suggests we need to use AssertUnwindSafe to allow the use of async inside the catch_panic
+///
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn hams_deregister_prometheus(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    info!("Deregistering Prometheus callback for {}", hams.name);
+
     catch_panic!(
-        let hams = unsafe {&mut *ptr};
-        info!("Deregistering Prometheus callback for {}", hams.name);
-        hams.deregister_prometheus();
+        AssertUnwindSafe(hams).deregister_prometheus().expect("Deregister prometheus");
         Ok(1)
     )
 }
@@ -236,10 +244,10 @@ pub unsafe extern "C" fn hams_deregister_prometheus(ptr: *mut Hams) -> i32 {
 pub unsafe extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    info!("start my ham {}", hams.name);
     catch_panic!(
-        let hams = unsafe {&mut *ptr};
-        info!("start my ham {}", hams.name);
-        hams.start().expect("Hams started");
+        AssertUnwindSafe(hams).start().expect("Start HaMS");
         Ok(1)
     )
 }
@@ -251,10 +259,10 @@ pub unsafe extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
 pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    info!("stop my ham {}", hams.name);
     catch_panic!(
-        let hams = unsafe {&mut *ptr};
-        info!("stop my ham {}", hams.name);
-        hams.stop().expect("Hams stopped here");
+        AssertUnwindSafe(hams).stop().expect("HaMS stopped here");
         info!("HaMS stopped");
         Ok(1)
     )
@@ -271,15 +279,18 @@ pub unsafe extern "C" fn hams_alive_insert(
     ffi_helpers::null_pointer_check!(ptr);
     ffi_helpers::null_pointer_check!(probe);
 
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
     catch_panic!(
-        let hams = unsafe {&mut *ptr};
 
         let probe = unsafe { Box::from_raw(probe) };
         let name = probe.name().unwrap_or("unknown".to_owned());
 
+
+        let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
+
         info!("Adding alive probe: {}", name);
 
-        if hams.alive_insert(*probe) {
+        if AssertUnwindSafe(hams).alive_insert(ffi_probe) {
             Ok(1)
         } else {
             Ok(0)
@@ -297,33 +308,36 @@ pub unsafe extern "C" fn hams_alive_remove(
     ffi_helpers::null_pointer_check!(ptr);
     ffi_helpers::null_pointer_check!(probe);
 
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+
     catch_panic!(
-        let hams = unsafe {&mut *ptr};
         let probe = Box::from_raw(probe);
 
         info!("Removing alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
-        hams.alive_remove(&probe);
+        let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
+        AssertUnwindSafe(hams).alive_remove(&ffi_probe);
         Ok(1)
     )
 }
 
 /// # Safety
 /// Check the alive probe to see if it is still alive
-#[no_mangle]
-pub unsafe extern "C" fn hams_alive_check(ptr: *mut Hams) -> i32 {
-    ffi_helpers::null_pointer_check!(ptr, -1);
+/// TODO: This will require to store the runtime and block on teh thred while we execute on the async runtime
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_alive_check(ptr: *mut Hams) -> i32 {
+//     ffi_helpers::null_pointer_check!(ptr, -1);
 
-    let now = Instant::now();
-    catch_panic!(
-        let hams = unsafe {&mut *ptr};
+//     let now = Instant::now();
+//     catch_panic!(
+//         let hams = unsafe {&mut *ptr};
 
-        if hams.alive.check(now).valid {
-            Ok(1)
-        } else {
-            Ok(0)
-        }
-    )
-}
+//         if hams.alive.check(now).await.valid {
+//             Ok(1)
+//         } else {
+//             Ok(0)
+//         }
+//     )
+// }
 
 /// Return a manual health probe
 ///
@@ -372,7 +386,7 @@ pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealt
 
     catch_panic!(
         let probe = &mut *ptr;
-        let boxed_probe = probe.ffi_boxed();
+        let boxed_probe = BoxedHealthProbe::new(probe.clone());
         Ok(Box::into_raw(Box::new(boxed_probe)))
     )
 }
@@ -700,8 +714,8 @@ mod tests {
         let my_probe = unsafe { probe_manual_new(c_probe_name.as_ptr(), true) };
         assert_ne!(my_probe, ptr::null_mut());
 
-        let check_response = unsafe { hams_alive_check(my_hams) };
-        assert_eq!(check_response, 1);
+        // let check_response = unsafe { hams_alive_check(my_hams) };
+        // assert_eq!(check_response, 1);
 
         let probe_boxed = unsafe { probe_manual_boxed(my_probe) };
         assert_ne!(probe_boxed, ptr::null_mut());
@@ -709,8 +723,8 @@ mod tests {
         let retval = unsafe { hams_alive_insert(my_hams, probe_boxed) };
         assert_eq!(retval, 1);
 
-        let check_response = unsafe { hams_alive_check(my_hams) };
-        assert_eq!(check_response, 1);
+        // let check_response = unsafe { hams_alive_check(my_hams) };
+        // assert_eq!(check_response, 1);
 
         let probe_boxed = unsafe { probe_manual_boxed(my_probe) };
         assert_ne!(probe_boxed, ptr::null_mut());
@@ -718,8 +732,8 @@ mod tests {
         let retval = unsafe { hams_alive_remove(my_hams, probe_boxed) };
         assert_eq!(retval, 1);
 
-        let check_response = unsafe { hams_alive_check(my_hams) };
-        assert_eq!(check_response, 1);
+        // let check_response = unsafe { hams_alive_check(my_hams) };
+        // assert_eq!(check_response, 1);
 
         let retval = unsafe { probe_manual_free(my_probe) };
         assert_eq!(retval, 1);
