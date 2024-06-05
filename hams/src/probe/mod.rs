@@ -55,6 +55,7 @@ impl PartialEq for dyn AsyncHealthProbe {
         self.name().unwrap() == other.name().unwrap()
     }
 }
+
 impl Eq for dyn AsyncHealthProbe {}
 
 #[derive(Debug, PartialEq, Eq, Hash)]
@@ -84,12 +85,21 @@ impl AsyncHealthProbe for FFIProbe {
     }
 }
 
+// impl<T> From<T> for Box<dyn AsyncHealthProbe>
+// where
+//     T: HealthProbe + 'static,
+// {
+//     fn from(value: T) -> Self {
+//         Box::new(FFIProbe::from(value))
+//     }
+// }
+
 impl<T> From<T> for Box<dyn AsyncHealthProbe>
 where
-    T: HealthProbe + 'static,
+    T: AsyncHealthProbe + 'static,
 {
     fn from(value: T) -> Self {
-        Box::new(FFIProbe::from(value))
+        Box::new(value) as Box<dyn AsyncHealthProbe>
     }
 }
 

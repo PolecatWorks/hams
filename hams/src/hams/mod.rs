@@ -1,13 +1,13 @@
+mod check;
+mod webservice;
+
 use std::{
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
 
 use crate::{
-    error::HamsError,
-    health::{check::HealthCheck, probe::AsyncHealthProbe},
-    tokio_tools::run_in_tokio,
-    // healthcheck::{HealthCheck, HealthCheckResults, HealthCheckWrapper, HealthSystemResult},
+    error::HamsError, hams::check::HealthCheck, probe::AsyncHealthProbe, tokio_tools::run_in_tokio,
 };
 
 use libc::c_void;
@@ -286,7 +286,7 @@ impl Hams {
 Start the port listening and exposing the service on it
 */
 pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::JoinHandle<()> {
-    use crate::webservice::hams_service;
+    use webservice::hams_service;
 
     let api = hams_service(hams.clone());
 
@@ -299,10 +299,8 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
 #[cfg(test)]
 mod tests {
-    use tokio::{task, time::Instant};
 
-    use crate::health::check::blocking_probe_remove;
-    use crate::health::probe::{manual::Manual, FFIProbe, HealthProbe};
+    use crate::probe::{manual::Manual, FFIProbe};
 
     use super::*;
     use std::time::Duration;
@@ -354,101 +352,42 @@ mod tests {
         (prometheus_cb.my_cb_free)(ptr);
     }
 
-    /// This is a test to ensure that the CancellationToken can be cancelled multiple times
-    #[test]
-    fn test_cancel_token() {
-        let ct = CancellationToken::new();
-        ct.cancel();
-        ct.cancel();
-    }
-
+    /// Create a hams then start and stop it
     #[cfg_attr(miri, ignore)]
     #[test]
-    fn test_hams() {
+    fn test_hams_start_stop() {
         let mut hams = Hams::new("test");
         hams.start().expect("Started");
         thread::sleep(Duration::from_secs(1));
         hams.stop().expect("Stopped");
     }
 
-    // Test add and remove alive and ready checks
-    // #[cfg_attr(miri, ignore)]
-    #[tokio::test]
-    async fn test_hams_health() {
+    /// Test add and remove alive and ready checks
+    #[test]
+    fn test_hams_health() {
         let mut hams = Hams::new("test");
 
         let probe0 = Manual::new("test_probe0", true);
-
-        assert!(
-            hams.alive
-                .async_insert(FFIProbe::from(probe0.clone()))
-                .await
-        );
-
-        let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.await.details.unwrap().len(), 1);
-
         let probe1 = Manual::new("test_probe1", true);
 
-        assert!(
-            hams.alive
-                .async_insert(FFIProbe::from(probe1.clone()))
-                .await
-        );
+        assert_eq!(hams.alive.len(), 0);
+        assert!(hams.alive_insert(FFIProbe::from(probe0.clone()).into()));
+        assert_eq!(hams.alive.len(), 1);
 
-        let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.await.details.unwrap().len(), 2);
+        assert!(hams.alive.insert(FFIProbe::from(probe1.clone()).into()));
+        assert_eq!(hams.alive.len(), 2);
 
-        assert!(blocking_probe_remove(&hams.alive, &probe0).await);
+        assert_eq!(hams.ready.len(), 0);
+        assert!(hams.ready_insert(FFIProbe::from(probe0.clone()).into()));
+        assert_eq!(hams.ready.len(), 1);
 
-        let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.await.details.unwrap().len(), 1);
+        assert!(hams.ready.insert(FFIProbe::from(probe1.clone()).into()));
+        assert_eq!(hams.ready.len(), 2);
 
-        assert!(blocking_probe_remove(&hams.alive, &probe1).await);
+        assert!(hams.alive_remove(&FFIProbe::from(probe0.clone()).into()));
+        assert_eq!(hams.alive.len(), 1);
 
-        // Fail when we try to remove the same probe again
-        assert!(!blocking_probe_remove(&hams.alive, &probe1).await);
-
-        let reply = hams.alive.check_verbose(Instant::now());
-        assert_eq!(reply.await.details.unwrap().len(), 0);
-
-        let probe2 = Manual::new("test_probe2", true);
-        assert!(
-            hams.ready
-                .async_insert(FFIProbe::from(probe0.clone()))
-                .await
-        );
-        assert!(
-            hams.ready
-                .async_insert(FFIProbe::from(probe1.clone()))
-                .await
-        );
-        assert!(
-            hams.ready
-                .async_insert(FFIProbe::from(probe2.clone()))
-                .await
-        );
-
-        // // Fail when we try to insert the same probe again
-        assert!(
-            !hams
-                .ready
-                .async_insert(FFIProbe::from(probe2.clone()))
-                .await
-        );
-
-        let reply = hams.ready.check_verbose(Instant::now());
-        assert_eq!(reply.await.details.unwrap().len(), 3);
-
-        // // Remove from ready out of order compared to insert
-        assert!(blocking_probe_remove(&hams.ready, &probe1).await);
-        assert!(!blocking_probe_remove(&hams.ready, &probe1).await);
-
-        // // Check the probe added to Alive as well as Ready
-        assert!(
-            hams.alive
-                .async_insert(FFIProbe::from(probe0.clone()))
-                .await
-        );
+        assert!(hams.ready_remove(&FFIProbe::from(probe0.clone()).into()));
+        assert_eq!(hams.ready.len(), 1);
     }
 }

@@ -7,7 +7,9 @@ use warp::{
     Filter,
 };
 
-use crate::{error::HamsError, hams::Hams, health::check::HealthCheck};
+use crate::{error::HamsError, hams::Hams};
+
+use super::check::HealthCheck;
 
 impl Reject for HamsError {}
 
@@ -122,7 +124,7 @@ mod handlers {
 
     use log::{error, info};
 
-    use crate::{error::HamsError, health::check::HealthCheck};
+    use crate::{error::HamsError, hams::check::HealthCheck};
 
     use super::Hams;
     use serde::Serialize;
@@ -226,7 +228,8 @@ mod handlers {
 
     #[cfg(test)]
     mod tests {
-        use crate::webservice::hams_service;
+
+        use crate::hams::webservice::hams_service;
 
         use super::*;
         use warp::http::StatusCode;

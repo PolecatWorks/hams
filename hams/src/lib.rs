@@ -3,28 +3,26 @@
 //! Provide a FFI interface to health utility funcitons
 
 pub mod error;
-
 mod hams;
 mod preflight;
+pub mod probe;
 mod tokio_tools;
-mod webservice;
 
 /// Health checks
-pub mod health;
 
 #[cfg(all(feature = "axum", feature = "warp"))]
 compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
 
-use crate::health::probe::{AsyncHealthProbe, FFIProbe, HealthProbe};
+use crate::probe::{AsyncHealthProbe, FFIProbe, HealthProbe};
 
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
-use health::probe::kick::Kick;
-use health::probe::manual::Manual;
-use health::probe::BoxedHealthProbe;
 use libc::{c_int, c_void};
 use log::info;
+use probe::kick::Kick;
+use probe::manual::Manual;
+use probe::BoxedHealthProbe;
 use std::ffi::CStr;
 use std::panic::AssertUnwindSafe;
 use std::process;
@@ -352,7 +350,7 @@ pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool
         let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
         info!("Creating ManualHealthProbe: {}", name_str);
 
-        let probe = health::probe::manual::Manual::new(name_str, check);
+        let probe = probe::manual::Manual::new(name_str, check);
 
         Ok(Box::into_raw(Box::new(probe)))
     )
@@ -489,7 +487,7 @@ pub unsafe extern "C" fn probe_kick_new(
         let margin = std::time::Duration::from_secs(margin_secs as u64);
         info!("Creating KickHealthProbe: {}", name_str);
 
-        let probe = health::probe::kick::Kick::new(name_str, margin);
+        let probe = probe::kick::Kick::new(name_str, margin);
         Ok(Box::into_raw(Box::new(probe)))
     )
 }
