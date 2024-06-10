@@ -313,8 +313,64 @@ pub unsafe extern "C" fn hams_alive_remove(
 
         info!("Removing alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
         let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
-        AssertUnwindSafe(hams).alive_remove(&ffi_probe);
-        Ok(1)
+        match AssertUnwindSafe(hams).alive_remove(&ffi_probe) {
+            true => Ok(1),
+            false => Ok(0),
+        }
+    )
+}
+
+/// # Safety
+/// Insert a health probe into the ready list of a HaMS object
+/// This will NOT take ownership of the probe but will store a copy of it
+#[no_mangle]
+pub unsafe extern "C" fn hams_ready_insert(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    catch_panic!(
+
+        let probe = unsafe { Box::from_raw(probe) };
+        let name = probe.name().unwrap_or("unknown".to_owned());
+
+
+        let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
+
+        info!("Adding ready probe: {}", name);
+
+        if AssertUnwindSafe(hams).ready_insert(ffi_probe) {
+            Ok(1)
+        } else {
+            Ok(0)
+        }
+    )
+}
+
+/// # Safety
+/// Remove a health probe from the ready list of a HaMS object
+#[no_mangle]
+pub unsafe extern "C" fn hams_ready_remove(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+
+    catch_panic!(
+        let probe = Box::from_raw(probe);
+
+        info!("Removing ready probe: {}", probe.name().unwrap_or("unknown".to_owned()));
+        let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
+        match AssertUnwindSafe(hams).ready_remove(&ffi_probe) {
+            true => Ok(1),
+            false => Ok(0),
+        }
     )
 }
 

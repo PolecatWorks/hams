@@ -132,6 +132,36 @@ impl Hams {
         }
         Ok(())
     }
+
+    /// Insert a probe into the alive checks
+    ///
+    /// This will insert a probe into the alive checks
+    pub fn ready_insert_boxed(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
+        // let probe_c = probe.c;
+        let retval = unsafe { ffi::hams_ready_insert(self.c, probe.c) };
+
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to insert probe into ready checks".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn ready_remove(
+        &self,
+        probe: &dyn crate::probes::Probe,
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = probe.boxed().c;
+        let retval = unsafe { ffi::hams_ready_remove(self.c, probe_c) };
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to remove probe from ready checks".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
@@ -154,6 +184,7 @@ mod tests {
 
     use super::*;
 
+    /// Start and stop HaMS
     #[test]
     fn test_hams_startstop() {
         let hams = Hams::new("test").unwrap();
@@ -161,15 +192,52 @@ mod tests {
         hams.stop().unwrap();
     }
 
+    /// Add and remove probes from HaMS
     #[test]
-    fn add_probes_to_hams() {
+    fn add_probes_to_hams_alive() {
         let hams = Hams::new("test").unwrap();
-        let probe_manual = crate::probes::ProbeManual::new("test_probe", true).unwrap();
+        let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
+        let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 
         // todo!("Add the probe to the hams");
-        hams.alive_insert_boxed(probe_manual.boxed()).unwrap();
+        hams.alive_insert_boxed(probe0.boxed())
+            .expect("Should be able to add the probe");
+        hams.alive_insert_boxed(probe0.boxed())
+            .expect_err("Should not be able to add the same probe twice");
 
-        // hams.start().unwrap();
-        // hams.stop().unwrap();}
+        hams.alive_insert_boxed(probe1.boxed())
+            .expect("Should be able to add the probe");
+
+        hams.alive_remove(&probe0.boxed())
+            .expect("Should be able to remove the probe");
+        hams.alive_remove(&probe0.boxed())
+            .expect_err("Should not be able to remove the same probe twice");
+
+        hams.alive_remove(&probe1.boxed())
+            .expect("Should be able to remove the probe");
+    }
+
+    /// Add and remove probes from HaMS ready and alive
+    #[test]
+    fn add_probes_to_hams_ready() {
+        let hams = Hams::new("test").unwrap();
+        let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
+        let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
+
+        hams.alive_insert_boxed(probe0.boxed())
+            .expect("Should be able to add the probe");
+        hams.alive_insert_boxed(probe1.boxed())
+            .expect("Should be able to add the probe");
+
+        hams.ready_insert_boxed(probe0.boxed())
+            .expect("Should be able to add the probe");
+
+        hams.alive_remove(&probe0)
+            .expect("Should be able to remove the probe");
+        hams.alive_remove(&probe1)
+            .expect("Should be able to remove the probe");
+
+        hams.ready_remove(&probe0)
+            .expect("Should be able to remove the probe");
     }
 }
