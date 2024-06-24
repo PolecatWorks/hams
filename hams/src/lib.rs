@@ -8,25 +8,24 @@ mod preflight;
 pub mod probe;
 mod tokio_tools;
 
+use crate::probe::ffitraits::HealthProbe;
+
 /// Health checks
-
-#[cfg(all(feature = "axum", feature = "warp"))]
-compile_error!("feature \"axum\" and feature \"warp\" cannot be enabled at the same time");
-
-use crate::probe::{AsyncHealthProbe, FFIProbe, HealthProbe};
+use crate::probe::{AsyncHealthProbe, FFIProbe};
 
 use self::hams::Hams;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use libc::{c_int, c_void};
 use log::info;
+use probe::ffitraits::BoxedHealthProbe;
 use probe::kick::Kick;
 use probe::manual::Manual;
-use probe::BoxedHealthProbe;
-use std::ffi::CStr;
+
+use std::ffi::{CStr, CString};
 use std::panic::AssertUnwindSafe;
 use std::process;
-use tokio::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Name of the Crate
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -268,7 +267,7 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
 
 /// # Safety
 /// Insert a health probe into the alive list of a HaMS object
-/// This will NOT take ownership of the probe but will store a copy of it
+/// This will take ownership of the probe and store it
 #[no_mangle]
 pub unsafe extern "C" fn hams_alive_insert(
     ptr: *mut Hams,
@@ -280,19 +279,22 @@ pub unsafe extern "C" fn hams_alive_insert(
     let hams = AssertUnwindSafe(unsafe { &mut *ptr });
     catch_panic!(
 
-        let probe = unsafe { Box::from_raw(probe) };
-        let name = probe.name().unwrap_or("unknown".to_owned());
+        let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
+        info!("Adding alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        println!("Adding alive probe: {:?}", CString::from_raw(probe.name()).into_string().unwrap());
 
-        let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
+        // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
+        let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
+        println!("using FFIProbe {:?}", ffi_probe.name());
 
-        info!("Adding alive probe: {}", name);
-
-        if AssertUnwindSafe(hams).alive_insert(ffi_probe) {
-            Ok(1)
+        let x = if AssertUnwindSafe(hams).alive_insert(ffi_probe) {
+            1
         } else {
-            Ok(0)
-        }
+            0
+        };
+        println!("x: {:?}", x);
+        Ok(x)
     )
 }
 
@@ -309,10 +311,11 @@ pub unsafe extern "C" fn hams_alive_remove(
     let hams = AssertUnwindSafe(unsafe { &mut *ptr });
 
     catch_panic!(
-        let probe = Box::from_raw(probe);
+        let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Removing alive probe: {}", probe.name().unwrap_or("unknown".to_owned()));
-        let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
+        info!("Removing alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+
+        let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
         match AssertUnwindSafe(hams).alive_remove(&ffi_probe) {
             true => Ok(1),
             false => Ok(0),
@@ -335,12 +338,11 @@ pub unsafe extern "C" fn hams_ready_insert(
     catch_panic!(
 
         let probe = unsafe { Box::from_raw(probe) };
-        let name = probe.name().unwrap_or("unknown".to_owned());
-
+        info!("Adding ready probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
 
         let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
 
-        info!("Adding ready probe: {}", name);
+
 
         if AssertUnwindSafe(hams).ready_insert(ffi_probe) {
             Ok(1)
@@ -365,7 +367,7 @@ pub unsafe extern "C" fn hams_ready_remove(
     catch_panic!(
         let probe = Box::from_raw(probe);
 
-        info!("Removing ready probe: {}", probe.name().unwrap_or("unknown".to_owned()));
+        info!("removing ready probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
         let ffi_probe = Box::new(FFIProbe::from(*probe)) as Box<dyn AsyncHealthProbe>;
         match AssertUnwindSafe(hams).ready_remove(&ffi_probe) {
             true => Ok(1),
@@ -394,12 +396,11 @@ pub unsafe extern "C" fn hams_ready_remove(
 // }
 
 /// Return a manual health probe
-///
+///   We must return a ManualHealthProbe so that we can call set/enable etc. Later we box it for poly use
 /// # Safety
 /// Create a manual health probe
 #[no_mangle]
 pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool) -> *mut Manual {
-    // TODO: Not sure if we should be returning a BoxedHealthProbe as this will mean we cannot call the set functions.
     ffi_helpers::null_pointer_check!(name);
 
     catch_panic!(
@@ -423,9 +424,7 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        let name = &probe.name().unwrap_or("unknown".to_owned());
-
-        info!("Releasing manual probe: {}", name);
+        info!("Releasing manual probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
         drop(probe);
         Ok(1)
     )
@@ -435,13 +434,26 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
 /// # Safety
 /// Return a boxed health probe from the manual health probe
 #[no_mangle]
+// pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut () {
 pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealthProbe<'static> {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &mut *ptr;
-        let boxed_probe = BoxedHealthProbe::new(probe.clone());
-        Ok(Box::into_raw(Box::new(boxed_probe)))
+        let x = {
+            let probe = &mut *ptr;
+            let boxed_probe = BoxedHealthProbe::new(probe.clone());
+
+            println!("THIS IS THE BOXED PROBE CString: {:?}", boxed_probe.name());
+            let pname = CString::from_raw(boxed_probe.name()).into_string().unwrap();
+            println!("THIS IS THE BOXED PROBE: {:?}", pname);
+
+            // Use into_raw to pass ownership to the caller
+            let x = boxed_probe.into_raw() as *mut BoxedHealthProbe<'static>;
+            // println!("THIS IS THE BOXED PROBE from BHP: {:?}", CString::from_raw((*x).name()));
+            x
+        };
+
+        Ok(x)
     )
 }
 
@@ -455,9 +467,7 @@ pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        let name = &probe.name().unwrap_or("unknown".to_owned());
-
-        info!("Releasing probe: {}", name);
+        info!("Releasing probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
         drop(probe);
         Ok(1)
     )
@@ -516,14 +526,15 @@ pub unsafe extern "C" fn probe_manual_toggle(ptr: *mut Manual) -> i32 {
 pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr, -1);
 
-    let now = Instant::now();
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+
     catch_panic!(
         let probe = &mut *ptr;
 
-        match probe.check(now) {
-            Ok(x) => Ok(x as i32),
-            Err(_) => Ok(-1_i32),
-        }
+        Ok(probe.check(now.try_into()?) as i32)
     )
 }
 
@@ -559,9 +570,10 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        let name = &probe.name().unwrap_or("unknown".to_owned());
+        // let name = &probe.name();
 
-        info!("Releasing kick probe: {}", name);
+        // let name = CString::from_raw(probe.name());
+        info!("Releasing kick probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
         drop(probe);
         Ok(1)
     )

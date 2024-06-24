@@ -1,9 +1,9 @@
-use tokio::time::Instant;
-
 use super::HealthProbe;
-use crate::error::HamsError;
-
-use std::sync::{Arc, Mutex};
+use libc::time_t;
+use std::{
+    ffi::{c_char, CString},
+    sync::{Arc, Mutex},
+};
 
 #[derive(Debug, Hash, PartialEq)]
 struct Inner {
@@ -49,12 +49,13 @@ impl Manual {
 }
 
 impl HealthProbe for Manual {
-    fn name(&self) -> Result<String, HamsError> {
-        Ok(self.name.clone())
+    #[doc = "Name of the probe"]
+    fn name(&self) -> *mut c_char {
+        CString::new(self.name.clone()).unwrap().into_raw()
     }
 
-    fn check(&self, _time: Instant) -> Result<bool, HamsError> {
-        Ok(self.enabled.lock().unwrap().valid)
+    fn check(&self, _time: time_t) -> i32 {
+        self.enabled.lock().unwrap().valid as i32
     }
 }
 
@@ -67,20 +68,32 @@ impl HealthProbe for Manual {
 #[cfg(test)]
 mod tests {
 
+    use std::time::{SystemTime, UNIX_EPOCH};
+
     use super::*;
 
     #[test]
     fn test_manual() {
         let mut probe = Manual::new("test", true);
-        assert!(probe.check(Instant::now()).unwrap());
+
+        let time_now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .try_into()
+            .unwrap();
+
+        assert!(probe.check(time_now) == 1);
         probe.disable();
-        assert!(!probe.check(Instant::now()).unwrap());
+        assert!(probe.check(time_now) == 0);
         probe.enable();
-        assert!(probe.check(Instant::now()).unwrap());
+        assert!(probe.check(time_now) == 1);
         probe.toggle();
-        assert!(!probe.check(Instant::now()).unwrap());
+        assert!(probe.check(time_now) == 0);
         probe.toggle();
-        assert!(probe.check(Instant::now()).unwrap());
+        assert!(probe.check(time_now) == 1);
+
+        drop(probe);
     }
 
     // Test that clone of Manual refers to same inner
@@ -88,11 +101,23 @@ mod tests {
     fn test_manual_clone() {
         let mut probe = Manual::new("test", true);
         let probe2 = probe.clone();
-        assert!(probe.check(Instant::now()).unwrap());
-        assert!(probe2.check(Instant::now()).unwrap());
+
+        let time_now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .try_into()
+            .unwrap();
+
+        assert!(probe.check(time_now) == 1);
+        assert!(probe2.check(time_now) == 1);
         probe.disable();
-        assert!(!probe.check(Instant::now()).unwrap());
-        assert!(!probe2.check(Instant::now()).unwrap());
+
+        assert!(probe.check(time_now) == 0);
+        assert!(probe2.check(time_now) == 0);
+
+        drop(probe);
+        drop(probe2);
     }
 
     // Test that the probe can be inserted into a HealthCheck

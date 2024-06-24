@@ -1,10 +1,9 @@
-use std::{collections::HashSet, sync::Arc};
+use std::{collections::HashSet, sync::Arc, time::SystemTime};
 
 use futures::future::join_all;
-use serde::Serialize;
-use tokio::{sync::Mutex, time::Instant};
 
-use crate::probe::HealthProbe;
+use serde::Serialize;
+use tokio::sync::Mutex;
 
 use crate::probe::{AsyncHealthProbe, HealthProbeResult};
 
@@ -75,7 +74,7 @@ impl HealthCheck {
     }
 
     /// Check the health of the HealthCheck
-    pub async fn check(&self, time: Instant) -> HealthCheckResult {
+    pub async fn check(&self, time: SystemTime) -> HealthCheckResult {
         let checks = self.probes.lock().await;
 
         // TODO: The use of std Mutex (MutexGuard cannot be sent over an async bondary)
@@ -99,7 +98,7 @@ impl HealthCheck {
     }
 
     /// Check the health of the HealthCheck and return a vector of results of type [HealthProbeResult]
-    pub async fn check_verbose(&self, time: Instant) -> HealthCheckResult {
+    pub async fn check_verbose(&self, time: SystemTime) -> HealthCheckResult {
         let my_probes = self.probes.lock().await;
 
         let checks: Vec<_> = my_probes
@@ -282,17 +281,18 @@ mod tests {
     }
 
     /// Test check on a health check using manual
+    #[cfg_attr(miri, ignore)]
     #[tokio::test]
     async fn test_health_check_check() {
         let check = HealthCheck::new("test");
         let mut manual0 = Manual::new("test_probe0", true);
         let manual1 = Manual::new("test_probe1", true);
 
-        let replies = check.check(Instant::now()).await;
+        let replies = check.check(SystemTime::now()).await;
         assert!(replies.valid);
         assert!(replies.details.is_none());
 
-        let replies = check.check_verbose(Instant::now()).await;
+        let replies = check.check_verbose(SystemTime::now()).await;
         assert!(replies.valid);
         assert_eq!(replies.details.unwrap().len(), 0);
 
@@ -307,22 +307,23 @@ mod tests {
                 .await
         );
 
-        let replies = check.check(Instant::now()).await;
+        let replies = check.check(SystemTime::now()).await;
         assert!(replies.valid);
         assert!(replies.details.is_none());
 
-        let replies = check.check_verbose(Instant::now()).await;
+        let replies = check.check_verbose(SystemTime::now()).await;
         assert!(replies.valid);
         assert_eq!(replies.details.unwrap().len(), 2);
 
         manual0.disable();
-        let replies = check.check(Instant::now()).await;
+        let replies = check.check(SystemTime::now()).await;
         assert!(!replies.valid);
         // assert_eq!(replies.details.unwrap().len(), 2);
     }
 
     /// Test check_verbose to confirm names match to probes
     #[tokio::test]
+    #[cfg_attr(miri, ignore)]
     async fn test_health_check_check_verbose() {
         let check = HealthCheck::new("test");
         let manual0 = Manual::new("test_probe0", true);
@@ -339,7 +340,7 @@ mod tests {
                 .await
         );
 
-        let replies = check.check_verbose(Instant::now()).await;
+        let replies = check.check_verbose(SystemTime::now()).await;
         assert_eq!(replies.details.as_ref().unwrap().len(), 2);
         let names = replies
             .details

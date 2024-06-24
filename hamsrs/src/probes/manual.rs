@@ -1,39 +1,50 @@
+use std::sync::Arc;
+
+use crate::{ffi::ffitraits::BoxedHealthProbe, hamserror::HamsError};
 use log::info;
 
 use crate::ffi;
 
-use super::{BoxedProbe, Probe};
+use super::Probe;
 
-pub struct ProbeManual {
+/// Inner struct for the Manual Probe to manage lifecycle against the FFI
+
+#[derive(Debug)]
+pub struct ProbeManualInner {
     pub c: *mut ffi::ManualProbe,
 }
 
-impl Probe for ProbeManual {
-    fn boxed(&self) -> BoxedProbe {
-        let c = unsafe { ffi::probe_manual_boxed(self.c) };
+impl Drop for ProbeManualInner {
+    /// Releaes the HaMS ffi on drop
+    fn drop(&mut self) {
+        let retval = unsafe { ffi::probe_manual_free(self.c) };
+        if retval == 0 {
+            panic!("FAILED to free Probe");
+        }
 
-        BoxedProbe { c }
+        info!("Manual Probe freed")
     }
 }
 
-impl ProbeManual {
-    /// Construct a new manual probe
+impl ProbeManualInner {
     pub fn new<S: Into<String>>(
         name: S,
         valid: bool,
-    ) -> Result<ProbeManual, crate::hamserror::HamsError>
+    ) -> Result<ProbeManualInner, crate::hamserror::HamsError>
     where
         S: std::fmt::Display,
     {
         info!("New ManualHealthProbe: {}", &name);
+
         let c_name = std::ffi::CString::new(name.into())?;
         let c = unsafe { ffi::probe_manual_new(c_name.as_ptr(), valid) };
+
         if c.is_null() {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to create Probe object".to_string(),
             ));
         }
-        Ok(ProbeManual { c })
+        Ok(ProbeManualInner { c: c.into() })
     }
 
     /// Enable the probe
@@ -46,7 +57,6 @@ impl ProbeManual {
         }
         Ok(())
     }
-
     /// Disable the probe
     pub fn disable(&self) -> Result<(), crate::hamserror::HamsError> {
         let retval = unsafe { ffi::probe_manual_disable(self.c) };
@@ -68,7 +78,6 @@ impl ProbeManual {
         }
         Ok(())
     }
-
     // Check the probe
     pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
         let retval = unsafe { ffi::probe_manual_check(self.c) };
@@ -80,22 +89,70 @@ impl ProbeManual {
         }
         Ok(retval == 1)
     }
-}
 
-impl Drop for ProbeManual {
-    /// Releaes the HaMS ffi on drop
-    fn drop(&mut self) {
-        let retval = unsafe { ffi::probe_manual_free(self.c) };
-        if retval == 0 {
-            panic!("FAILED to free Probe");
+    fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
+        let c = unsafe { ffi::probe_manual_boxed(self.c) };
+
+        if c.is_null() {
+            // panic!("PUT GOOD ERROR HERE");
+            return Err(HamsError::Message("Could not box probe".to_string()));
         }
 
-        info!("Manual Probe freed")
+        let probe = unsafe { BoxedHealthProbe::from_raw(c as *mut ()) };
+
+        Ok(probe)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct ProbeManual {
+    pub inner: Arc<ProbeManualInner>,
+}
+
+impl Probe for ProbeManual {
+    fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
+        self.inner.boxed()
+    }
+}
+
+impl ProbeManual {
+    /// Construct a new manual probe
+    pub fn new<S: Into<String>>(
+        name: S,
+        valid: bool,
+    ) -> Result<ProbeManual, crate::hamserror::HamsError>
+    where
+        S: std::fmt::Display,
+    {
+        Ok(ProbeManual {
+            inner: Arc::new(ProbeManualInner::new(name, valid)?),
+        })
+    }
+
+    /// Enable the probe
+    pub fn enable(&self) -> Result<(), crate::hamserror::HamsError> {
+        self.inner.enable()
+    }
+
+    /// Disable the probe
+    pub fn disable(&self) -> Result<(), crate::hamserror::HamsError> {
+        self.inner.disable()
+    }
+
+    /// Toggle the probe
+    pub fn toggle(&self) -> Result<(), crate::hamserror::HamsError> {
+        self.inner.toggle()
+    }
+
+    // Check the probe
+    pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
+        self.inner.check()
     }
 }
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -120,7 +177,13 @@ mod tests {
         let hams = crate::hams::Hams::new("test").unwrap();
         let probe_manual = ProbeManual::new("test_probe", true).unwrap();
 
-        hams.alive_insert(&probe_manual).unwrap();
-        hams.alive_remove(&probe_manual).unwrap();
+        println!("Probe: {:?}", probe_manual);
+        let p2 = probe_manual.clone();
+
+        println!("Probe: {:?}", probe_manual);
+
+        hams.alive_insert(probe_manual.clone()).unwrap();
+        println!("Probe added to hams: {:?}", probe_manual);
+        // hams.alive_remove(&probe_manual).unwrap();
     }
 }

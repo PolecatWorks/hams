@@ -49,6 +49,9 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
             HamsError::ProbeNotGood(probename) => (StatusCode::NOT_ACCEPTABLE, json(probename)),
             HamsError::PreflightCheck => todo!(),
             HamsError::ShutdownCheck => todo!(),
+            HamsError::CStringToString(_) => todo!(),
+            HamsError::TryFromIntError(_) => todo!(),
+            HamsError::SystemTimeError(_) => todo!(),
             // Add match arms for the remaining error variants here
         }
     } else {
@@ -120,15 +123,11 @@ fn with_hams(
 }
 
 mod handlers {
-    use std::ffi::CStr;
-
-    use log::{error, info};
-
-    use crate::{error::HamsError, hams::check::HealthCheck};
-
     use super::Hams;
+    use crate::{error::HamsError, hams::check::HealthCheck};
+    use log::{error, info};
     use serde::Serialize;
-    use tokio::time::Instant;
+    use std::{ffi::CStr, time::SystemTime};
     use warp::{http::Response, reject::Rejection};
 
     /// Reply structure for Version response
@@ -161,7 +160,7 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn check_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let health_check = check.check(Instant::now()).await;
+        let health_check = check.check(SystemTime::now()).await;
 
         let valid = health_check.valid;
         Ok(warp::reply::with_status(
@@ -176,7 +175,7 @@ mod handlers {
 
     /// Handler for alive endpoint
     pub async fn check_verbose_handler(check: HealthCheck) -> Result<impl warp::Reply, Rejection> {
-        let health_check = check.check_verbose(Instant::now()).await;
+        let health_check = check.check_verbose(SystemTime::now()).await;
 
         let valid = health_check.valid;
 

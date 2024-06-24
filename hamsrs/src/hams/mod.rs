@@ -1,7 +1,10 @@
 use libc::c_void;
 use log::info;
 
-use crate::{ffi, probes::BoxedProbe};
+use crate::{
+    ffi::{self, ffitraits::BoxedHealthProbe},
+    probes::Probe,
+};
 
 /// Hams is an FFI struct to opaquely handle the object that was created by the Hams API.
 ///
@@ -90,12 +93,15 @@ impl Hams {
 
     /// Insert a probe into the alive checks
     ///
-    /// This will insert a probe into the alive checks
-    pub fn alive_insert_boxed(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
-        // let probe_c = probe.c;
+    /// This will insert a probe into the alive checks AND will pass ownership of the probe to the HaMS
+    pub fn alive_insert<T: Probe>(&self, probe: T) -> Result<(), crate::hamserror::HamsError> {
         println!("ABOUT to insert probe");
-        let retval = unsafe { ffi::hams_alive_insert(self.c, probe.c) };
+        let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
+            as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
+
+        let retval = unsafe { ffi::hams_alive_insert(self.c, probe_c) };
         println!("Part way through ");
+
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to insert probe into alive checks".to_string(),
@@ -105,25 +111,15 @@ impl Hams {
         Ok(())
     }
 
-    pub fn alive_insert(
-        &self,
-        probe: &dyn crate::probes::Probe,
-    ) -> Result<(), crate::hamserror::HamsError> {
-        let probe_c = probe.boxed().c;
-        let retval = unsafe { ffi::hams_alive_insert(self.c, probe_c) };
-        if retval == 0 {
-            return Err(crate::hamserror::HamsError::Message(
-                "Failed to insert probe into alive checks".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
     pub fn alive_remove(
         &self,
         probe: &dyn crate::probes::Probe,
     ) -> Result<(), crate::hamserror::HamsError> {
-        let probe_c = probe.boxed().c;
+        // Keep the ownership of the probe here
+        let x = probe.boxed()?;
+        let probe_c =
+            BoxedHealthProbe::as_raw(&x) as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
+
         let retval = unsafe { ffi::hams_alive_remove(self.c, probe_c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -136,9 +132,10 @@ impl Hams {
     /// Insert a probe into the alive checks
     ///
     /// This will insert a probe into the alive checks
-    pub fn ready_insert_boxed(&self, probe: BoxedProbe) -> Result<(), crate::hamserror::HamsError> {
-        // let probe_c = probe.c;
-        let retval = unsafe { ffi::hams_ready_insert(self.c, probe.c) };
+    pub fn ready_insert<T: Probe>(&self, probe: T) -> Result<(), crate::hamserror::HamsError> {
+        let x = BoxedHealthProbe::into_raw(probe.boxed()?) as *mut ffi::BProbe;
+
+        let retval = unsafe { ffi::hams_ready_insert(self.c, x) };
 
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -153,8 +150,10 @@ impl Hams {
         &self,
         probe: &dyn crate::probes::Probe,
     ) -> Result<(), crate::hamserror::HamsError> {
-        let probe_c = probe.boxed().c;
+        let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?) as *mut ffi::BProbe;
+
         let retval = unsafe { ffi::hams_ready_remove(self.c, probe_c) };
+
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to remove probe from ready checks".to_string(),
@@ -200,20 +199,20 @@ mod tests {
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 
         // todo!("Add the probe to the hams");
-        hams.alive_insert_boxed(probe0.boxed())
+        hams.alive_insert(probe0.clone())
             .expect("Should be able to add the probe");
-        hams.alive_insert_boxed(probe0.boxed())
+        hams.alive_insert(probe0.clone())
             .expect_err("Should not be able to add the same probe twice");
 
-        hams.alive_insert_boxed(probe1.boxed())
+        hams.alive_insert(probe1.clone())
             .expect("Should be able to add the probe");
 
-        hams.alive_remove(&probe0.boxed())
+        hams.alive_remove(&probe0)
             .expect("Should be able to remove the probe");
-        hams.alive_remove(&probe0.boxed())
+        hams.alive_remove(&probe0)
             .expect_err("Should not be able to remove the same probe twice");
 
-        hams.alive_remove(&probe1.boxed())
+        hams.alive_remove(&probe1)
             .expect("Should be able to remove the probe");
     }
 
@@ -224,12 +223,12 @@ mod tests {
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 
-        hams.alive_insert_boxed(probe0.boxed())
+        hams.alive_insert(probe0.clone())
             .expect("Should be able to add the probe");
-        hams.alive_insert_boxed(probe1.boxed())
+        hams.alive_insert(probe1.clone())
             .expect("Should be able to add the probe");
 
-        hams.ready_insert_boxed(probe0.boxed())
+        hams.ready_insert(probe0.clone())
             .expect("Should be able to add the probe");
 
         hams.alive_remove(&probe0)

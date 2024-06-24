@@ -9,6 +9,9 @@ use thiserror::Error;
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {
+    /// Error when CString cannot be converted to String
+    #[error("CString to String conversion error")]
+    CStringToString(#[from] std::ffi::IntoStringError),
     /// Probe is not good
     #[error("Probe is not good")]
     ProbeNotGood(String),
@@ -30,6 +33,14 @@ pub enum HamsError {
     /// Error when running callback
     #[error("Error calling callback")]
     CallbackError,
+
+    /// Error when converting number to int
+    #[error("TryFromIntError converting to int")]
+    TryFromIntError(#[from] std::num::TryFromIntError),
+
+    /// Error when converting SystemTime to Duration
+    #[error("SystemTimeError converting to Duration")]
+    SystemTimeError(#[from] std::time::SystemTimeError),
     /// Error when starting a thread
     #[error("io::Error eg from tokio start")]
     IoError(#[from] std::io::Error),

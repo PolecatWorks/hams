@@ -1,18 +1,15 @@
-use std::fmt::Display;
-
-use serde::Serialize;
-use tokio::time::Instant;
-
-use std::hash::{Hash, Hasher};
-
-use thin_trait_object::thin_trait_object;
-
 use crate::error::HamsError;
-
 use async_trait::async_trait;
+use ffitraits::{BoxedHealthProbe, HealthProbe};
+use serde::Serialize;
+use std::ffi::CString;
 use std::fmt;
 use std::fmt::Debug;
+use std::fmt::Display;
+use std::hash::{Hash, Hasher};
+use std::time::SystemTime;
 
+pub(crate) mod ffitraits;
 pub mod kick;
 pub mod manual;
 
@@ -41,7 +38,8 @@ impl Display for HealthProbeResult {
 pub(crate) trait AsyncHealthProbe: Debug + Sync + Send {
     // pub(crate) trait AsyncHealthProbe: Debug + Sync + Send + Eq + Hash {
     fn name(&self) -> Result<String, HamsError>;
-    async fn check(&self, time: Instant) -> Result<bool, HamsError>;
+
+    async fn check(&self, time: SystemTime) -> Result<bool, HamsError>;
 }
 
 impl Hash for dyn AsyncHealthProbe {
@@ -58,6 +56,9 @@ impl PartialEq for dyn AsyncHealthProbe {
 
 impl Eq for dyn AsyncHealthProbe {}
 
+/// HealthProbe is a an AsyncHealthProbe that can be converted to a Box<dyn AsyncHealthProbe> so that it
+/// is compatible with the async health that is required for some HealthChecks (network based)
+/// This stuct includes a BoxedHealthProbe for the FFI probe
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct FFIProbe {
     probe: BoxedHealthProbe<'static>,
@@ -77,11 +78,23 @@ where
 #[async_trait]
 impl AsyncHealthProbe for FFIProbe {
     fn name(&self) -> Result<String, HamsError> {
-        self.probe.name()
+        Ok(unsafe { CString::from_raw(self.probe.name()) }.into_string()?)
     }
 
-    async fn check(&self, time: Instant) -> Result<bool, HamsError> {
-        self.probe.check(time)
+    async fn check(&self, time: SystemTime) -> Result<bool, HamsError> {
+        let epoch_secs = time
+            .duration_since(SystemTime::UNIX_EPOCH)?
+            .as_secs()
+            .try_into()?;
+
+        let check_reply = self.probe.check(epoch_secs);
+        match check_reply {
+            1 => Ok(true),
+            0 => Ok(false),
+            error_value => Err(HamsError::Message(
+                "Error in check probe got value: ".to_string() + &error_value.to_string(),
+            )),
+        }
     }
 }
 
@@ -125,18 +138,6 @@ where
 //     )
 // )]
 
-// A boxed HealthProbe for use over FFI
-#[thin_trait_object]
-pub trait HealthProbe: Sync + Send {
-    /// Name of the probe
-    fn name(&self) -> Result<String, HamsError>;
-    /// Check the health of the probe
-    fn check(&self, time: Instant) -> Result<bool, HamsError>;
-
-    // /// Return a boxed version of the probe that is FFI safe
-    // fn ffi_boxed(&self) -> BoxedHealthProbe<'static>;
-}
-
 // impl BoxedHealthProbe {
 //     /// Create a new BoxedHealthProbe from a HealthProbe
 //     pub fn boxme(probe: &impl HealthProbe + 'static) -> Self {
@@ -148,13 +149,15 @@ impl<'a> Hash for BoxedHealthProbe<'a> {
     // NOTE: Use a unique identifier to distinguish probes. NOT the probe address.
     // Reference here: https://stackoverflow.com/questions/72148631/how-can-i-hash-by-a-raw-pointer
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.name().unwrap().hash(state);
+        unsafe { CString::from_raw(self.name()) }.hash(state);
+        // self.name().unwrap().hash(state);
     }
 }
 
 impl<'a> PartialEq for BoxedHealthProbe<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.name().unwrap() == other.name().unwrap()
+        unsafe { CString::from_raw(self.name()) }.into_string()
+            == unsafe { CString::from_raw(other.name()) }.into_string()
     }
 }
 
@@ -168,6 +171,9 @@ impl fmt::Debug for BoxedHealthProbe<'_> {
 
 #[cfg(test)]
 mod tests {
+    use libc::{c_int, time_t};
+    use std::ffi::c_char;
+
     use super::*;
 
     #[derive(Debug, PartialEq, Eq, Hash)]
@@ -182,7 +188,7 @@ mod tests {
             Ok(self.name.clone())
         }
 
-        async fn check(&self, _time: Instant) -> Result<bool, HamsError> {
+        async fn check(&self, _time: SystemTime) -> Result<bool, HamsError> {
             Ok(self.check)
         }
     }
@@ -199,7 +205,7 @@ mod tests {
             Ok(self.name.clone())
         }
 
-        async fn check(&self, _time: Instant) -> Result<bool, HamsError> {
+        async fn check(&self, _time: SystemTime) -> Result<bool, HamsError> {
             Ok(self.check)
         }
     }
@@ -212,11 +218,23 @@ mod tests {
     #[async_trait]
     impl AsyncHealthProbe for FFIProbe {
         fn name(&self) -> Result<String, HamsError> {
-            self.probe.name()
+            Ok(unsafe { CString::from_raw(self.probe.name()) }.into_string()?)
         }
 
-        async fn check(&self, time: Instant) -> Result<bool, HamsError> {
-            self.probe.check(time)
+        async fn check(&self, time: SystemTime) -> Result<bool, HamsError> {
+            let epoch_secs = time
+                .duration_since(SystemTime::UNIX_EPOCH)?
+                .as_secs()
+                .try_into()?;
+            let reply = self.probe.check(epoch_secs);
+
+            if reply == 1 {
+                Ok(true)
+            } else if reply == 0 {
+                Ok(false)
+            } else {
+                Err(HamsError::Message("Error in check probe".to_string()))
+            }
         }
     }
 
@@ -228,7 +246,7 @@ mod tests {
             check: true,
         };
         assert_eq!(probe.name().unwrap(), "test");
-        assert!(probe.check(Instant::now()).await.unwrap());
+        assert!(probe.check(SystemTime::now()).await.unwrap());
     }
 
     /// Create a vec of AsyncHealthProbe and run check on each
@@ -252,8 +270,9 @@ mod tests {
         let probes: Vec<Box<dyn AsyncHealthProbe>> =
             vec![Box::new(probe0), Box::new(probe1), Box::new(probe2)];
         let mut results = Vec::new();
+
         for probe in probes {
-            results.push(probe.check(Instant::now()).await.unwrap());
+            results.push(probe.check(SystemTime::now()).await.unwrap());
         }
         assert_eq!(results, vec![true, false, true]);
     }
@@ -275,12 +294,13 @@ mod tests {
     }
 
     impl HealthProbe for Probe0 {
-        fn name(&self) -> Result<String, HamsError> {
-            Ok(self.name.clone())
+        #[doc = " Name of the probe"]
+        fn name(&self) -> *mut c_char {
+            CString::new(self.name.clone()).unwrap().into_raw()
         }
 
-        fn check(&self, _time: Instant) -> Result<bool, HamsError> {
-            Ok(self.check)
+        fn check(&self, _time: time_t) -> c_int {
+            self.check as c_int
         }
     }
 
@@ -293,7 +313,12 @@ mod tests {
 
         let boxed = BoxedHealthProbe::new(probe.clone());
 
-        assert_eq!(boxed.name().unwrap(), "test");
+        assert_eq!(
+            unsafe { CString::from_raw(boxed.name()) }
+                .into_string()
+                .unwrap(),
+            "test"
+        );
     }
 
     #[test]
@@ -302,8 +327,20 @@ mod tests {
             name: "test".to_string(),
             check: true,
         };
-        assert_eq!(probe.name().unwrap(), "test");
-        assert!(probe.check(Instant::now()).unwrap());
+        // info!("Releasing kick probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        assert_eq!(
+            unsafe { CString::from_raw(probe.name()) }
+                .into_string()
+                .unwrap(),
+            "test"
+        );
+        let time_now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            .try_into()
+            .unwrap();
+        assert!(probe.check(time_now) == 1);
     }
 
     #[test]

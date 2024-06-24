@@ -1,20 +1,76 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use log::{error, info};
 
-use super::{BoxedProbe, Probe};
+use super::Probe;
 
-use crate::ffi;
+use crate::ffi::ffitraits::BoxedHealthProbe;
+use crate::{ffi, hamserror::HamsError};
 
+#[derive(Debug)]
+pub struct ProbeKickInner {
+    pub c: *mut ffi::KickProbe,
+}
+
+impl Drop for ProbeKickInner {
+    fn drop(&mut self) {
+        let retval = unsafe { ffi::probe_kick_free(self.c) };
+
+        if retval == 0 {
+            error!("Failed to free Probe object");
+        }
+
+        info!("Kick Probe freed")
+    }
+}
+
+impl ProbeKickInner {
+    pub fn new<S: Into<String>>(name: S, margin: Duration) -> Result<ProbeKickInner, HamsError>
+    where
+        S: std::fmt::Display,
+    {
+        info!("New KickHealthProbe: {}", &name);
+        let c_name = std::ffi::CString::new(name.into())?;
+        let c = unsafe { ffi::probe_kick_new(c_name.as_ptr(), margin.as_secs()) };
+
+        if c.is_null() {
+            return Err(HamsError::Message(
+                "Failed to create Probe object".to_string(),
+            ));
+        }
+        Ok(ProbeKickInner { c: c.into() })
+    }
+
+    pub fn kick(&self) -> Result<(), HamsError> {
+        let retval = unsafe { ffi::probe_kick_kick(self.c) };
+
+        if retval == 0 {
+            return Err(HamsError::Message("Failed to kick Probe".to_string()));
+        }
+        Ok(())
+    }
+
+    fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
+        let c = unsafe { ffi::probe_kick_boxed(self.c) };
+
+        if c.is_null() {
+            // panic!("PUT GOOD ERROR HERE");
+            return Err(HamsError::Message("Could not box probe".to_string()));
+        }
+        let probe = unsafe { BoxedHealthProbe::from_raw(c as *mut ()) };
+
+        Ok(probe)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub struct ProbeKick {
-    c: *mut ffi::KickProbe,
+    inner: Arc<ProbeKickInner>,
 }
 
 impl Probe for ProbeKick {
-    fn boxed(&self) -> BoxedProbe {
-        let c = unsafe { ffi::probe_kick_boxed(self.c) };
-
-        BoxedProbe { c }
+    fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
+        self.inner.boxed()
     }
 }
 
@@ -27,38 +83,14 @@ impl ProbeKick {
     where
         S: std::fmt::Display,
     {
-        info!("New KickHealthProbe: {}", &name);
-        let c_name = std::ffi::CString::new(name.into())?;
-        let c = unsafe { ffi::probe_kick_new(c_name.as_ptr(), margin.as_secs()) };
-        if c.is_null() {
-            return Err(crate::hamserror::HamsError::Message(
-                "Failed to create Probe object".to_string(),
-            ));
-        }
-        Ok(ProbeKick { c })
+        Ok(ProbeKick {
+            inner: Arc::new(ProbeKickInner::new(name, margin)?),
+        })
     }
 
     /// Kick the probe
     pub fn kick(&self) -> Result<(), crate::hamserror::HamsError> {
-        let retval = unsafe { ffi::probe_kick_kick(self.c) };
-        if retval == 0 {
-            return Err(crate::hamserror::HamsError::Message(
-                "Failed to kick Probe".to_string(),
-            ));
-        }
-        Ok(())
-    }
-}
-
-impl Drop for ProbeKick {
-    fn drop(&mut self) {
-        let retval = unsafe { ffi::probe_kick_free(self.c) };
-
-        if retval == 0 {
-            error!("Failed to free Probe object");
-        }
-
-        info!("Kick Probe freed")
+        self.inner.kick()
     }
 }
 

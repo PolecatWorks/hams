@@ -36,7 +36,7 @@ pub struct KickProbe {
 //     _data: [u8; 0],
 //     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 // }
-pub type Probe = BoxedHealthProbe<'static>;
+pub type BProbe = BoxedHealthProbe<'static>;
 
 #[link(name = "hams", kind = "dylib")]
 extern "C" {
@@ -47,10 +47,12 @@ extern "C" {
     pub fn hams_free(hams: *mut Hams) -> i32;
     pub fn hams_start(hams: *mut Hams) -> i32;
     pub fn hams_stop(hams: *mut Hams) -> i32;
-    pub fn hams_alive_insert(hams: *mut Hams, probe: *mut Probe) -> i32;
-    pub fn hams_alive_remove(hams: *mut Hams, probe: *mut Probe) -> i32;
-    pub fn hams_ready_insert(hams: *mut Hams, probe: *mut Probe) -> i32;
-    pub fn hams_ready_remove(hams: *mut Hams, probe: *mut Probe) -> i32;
+
+    #[allow(improper_ctypes)]
+    pub fn hams_alive_insert(hams: *mut Hams, probe: *mut BProbe) -> i32;
+    pub fn hams_alive_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
+    pub fn hams_ready_insert(hams: *mut Hams, probe: *mut BProbe) -> i32;
+    pub fn hams_ready_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
     pub fn hams_register_prometheus(
         hams: *mut Hams,
         my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,
@@ -69,7 +71,7 @@ extern "C" {
 
     pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut ManualProbe;
     pub fn probe_manual_free(probe: *mut ManualProbe) -> i32;
-    pub fn probe_manual_boxed(probe: *mut ManualProbe) -> *mut Probe;
+    pub fn probe_manual_boxed(probe: *mut ManualProbe) -> *mut BoxedHealthProbe<'static>;
     pub fn probe_manual_enable(probe: *mut ManualProbe, valid: bool) -> i32;
     pub fn probe_manual_disable(probe: *mut ManualProbe) -> i32;
     pub fn probe_manual_toggle(probe: *mut ManualProbe) -> i32;
@@ -77,8 +79,8 @@ extern "C" {
 
     pub fn probe_kick_new(name: *const libc::c_char, margin: u64) -> *mut KickProbe;
     pub fn probe_kick_free(probe: *mut KickProbe) -> i32;
-    pub fn probe_kick_boxed(probe: *mut KickProbe) -> *mut Probe;
+    pub fn probe_kick_boxed(probe: *mut KickProbe) -> *mut BProbe;
     pub fn probe_kick_kick(probe: *mut KickProbe) -> i32;
 
-    pub fn probe_free(probe: *mut Probe) -> i32;
+    pub fn probe_free(probe: *mut BProbe) -> i32;
 }

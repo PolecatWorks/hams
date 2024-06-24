@@ -111,11 +111,11 @@ pub fn main() -> ExitCode {
             )
             .expect("register prometheus CBs");
 
-            hams.alive_insert(&probe0)
+            hams.alive_insert(probe0.clone())
                 .expect("insert probe0 into alive");
             println!("Probe0 inserted into alive");
 
-            hams.alive_insert(&probe1)
+            hams.alive_insert(probe1.clone())
                 .expect("insert probe1 into alive");
 
             hams.start().unwrap();
