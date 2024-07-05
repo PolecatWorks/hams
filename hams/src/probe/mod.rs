@@ -240,6 +240,7 @@ mod tests {
 
     /// Confirm check and name work for AsyncHealthProbe
     #[tokio::test]
+    #[cfg_attr(miri, ignore)]
     async fn test_async_health_probe() {
         let probe = AsyncProbe0 {
             name: "test".to_string(),
@@ -251,6 +252,7 @@ mod tests {
 
     /// Create a vec of AsyncHealthProbe and run check on each
     #[tokio::test]
+    #[cfg_attr(miri, ignore)]
     async fn test_async_health_probe_vec() {
         let probe0 = AsyncProbe0 {
             name: "test0".to_string(),

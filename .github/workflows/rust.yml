@@ -28,3 +28,4 @@ jobs:
       run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
+      # https://github.com/DataDog/libdatadog/actions/runs/6962141169/workflow

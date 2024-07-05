@@ -4,6 +4,8 @@
 
     cargo watch -x "miri test"
 
+    MIRIFLAGS="-Zmiri-disable-isolation" cargo miri test
+
 # Run Code
 (from top dir)
 

@@ -168,6 +168,7 @@ mod tests {
 
     /// Test insert_async on a health check using manual
     #[tokio::test]
+    #[cfg_attr(miri, ignore)]
     async fn test_health_check_insert_async() {
         let check = HealthCheck::new("test");
         let manual0 = Manual::new("test_probe0", true);
@@ -238,6 +239,7 @@ mod tests {
 
     /// Test remove_async on a health check using manual
     #[tokio::test]
+    #[cfg_attr(miri, ignore)]
     async fn test_health_check_remove_async() {
         let check = HealthCheck::new("test");
         let manual0 = Manual::new("test_probe0", true);

@@ -1,8 +1,7 @@
 use std::ffi::c_char;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
 
 use libc::time_t;
 use log::info;
@@ -34,6 +33,12 @@ impl Probe for ProbeCustom {
     fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
         let probe = BoxedHealthProbe::new(self.clone());
 
+        println!("ProbeCustom::boxed: {:?}", probe.name());
+        let pname = unsafe { CString::from_raw(probe.name()) }
+            .into_string()
+            .unwrap();
+        println!("THIS IS THE BOXED PROBE: {:?}", pname);
+
         Ok(probe)
     }
 }
@@ -49,9 +54,10 @@ impl ProbeCustom {
     {
         info!("New CustomHealthProbe: {}", &name);
 
-        Ok(ProbeCustom {
-            name: name.to_string(),
-            valid: AtomicBool::new(valid).into(),
+        Ok(Self {
+            name: name.into(),
+            valid: Arc::new(AtomicBool::new(valid)),
+            // inner: Arc::new(ProbeCustomInner::new(name, valid)?),
         })
     }
 
@@ -70,20 +76,12 @@ impl ProbeCustom {
     /// Toggle the probe
     pub fn toggle(&mut self) -> Result<(), crate::hamserror::HamsError> {
         self.valid.fetch_xor(true, Ordering::Relaxed);
-
         Ok(())
     }
 
     // Check the probe
     pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
         Ok(self.valid.load(Ordering::Relaxed))
-    }
-}
-
-impl Drop for ProbeCustom {
-    /// Releaes the HaMS ffi on drop
-    fn drop(&mut self) {
-        info!("Custom Probe freed")
     }
 }
 

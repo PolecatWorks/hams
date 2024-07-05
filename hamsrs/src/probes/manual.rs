@@ -27,12 +27,9 @@ impl Drop for ProbeManualInner {
 }
 
 impl ProbeManualInner {
-    pub fn new<S: Into<String>>(
-        name: S,
-        valid: bool,
-    ) -> Result<ProbeManualInner, crate::hamserror::HamsError>
+    pub fn new<S>(name: S, valid: bool) -> Result<ProbeManualInner, crate::hamserror::HamsError>
     where
-        S: std::fmt::Display,
+        S: std::fmt::Display + Into<String>,
     {
         info!("New ManualHealthProbe: {}", &name);
 
@@ -178,12 +175,12 @@ mod tests {
         let probe_manual = ProbeManual::new("test_probe", true).unwrap();
 
         println!("Probe: {:?}", probe_manual);
-        let p2 = probe_manual.clone();
+        let _p2 = probe_manual.clone();
 
         println!("Probe: {:?}", probe_manual);
 
         hams.alive_insert(probe_manual.clone()).unwrap();
         println!("Probe added to hams: {:?}", probe_manual);
-        // hams.alive_remove(&probe_manual).unwrap();
+        hams.alive_remove(&probe_manual).unwrap();
     }
 }
