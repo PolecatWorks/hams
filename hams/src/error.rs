@@ -1,10 +1,44 @@
 //! describe errors in Hams
 
-use std::ffi::NulError;
+use std::{ffi::NulError, str::Utf8Error};
 
 use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
 use thiserror::Error;
+
+/// FFI Enum for error handling mapping to C return codes
+pub enum FFIEnum {
+    /// Null error
+    NullError = 0,
+    /// Unknown error
+    UnknownError = -1,
+    /// CString error
+    CStringError = -2,
+}
+
+/// Allow conversion from i32 to FFIEnum (C return codes to FFIEnum)
+impl TryFrom<i32> for FFIEnum {
+    type Error = HamsError;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            x if x == FFIEnum::NullError as i32 => Ok(FFIEnum::NullError),
+            x if x == FFIEnum::CStringError as i32 => Ok(FFIEnum::CStringError),
+            x if x >= 0 => Err(HamsError::NotError(x)),
+            _ => Err(HamsError::Unknown),
+        }
+    }
+}
+
+impl<T: AsRef<HamsError>> From<T> for FFIEnum {
+    fn from(err: T) -> Self {
+        match err.as_ref() {
+            HamsError::CStringToString(_) => FFIEnum::CStringError,
+            HamsError::NulError(_) => FFIEnum::NullError,
+            _ => FFIEnum::UnknownError,
+        }
+    }
+}
 
 /// Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
@@ -12,6 +46,14 @@ pub enum HamsError {
     /// Error when CString cannot be converted to String
     #[error("CString to String conversion error")]
     CStringToString(#[from] std::ffi::IntoStringError),
+    /// Error when converting to str
+    #[error("CString to str conversion error")]
+    Utf8Error(#[from] Utf8Error),
+
+    /// Error when converting to an error when not an error
+    #[error("Not an error as return was {0}")]
+    NotError(i32),
+
     /// Probe is not good
     #[error("Probe is not good")]
     ProbeNotGood(String),
@@ -33,6 +75,9 @@ pub enum HamsError {
     /// Error when running callback
     #[error("Error calling callback")]
     CallbackError,
+
+    #[error("FFI error buffer wasn't big enough!")]
+    FFIErrorBufferNotBigEnough,
 
     /// Error when converting number to int
     #[error("TryFromIntError converting to int")]
@@ -59,6 +104,9 @@ pub enum HamsError {
     /// PoisonError from accessing MutexGuard
     #[error("PoisonError from MutexGuard")]
     PoisonError,
+    /// FFI Error
+    #[error("FFI Error: {0}")]
+    FFIError(String),
     /// A standard error with configurable message
     #[error("Generic error message (use sparigly): `{0}`")]
     Message(String),
@@ -70,9 +118,27 @@ pub enum HamsError {
     Unknown,
 }
 
+/// Convert from PoisonError to HamsError
+/// No obvious way to capture generic T using thiserror
 impl<T> From<std::sync::PoisonError<T>> for HamsError {
     fn from(_: std::sync::PoisonError<T>) -> Self {
         Self::PoisonError
+    }
+}
+
+// Support AsRef<HamsError> to allow refs to be used alongside value for converstion to FFIEnum
+impl AsRef<HamsError> for HamsError {
+    fn as_ref(&self) -> &HamsError {
+        self
+    }
+}
+
+impl HamsError {
+    /// Convert the error to a FFIEnum whilst creating the relevant error on the FFI side
+    pub fn into_ffi_enum_with_update(self) -> FFIEnum {
+        let ffienum = FFIEnum::from(&self);
+        error_handling::update_last_error(self);
+        ffienum
     }
 }
 
@@ -98,15 +164,13 @@ pub fn ffi_error_to_result() -> Result<(), HamsError> {
 
     // then interpret the message
     match bytes_written {
-        -1 => Err(HamsError::Message(
-            "FFI error buffer wasn't big enough!".to_string(),
-        )),
+        -1 => Err(HamsError::FFIErrorBufferNotBigEnough),
         0 => Ok(()), // Not actual error found
         len if len > 0 => {
             buffer.truncate(len as usize - 1);
             let msg = String::from_utf8(buffer).unwrap();
             // println!("Error: {}", msg);
-            Err(HamsError::Message(format!("Error: {}", msg)))
+            Err(HamsError::FFIError(msg))
         }
         _ => unreachable!(),
     }

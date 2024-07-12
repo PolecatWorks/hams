@@ -14,10 +14,11 @@ use crate::probe::ffitraits::HealthProbe;
 use crate::probe::{AsyncHealthProbe, FFIProbe};
 
 use self::hams::Hams;
+use error::{FFIEnum, HamsError};
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use libc::{c_int, c_void};
-use log::info;
+use log::{error, info};
 use probe::ffitraits::BoxedHealthProbe;
 use probe::kick::Kick;
 use probe::manual::Manual;
@@ -122,12 +123,27 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 pub unsafe extern "C" fn hams_new(name: *const libc::c_char) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
-    catch_panic!(
-        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
-        info!("Registering HaMS: {}", name_str);
+    let name_str = unsafe { CStr::from_ptr(name) }
+        .to_str()
+        .map_err(HamsError::from);
 
-        Ok(Box::into_raw(Box::new(Hams::new(name_str))))
-    )
+    match name_str {
+        Ok(name_str) => {
+            info!("Registering HaMS: {}", name_str);
+            Box::into_raw(Box::new(Hams::new(name_str)))
+        }
+        Err(e) => {
+            error!("Failed to register HaMS");
+            (e.into_ffi_enum_with_update() as u32) as *mut Hams
+        }
+    }
+
+    // catch_panic!(
+    //     let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
+    //     info!("Registering HaMS: {}", name_str);
+
+    //     Ok(Box::into_raw(Box::new(Hams::new(name_str))))
+    // )
 }
 
 /// # Safety
@@ -414,14 +430,18 @@ pub unsafe extern "C" fn hams_ready_remove(
 pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool) -> *mut Manual {
     ffi_helpers::null_pointer_check!(name);
 
-    catch_panic!(
-        let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
-        info!("Creating ManualHealthProbe: {}", name_str);
+    let name_str = unsafe { CStr::from_ptr(name).to_str().map_err(HamsError::from) };
 
-        let probe = probe::manual::Manual::new(name_str, check);
-
-        Ok(Box::into_raw(Box::new(probe)))
-    )
+    match name_str {
+        Ok(name_str) => {
+            info!("Creating ManualHealthProbe: {}", name_str);
+            Box::into_raw(Box::new(Manual::new(name_str, check)))
+        }
+        Err(e) => {
+            error!("Failed to create ManualHealthProbe");
+            (e.into_ffi_enum_with_update() as u32) as *mut Manual
+        }
+    }
 }
 
 /// Free Manual Health Probe
@@ -708,7 +728,14 @@ mod tests {
 
         assert_eq!(my_hams, ptr::null_mut());
 
+        // let ret_error = ffi_error_to_result();
+
         assert!(ffi_error_to_result().is_err(), "Error should be returned");
+
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
     }
 
     #[test]
@@ -718,11 +745,23 @@ mod tests {
         assert_eq!(retval, 0);
 
         assert!(ffi_error_to_result().is_err(), "Error should be returned");
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
     }
 
     // create and free manual probe
     #[test]
     fn probe_manual_create_free() {
+        let my_probe = unsafe { probe_manual_new(ptr::null(), true) };
+        assert_eq!(my_probe, ptr::null_mut());
+        assert!(ffi_error_to_result().is_err(), "Error should be returned");
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
+
         let c_probe_name = std::ffi::CString::new("name").unwrap();
 
         let my_probe = unsafe { probe_manual_new(c_probe_name.as_ptr(), true) };
