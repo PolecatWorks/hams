@@ -79,7 +79,7 @@ impl Hams {
     /// # Arguments
     ///
     /// * 'name' - A string slice that holds the name of the HaMS
-    pub fn new<S: Into<String>>(name: S) -> Hams {
+    pub fn new<S: Into<String>>(name: S, port: u16) -> Hams {
         let ct = CancellationToken::new();
         ct.cancel();
         Hams {
@@ -91,7 +91,7 @@ impl Hams {
             thread_jh: Arc::new(Mutex::new(None)),
 
             cancellation_token: ct,
-            port: 8079,
+            port,
 
             preflights: HealthCheck::new("preflights"),
             shutdowns: HealthCheck::new("shutdowns"),
@@ -309,7 +309,7 @@ mod tests {
     /// Check that callback is responding correctly
     #[test]
     fn test_prometheus_callback() {
-        let mut hams = Hams::new("test");
+        let mut hams = Hams::new("test", 8079);
 
         extern "C" fn prometheus(ptr: *const c_void) -> *mut libc::c_char {
             let state = unsafe { &*(ptr as *const String) };
@@ -355,8 +355,8 @@ mod tests {
     /// Create a hams then start and stop it
     #[cfg_attr(miri, ignore)]
     #[test]
-    fn test_hams_start_stop() {
-        let mut hams = Hams::new("test");
+    fn obj_hams_start_stop() {
+        let mut hams = Hams::new("test", 8078);
         hams.start().expect("Started");
         thread::sleep(Duration::from_secs(1));
         hams.stop().expect("Stopped");
@@ -365,7 +365,7 @@ mod tests {
     /// Test add and remove alive and ready checks
     #[test]
     fn test_hams_health() {
-        let mut hams = Hams::new("test");
+        let mut hams = Hams::new("test", 8079);
 
         let probe0 = Manual::new("test_probe0", true);
         let probe1 = Manual::new("test_probe1", true);

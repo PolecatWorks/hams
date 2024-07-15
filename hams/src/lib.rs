@@ -120,7 +120,7 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 ///
 /// Initialise the hams object giving it a name on construction
 #[no_mangle]
-pub unsafe extern "C" fn hams_new(name: *const libc::c_char) -> *mut Hams {
+pub unsafe extern "C" fn hams_new(name: *const libc::c_char, port: u16) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
 
     let name_str = unsafe { CStr::from_ptr(name) }
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn hams_new(name: *const libc::c_char) -> *mut Hams {
     match name_str {
         Ok(name_str) => {
             info!("Registering HaMS: {}", name_str);
-            Box::into_raw(Box::new(Hams::new(name_str)))
+            Box::into_raw(Box::new(Hams::new(name_str, port)))
         }
         Err(e) => {
             error!("Failed to register HaMS");
@@ -643,7 +643,7 @@ pub unsafe extern "C" fn probe_kick_boxed(ptr: *mut Kick) -> *mut BoxedHealthPro
 #[cfg(test)]
 mod tests {
 
-    use std::ptr;
+    use std::{ptr, thread, time::Duration};
 
     use ffi_log2::log_param;
 
@@ -665,7 +665,7 @@ mod tests {
     fn register_prometheus() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");
@@ -710,7 +710,7 @@ mod tests {
     fn hams_init_free() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -724,7 +724,7 @@ mod tests {
     #[test]
     fn null_init() {
         // let c_library_name: libc::c_char = ptr::null();
-        let my_hams = unsafe { hams_new(ptr::null()) };
+        let my_hams = unsafe { hams_new(ptr::null(), 8079) };
 
         assert_eq!(my_hams, ptr::null_mut());
 
@@ -773,11 +773,26 @@ mod tests {
         let retval = unsafe { probe_manual_free(my_probe) };
 
         assert_eq!(retval, 1);
+
+        let retval = unsafe { probe_free(ptr::null_mut()) };
+        assert_eq!(retval, 0);
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
     }
 
     // Create and free kick probe
     #[test]
     fn probe_kick_create_free() {
+        let my_probe = unsafe { probe_kick_new(ptr::null(), 10) };
+        assert_eq!(my_probe, ptr::null_mut());
+        assert!(ffi_error_to_result().is_err(), "Error should be returned");
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
+
         let c_probe_name = std::ffi::CString::new("name").unwrap();
 
         let my_probe = unsafe { probe_kick_new(c_probe_name.as_ptr(), 10) };
@@ -789,26 +804,73 @@ mod tests {
         let retval = unsafe { probe_kick_free(my_probe) };
 
         assert_eq!(retval, 1);
+
+        let retval = unsafe { probe_kick_free(ptr::null_mut()) };
+        assert_eq!(retval, 0);
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
     }
 
     // Create Hams and insert + remove manual probe
     #[test]
-    fn hams_start_stop() {
+    fn ffi_hams_start_stop() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");
 
-        // let retval = unsafe { hams_start(my_hams) };
+        let retval = unsafe { hams_start(my_hams) };
+        thread::sleep(Duration::from_secs(1));
 
-        // assert_eq!(retval, 1);
+        assert_eq!(retval, 1);
 
-        // let retval = unsafe { hams_stop(my_hams) };
+        let retval = unsafe { hams_stop(my_hams) };
 
-        // assert_eq!(retval, 1);
+        assert_eq!(retval, 1);
+
+        let retval = unsafe { hams_free(my_hams) };
+
+        assert_eq!(retval, 1);
+    }
+
+    // Test when we start HaMS and the port is already in use
+    #[test]
+    fn ffi_hams_start_port_in_use() {
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+
+        assert_ne!(my_hams, ptr::null_mut());
+
+        println!("initialised HaMS");
+
+        let retval = unsafe { hams_start(my_hams) };
+        thread::sleep(Duration::from_secs(1));
+
+        assert_eq!(retval, 1);
+
+        let my_hams2 = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+
+        assert_ne!(my_hams2, ptr::null_mut());
+
+        let retval = unsafe { hams_start(my_hams) };
+        assert_ne!(retval, 1);
+
+        assert!(ffi_error_to_result().is_err(), "Error should be returned");
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: Panic: Start HaMS: AlreadyRunning"
+        );
+        let retval = unsafe { hams_free(my_hams2) };
+        assert_eq!(retval, 1);
+
+        let retval = unsafe { hams_stop(my_hams) };
+        assert_eq!(retval, 1);
 
         let retval = unsafe { hams_free(my_hams) };
 
@@ -820,7 +882,7 @@ mod tests {
     fn hams_insert_remove_manual() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr()) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");

@@ -242,7 +242,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_metrics() {
-            let hams = Hams::new("test");
+            let hams = Hams::new("test", 8079);
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -257,7 +257,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_version() {
-            let hams = Hams::new("test");
+            let hams = Hams::new("test", 8079);
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -272,7 +272,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_shutdown() {
-            let hams = Hams::new("test");
+            let hams = Hams::new("test", 8079);
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -287,7 +287,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_alive() {
-            let hams = Hams::new("test");
+            let hams = Hams::new("test", 8079);
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -302,7 +302,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_ready() {
-            let hams = Hams::new("test");
+            let hams = Hams::new("test", 8079);
             let api = hams_service(hams);
 
             let reply = warp::test::request()
