@@ -43,7 +43,7 @@ extern "C" {
     /// Configure logging for HaMS
     pub fn hams_logger_init(param: LogParam) -> i32;
 
-    pub fn hams_new(name: *const libc::c_char) -> *mut Hams;
+    pub fn hams_new(name: *const libc::c_char, port: u16) -> *mut Hams;
     pub fn hams_free(hams: *mut Hams) -> i32;
     pub fn hams_start(hams: *mut Hams) -> i32;
     pub fn hams_stop(hams: *mut Hams) -> i32;

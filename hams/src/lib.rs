@@ -633,9 +633,10 @@ pub unsafe extern "C" fn probe_kick_boxed(ptr: *mut Kick) -> *mut BoxedHealthPro
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &mut *ptr;
-        let boxed_probe = probe.boxed_probe();
-        Ok(Box::into_raw(Box::new(boxed_probe)))
+        let probe = (*ptr).clone();
+        let boxed_probe = BoxedHealthProbe::new(probe);
+
+        Ok(boxed_probe.into_raw() as *mut BoxedHealthProbe<'static>)
     )
 }
 
@@ -818,7 +819,7 @@ mod tests {
     fn ffi_hams_start_stop() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8077) };
 
         assert_ne!(my_hams, ptr::null_mut());
 

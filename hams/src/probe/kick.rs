@@ -23,7 +23,7 @@ impl Kick {
             latest: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_secs()
+                .as_millis()
                 .try_into()
                 .unwrap(),
             margin,
@@ -35,12 +35,12 @@ impl Kick {
         self.latest = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_secs()
+            .as_millis()
             .try_into()
             .unwrap();
     }
 
-    /// Return a BoexedHealthProbe for the probe
+    /// Return a BoxedHealthProbe for the probe
     pub fn boxed_probe(&self) -> BoxedHealthProbe<'static> {
         BoxedHealthProbe::new(self.clone())
     }
