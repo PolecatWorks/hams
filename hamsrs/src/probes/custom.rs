@@ -112,7 +112,7 @@ mod tests {
     /// Insert custom probe into hams
     #[test]
     fn add_custom_probe_to_hams() {
-        let hams = crate::hams::Hams::new("my hams").unwrap();
+        let hams = crate::hams::Hams::new("my hams", 8079).unwrap();
         let probe_custom = ProbeCustom::new("test", true).unwrap();
 
         // hams.alive_insert_boxed( probe_custom.clone().boxed()).unwrap();

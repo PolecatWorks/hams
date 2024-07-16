@@ -99,7 +99,7 @@ pub fn main() -> ExitCode {
             let probe1 = ProbeKick::new("probe1", Duration::from_secs(10)).unwrap();
             println!("New Kick Probe CREATED");
 
-            let hams = Hams::new("sample").unwrap();
+            let hams = Hams::new("sample", 8079).unwrap();
             println!("New HaMS CREATED");
 
             let state_string = String::from("Hello from Rust PROMETHEUS");
@@ -117,6 +117,8 @@ pub fn main() -> ExitCode {
 
             hams.alive_insert(probe1.clone())
                 .expect("insert probe1 into alive");
+
+            info!("HaMS Created, now starting it");
 
             hams.start().unwrap();
             info!("HaMS Started, now waiting for 3 secs");

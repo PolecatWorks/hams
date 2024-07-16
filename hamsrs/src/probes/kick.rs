@@ -31,7 +31,7 @@ impl ProbeKickInner {
     {
         info!("New KickHealthProbe: {}", &name);
         let c_name = std::ffi::CString::new(name.into())?;
-        let c = unsafe { ffi::probe_kick_new(c_name.as_ptr(), margin.as_secs()) };
+        let c = unsafe { ffi::probe_kick_new(c_name.as_ptr(), margin.as_millis().try_into()?) };
 
         if c.is_null() {
             return Err(HamsError::Message(
@@ -96,6 +96,7 @@ impl ProbeKick {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -112,5 +113,21 @@ mod tests {
         probe.kick().unwrap();
 
         drop(probe);
+    }
+
+    /// Add Kick Probe to Hams
+    #[test]
+    fn add_kick_probe_to_hams() {
+        let hams = crate::hams::Hams::new("my hams", 8079).unwrap();
+        let probe_kick = ProbeKick::new("test", Duration::from_secs(1)).unwrap();
+
+        println!("Probe: {:?}", probe_kick);
+        let _p2 = probe_kick.clone();
+
+        println!("Probe: {:?}", probe_kick);
+
+        hams.alive_insert(probe_kick.clone()).unwrap();
+        println!("Probe added to hams: {:?}", probe_kick);
+        hams.alive_remove(&probe_kick).unwrap();
     }
 }
