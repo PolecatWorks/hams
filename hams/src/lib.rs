@@ -299,19 +299,16 @@ pub unsafe extern "C" fn hams_alive_insert(
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
         info!("Adding alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
-        println!("Adding alive probe: {:?}", CString::from_raw(probe.name()).into_string().unwrap());
 
         // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
-        println!("using FFIProbe {:?}", ffi_probe.name());
 
-        let x = if AssertUnwindSafe(hams).alive_insert(ffi_probe) {
+        let retval_bool = if AssertUnwindSafe(hams).alive_insert(ffi_probe) {
             1
         } else {
             0
         };
-        println!("x: {:?}", x);
-        Ok(x)
+        Ok(retval_bool)
     )
 }
 
@@ -474,14 +471,9 @@ pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealt
             let probe =  (*ptr).clone();
             let boxed_probe = BoxedHealthProbe::new(probe);
 
-            // println!("THIS IS THE BOXED PROBE CString: {:?}", boxed_probe.name());
-            let pname = CString::from_raw(boxed_probe.name()).into_string().unwrap();
-            println!("THIS IS THE BOXED PROBE: {:?}", pname);
 
             // Use into_raw to pass ownership to the caller
-            let x = boxed_probe.into_raw() as *mut BoxedHealthProbe<'static>;
-            // println!("THIS IS THE BOXED PROBE from BHP: {:?}", CString::from_raw((*x).name()));
-            x
+            boxed_probe.into_raw() as *mut BoxedHealthProbe<'static>
         };
 
         Ok(x)
