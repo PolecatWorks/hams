@@ -10,5 +10,7 @@ libc = "~0.2"
 thiserror = "~1.0"
 thin_trait_object = { version = "~1.1" }
 ffi_helpers = "~0.3"
+derive_builder = {version = "~0.20"}
+serde = { version = "~1.0", features = ['std', 'derive'] }
 
 hams = { path = "../hams"}

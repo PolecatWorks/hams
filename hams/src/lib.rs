@@ -17,6 +17,7 @@ use self::hams::Hams;
 use error::{FFIEnum, HamsError};
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
+use hams::config::{HamsConfig, HamsConfigBuilder};
 use libc::{c_int, c_void};
 use log::{error, info};
 use probe::ffitraits::BoxedHealthProbe;
@@ -120,30 +121,31 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 ///
 /// Initialise the hams object giving it a name on construction
 #[no_mangle]
-pub unsafe extern "C" fn hams_new(name: *const libc::c_char, port: u16) -> *mut Hams {
+pub unsafe extern "C" fn hams_new(
+    name: *const libc::c_char,
+    address: *const libc::c_char,
+) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
+    ffi_helpers::null_pointer_check!(address);
 
-    let name_str = unsafe { CStr::from_ptr(name) }
-        .to_str()
-        .map_err(HamsError::from);
+    catch_panic!(
+        let name_str =  unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .map_err(HamsError::from)?;
 
-    match name_str {
-        Ok(name_str) => {
-            info!("Registering HaMS: {}", name_str);
-            Box::into_raw(Box::new(Hams::new(name_str, port)))
-        }
-        Err(e) => {
-            error!("Failed to register HaMS");
-            (e.into_ffi_enum_with_update() as u32) as *mut Hams
-        }
-    }
+        let address_str =  unsafe { CStr::from_ptr(address) }
+            .to_str()
+            .map_err(HamsError::from)?;
 
-    // catch_panic!(
-    //     let name_str = unsafe {CStr::from_ptr(name) }.to_str().unwrap();
-    //     info!("Registering HaMS: {}", name_str);
+        let config = HamsConfigBuilder::default()
+            .name(name_str.to_string())
+            .address(address_str.parse()?)
+            .build()
+            .map_err(HamsError::from)?;
 
-    //     Ok(Box::into_raw(Box::new(Hams::new(name_str))))
-    // )
+        info!("Registering HaMS: {}", name_str);
+        Ok(Box::into_raw(Box::new(Hams::new(config))))
+    )
 }
 
 /// # Safety
@@ -657,8 +659,9 @@ mod tests {
     #[test]
     fn register_prometheus() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");
@@ -702,8 +705,9 @@ mod tests {
     #[test]
     fn hams_init_free() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -715,19 +719,51 @@ mod tests {
     }
 
     #[test]
-    fn null_init() {
-        // let c_library_name: libc::c_char = ptr::null();
-        let my_hams = unsafe { hams_new(ptr::null(), 8079) };
+    fn null_init_name() {
+        let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
+
+        let my_hams = unsafe { hams_new(ptr::null(), c_address.as_ptr()) };
 
         assert_eq!(my_hams, ptr::null_mut());
-
-        // let ret_error = ffi_error_to_result();
 
         assert!(ffi_error_to_result().is_err(), "Error should be returned");
 
         assert_eq!(
             ffi_error_to_result().err().unwrap().to_string(),
             "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
+    }
+
+    #[test]
+    fn null_init_address() {
+        let c_name = std::ffi::CString::new("name").unwrap();
+
+        let my_hams = unsafe { hams_new(c_name.as_ptr(), ptr::null()) };
+
+        assert_eq!(my_hams, ptr::null_mut());
+
+        assert!(ffi_error_to_result().is_err(), "Error should be returned");
+
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: A null pointer was passed in where it wasn't expected"
+        );
+    }
+
+    #[test]
+    fn invalid_init_address() {
+        let c_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("noaddress:noport").unwrap();
+
+        let my_hams = unsafe { hams_new(c_name.as_ptr(), c_address.as_ptr()) };
+
+        assert_eq!(my_hams, ptr::null_mut());
+
+        assert!(ffi_error_to_result().is_err(), "Error should be returned");
+
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: invalid socket address syntax"
         );
     }
 
@@ -810,8 +846,9 @@ mod tests {
     #[test]
     fn ffi_hams_start_stop() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8077").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8077) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -835,8 +872,9 @@ mod tests {
     #[test]
     fn ffi_hams_start_port_in_use() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8078").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -847,7 +885,7 @@ mod tests {
 
         assert_eq!(retval, 1);
 
-        let my_hams2 = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+        let my_hams2 = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
 
         assert_ne!(my_hams2, ptr::null_mut());
 
@@ -874,8 +912,9 @@ mod tests {
     #[test]
     fn hams_insert_remove_manual() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), 8079) };
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");

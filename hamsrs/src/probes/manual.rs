@@ -150,6 +150,8 @@ impl ProbeManual {
 #[cfg(test)]
 mod tests {
 
+    use crate::hams::config::HamsConfig;
+
     use super::*;
 
     #[test]
@@ -171,7 +173,7 @@ mod tests {
     /// Add Manual Probe to Hams
     #[test]
     fn add_manual_probe_to_hams() {
-        let hams = crate::hams::Hams::new("test", 8079).unwrap();
+        let hams = crate::hams::Hams::new(HamsConfig::default()).unwrap();
         let probe_manual = ProbeManual::new("test_probe", true).unwrap();
 
         println!("Probe: {:?}", probe_manual);

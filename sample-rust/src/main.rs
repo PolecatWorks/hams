@@ -8,6 +8,7 @@ use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
 
+use hamsrs::hams::config::HamsConfig;
 use libc::c_void;
 
 mod client;
@@ -99,7 +100,7 @@ pub fn main() -> ExitCode {
             let probe1 = ProbeKick::new("probe1", Duration::from_secs(10)).unwrap();
             println!("New Kick Probe CREATED");
 
-            let hams = Hams::new("sample", 8079).unwrap();
+            let hams = Hams::new(HamsConfig::default()).unwrap();
             println!("New HaMS CREATED");
 
             let state_string = String::from("Hello from Rust PROMETHEUS");

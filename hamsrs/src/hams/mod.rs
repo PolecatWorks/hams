@@ -1,3 +1,6 @@
+pub mod config;
+
+use config::HamsConfig;
 use libc::c_void;
 use log::info;
 
@@ -20,13 +23,12 @@ impl Hams {
     /// The return of thi call will have created an object via FFI to handle and manage
     /// your alive and readyness checks.
     /// It also manages your monitoring via prometheus exports
-    pub fn new<S: Into<String>>(name: S, port: u16) -> Result<Hams, crate::hamserror::HamsError>
-    where
-        S: std::fmt::Display,
-    {
-        info!("Registering HaMS: {}", &name);
-        let c_name = std::ffi::CString::new(name.into())?;
-        let c = unsafe { ffi::hams_new(c_name.as_ptr(), port) };
+    pub fn new(config: HamsConfig) -> Result<Hams, crate::hamserror::HamsError> {
+        info!("Registering HaMS: {} @{}", &config.name, config.address);
+        let c_name = std::ffi::CString::new(config.name)?;
+        let c_address = std::ffi::CString::new(config.address.to_string())?;
+
+        let c = unsafe { ffi::hams_new(c_name.as_ptr(), c_address.as_ptr()) };
         if c.is_null() {
             return Err(crate::hamserror::HamsError::Message(
                 "Failed to create Hams object".to_string(),
@@ -186,7 +188,7 @@ mod tests {
     /// Start and stop HaMS
     #[test]
     fn test_hams_startstop() {
-        let hams = Hams::new("test", 8079).unwrap();
+        let hams = Hams::new(HamsConfig::default()).unwrap();
         hams.start().unwrap();
         hams.stop().unwrap();
     }
@@ -194,7 +196,7 @@ mod tests {
     /// Add and remove probes from HaMS
     #[test]
     fn add_probes_to_hams_alive() {
-        let hams = Hams::new("test", 8079).unwrap();
+        let hams = Hams::new(HamsConfig::default()).unwrap();
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 
@@ -219,7 +221,7 @@ mod tests {
     /// Add and remove probes from HaMS ready and alive
     #[test]
     fn add_probes_to_hams_ready() {
-        let hams = Hams::new("test", 8079).unwrap();
+        let hams = Hams::new(HamsConfig::default()).unwrap();
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 

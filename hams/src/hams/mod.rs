@@ -1,7 +1,9 @@
 mod check;
+pub mod config;
 mod webservice;
 
 use std::{
+    net::SocketAddr,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
 };
@@ -10,6 +12,7 @@ use crate::{
     error::HamsError, hams::check::HealthCheck, probe::AsyncHealthProbe, tokio_tools::run_in_tokio,
 };
 
+use config::HamsConfig;
 use libc::c_void;
 use log::info;
 use tokio::signal::unix::signal;
@@ -48,8 +51,8 @@ pub struct Hams {
     /// Provide the name of the package
     pub(crate) hams_name: String,
 
-    /// Provide the port on which to serve the HaMS readyness and liveness
-    port: u16,
+    /// Provide the address on which to serve the HaMS readyness and liveness
+    address: SocketAddr,
 
     // preflights run successfully before the service starts
     pub preflights: HealthCheck,
@@ -79,11 +82,11 @@ impl Hams {
     /// # Arguments
     ///
     /// * 'name' - A string slice that holds the name of the HaMS
-    pub fn new<S: Into<String>>(name: S, port: u16) -> Hams {
+    pub fn new(config: HamsConfig) -> Hams {
         let ct = CancellationToken::new();
         ct.cancel();
         Hams {
-            name: name.into(),
+            name: config.name,
             version: "UNDEFINED".to_owned(),
             hams_version: env!("CARGO_PKG_VERSION").to_string(),
             hams_name: env!("CARGO_PKG_NAME").to_string(),
@@ -91,7 +94,7 @@ impl Hams {
             thread_jh: Arc::new(Mutex::new(None)),
 
             cancellation_token: ct,
-            port,
+            address: config.address,
 
             preflights: HealthCheck::new("preflights"),
             shutdowns: HealthCheck::new("shutdowns"),
@@ -290,10 +293,10 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
     let api = hams_service(hams.clone());
 
-    let (_addr, server) = warp::serve(api)
-        .bind_with_graceful_shutdown(([0, 0, 0, 0], hams.port), ct.cancelled_owned());
+    let (_addr, server) =
+        warp::serve(api).bind_with_graceful_shutdown(hams.address, ct.cancelled_owned());
 
-    info!("Serving HaMS ({}) on port {}", hams.name, hams.port);
+    info!("Serving HaMS ({}) on address {}", hams.name, hams.address);
     tokio::task::spawn(server)
 }
 
@@ -309,7 +312,7 @@ mod tests {
     /// Check that callback is responding correctly
     #[test]
     fn test_prometheus_callback() {
-        let mut hams = Hams::new("test", 8079);
+        let mut hams = Hams::new(HamsConfig::default());
 
         extern "C" fn prometheus(ptr: *const c_void) -> *mut libc::c_char {
             let state = unsafe { &*(ptr as *const String) };
@@ -356,7 +359,7 @@ mod tests {
     #[cfg_attr(miri, ignore)]
     #[test]
     fn obj_hams_start_stop() {
-        let mut hams = Hams::new("test", 8078);
+        let mut hams = Hams::new(HamsConfig::default());
         hams.start().expect("Started");
         thread::sleep(Duration::from_secs(1));
         hams.stop().expect("Stopped");
@@ -365,7 +368,7 @@ mod tests {
     /// Test add and remove alive and ready checks
     #[test]
     fn test_hams_health() {
-        let mut hams = Hams::new("test", 8079);
+        let mut hams = Hams::new(HamsConfig::default());
 
         let probe0 = Manual::new("test_probe0", true);
         let probe1 = Manual::new("test_probe1", true);

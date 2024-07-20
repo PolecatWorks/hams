@@ -56,6 +56,7 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
             HamsError::Utf8Error(_) => todo!(),
             HamsError::FFIErrorBufferNotBigEnough => todo!(),
             HamsError::NotError(_) => todo!(),
+            HamsError::ConfigError(_) => todo!(),
             // Add match arms for the remaining error variants here
         }
     } else {
@@ -232,7 +233,7 @@ mod handlers {
     #[cfg(test)]
     mod tests {
 
-        use crate::hams::webservice::hams_service;
+        use crate::hams::{config::HamsConfig, webservice::hams_service};
 
         use super::*;
         use warp::http::StatusCode;
@@ -242,7 +243,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_metrics() {
-            let hams = Hams::new("test", 8079);
+            let hams = Hams::new(HamsConfig::default());
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -257,7 +258,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_version() {
-            let hams = Hams::new("test", 8079);
+            let hams = Hams::new(HamsConfig::default());
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -272,7 +273,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_shutdown() {
-            let hams = Hams::new("test", 8079);
+            let hams = Hams::new(HamsConfig::default());
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -287,7 +288,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_alive() {
-            let hams = Hams::new("test", 8079);
+            let hams = Hams::new(HamsConfig::default());
             let api = hams_service(hams);
 
             let reply = warp::test::request()
@@ -302,7 +303,7 @@ mod handlers {
         #[tokio::test]
         #[cfg_attr(miri, ignore)]
         async fn test_ready() {
-            let hams = Hams::new("test", 8079);
+            let hams = Hams::new(HamsConfig::default());
             let api = hams_service(hams);
 
             let reply = warp::test::request()

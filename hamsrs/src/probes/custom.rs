@@ -87,7 +87,7 @@ impl ProbeCustom {
 
 #[cfg(test)]
 mod tests {
-    use crate::ProbeManual;
+    use crate::{hams::config::HamsConfig, ProbeManual};
 
     use super::*;
 
@@ -112,7 +112,7 @@ mod tests {
     /// Insert custom probe into hams
     #[test]
     fn add_custom_probe_to_hams() {
-        let hams = crate::hams::Hams::new("my hams", 8079).unwrap();
+        let hams = crate::hams::Hams::new(HamsConfig::default()).unwrap();
         let probe_custom = ProbeCustom::new("test", true).unwrap();
 
         // hams.alive_insert_boxed( probe_custom.clone().boxed()).unwrap();
