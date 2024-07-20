@@ -17,7 +17,7 @@ use self::hams::Hams;
 use error::{FFIEnum, HamsError};
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
-use hams::config::{HamsConfig, HamsConfigBuilder};
+use hams::config::HamsConfig;
 use libc::{c_int, c_void};
 use log::{error, info};
 use probe::ffitraits::BoxedHealthProbe;
@@ -137,11 +137,10 @@ pub unsafe extern "C" fn hams_new(
             .to_str()
             .map_err(HamsError::from)?;
 
-        let config = HamsConfigBuilder::default()
-            .name(name_str.to_string())
-            .address(address_str.parse()?)
-            .build()
-            .map_err(HamsError::from)?;
+        let config = HamsConfig{
+            address: address_str.parse()?,
+            name: name_str.to_string()
+         };
 
         info!("Registering HaMS: {}", name_str);
         Ok(Box::into_raw(Box::new(Hams::new(config))))

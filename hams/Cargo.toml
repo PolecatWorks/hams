@@ -27,7 +27,6 @@ thiserror = "~1.0"
 tokio-util = "~0.7"
 url = { version = "2", features = ["serde"] }
 reqwest = { version = "~0.12", default-features = false}
-derive_builder = {version = "~0.20"}
 
 # Remove async-trait when rust supports dynamic dispatch in async Traits: https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html
 async-trait = "~0.1"

@@ -6,8 +6,6 @@ use ffi_helpers::error_handling;
 use libc::{c_char, c_int};
 use thiserror::Error;
 
-use crate::hams::config::HamsConfigBuilderError;
-
 /// FFI Enum for error handling mapping to C return codes
 pub enum FFIEnum {
     /// Null error
@@ -55,10 +53,6 @@ pub enum HamsError {
     /// Error when converting to an error when not an error
     #[error("Not an error as return was {0}")]
     NotError(i32),
-
-    /// Error when building config
-    #[error("Error building config")]
-    ConfigError(#[from] HamsConfigBuilderError),
 
     /// Probe is not good
     #[error("Probe is not good")]

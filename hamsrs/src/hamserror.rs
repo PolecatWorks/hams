@@ -1,6 +1,8 @@
 use std::{ffi::NulError, fmt};
 use thiserror::Error;
 
+use crate::hams::config::HamsConfigBuilderError;
+
 // Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {
@@ -10,6 +12,10 @@ pub enum HamsError {
     /// A Nul was found on FFI pointer
     #[error("NulError from FFI pointer")]
     NulError(#[from] NulError),
+
+    /// Error when building config
+    #[error("Error building config")]
+    ConfigError(#[from] HamsConfigBuilderError),
 
     /// An error with unknown source
     #[error("Unknown error")]

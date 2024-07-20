@@ -56,7 +56,6 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
             HamsError::Utf8Error(_) => todo!(),
             HamsError::FFIErrorBufferNotBigEnough => todo!(),
             HamsError::NotError(_) => todo!(),
-            HamsError::ConfigError(_) => todo!(),
             // Add match arms for the remaining error variants here
         }
     } else {
