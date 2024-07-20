@@ -76,6 +76,7 @@ pub enum HamsError {
     #[error("Error calling callback")]
     CallbackError,
 
+    /// Error when trying to read FFI error from buffer
     #[error("FFI error buffer wasn't big enough!")]
     FFIErrorBufferNotBigEnough,
 

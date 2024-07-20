@@ -87,7 +87,7 @@ impl ProbeCustom {
 
 #[cfg(test)]
 mod tests {
-    use crate::{hams::config::HamsConfig, ProbeManual};
+    use crate::hams::config::HamsConfig;
 
     use super::*;
 

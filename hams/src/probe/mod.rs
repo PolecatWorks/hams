@@ -10,7 +10,10 @@ use std::hash::{Hash, Hasher};
 use std::time::SystemTime;
 
 pub(crate) mod ffitraits;
+
+/// This module contains the kick probe
 pub mod kick;
+/// This module contains the manual probe
 pub mod manual;
 
 /// Detail structure for replies from ready and alive for a single probe

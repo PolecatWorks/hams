@@ -1,4 +1,4 @@
-use std::{ffi::NulError, fmt};
+use std::ffi::NulError;
 use thiserror::Error;
 
 use crate::hams::config::HamsConfigBuilderError;

@@ -1,3 +1,4 @@
+/// Manual probe provides a liveness probe that is explicitly enabled and disabled.
 use super::HealthProbe;
 use libc::time_t;
 use std::{

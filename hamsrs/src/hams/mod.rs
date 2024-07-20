@@ -181,7 +181,6 @@ impl Drop for Hams {
 
 #[cfg(test)]
 mod tests {
-    use crate::probes::Probe;
 
     use super::*;
 

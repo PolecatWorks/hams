@@ -5,6 +5,7 @@
 pub mod error;
 mod hams;
 mod preflight;
+/// This module provides the health probes
 pub mod probe;
 mod tokio_tools;
 
@@ -14,7 +15,7 @@ use crate::probe::ffitraits::HealthProbe;
 use crate::probe::{AsyncHealthProbe, FFIProbe};
 
 use self::hams::Hams;
-use error::{FFIEnum, HamsError};
+use error::HamsError;
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use hams::config::HamsConfig;
