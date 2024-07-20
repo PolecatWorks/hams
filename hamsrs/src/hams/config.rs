@@ -2,7 +2,7 @@ use derive_builder::Builder;
 use serde::Deserialize;
 use std::net::SocketAddr;
 
-#[derive(Deserialize, Builder, Clone)]
+#[derive(Deserialize, Builder, Debug, Clone)]
 #[serde(default)]
 #[builder(default)]
 pub struct HamsConfig {

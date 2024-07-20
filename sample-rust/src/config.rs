@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use hamsrs::hams::config::HamsConfig;
 use serde::Deserialize;
 
 use figment::{
@@ -7,14 +8,16 @@ use figment::{
     Figment,
 };
 
-#[derive(Debug, PartialEq, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct WebServiceConfig {
     prefix: String,
 }
 
-#[derive(Debug, PartialEq, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     webservice: WebServiceConfig,
+    #[serde(default)]
+    pub hams: HamsConfig,
 }
 
 impl Config {

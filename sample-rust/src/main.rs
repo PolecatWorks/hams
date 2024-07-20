@@ -100,7 +100,7 @@ pub fn main() -> ExitCode {
             let probe1 = ProbeKick::new("probe1", Duration::from_secs(10)).unwrap();
             println!("New Kick Probe CREATED");
 
-            let hams = Hams::new(HamsConfig::default()).unwrap();
+            let hams = Hams::new(config.hams).unwrap();
             println!("New HaMS CREATED");
 
             let state_string = String::from("Hello from Rust PROMETHEUS");
