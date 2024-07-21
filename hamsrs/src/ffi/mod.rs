@@ -2,6 +2,7 @@ pub mod ffitraits;
 
 use ffi_log2::LogParam;
 use libc::c_void;
+use log::STATIC_MAX_LEVEL;
 
 use self::ffitraits::BoxedHealthProbe;
 
@@ -47,6 +48,13 @@ extern "C" {
     pub fn hams_free(hams: *mut Hams) -> i32;
     pub fn hams_start(hams: *mut Hams) -> i32;
     pub fn hams_stop(hams: *mut Hams) -> i32;
+
+    pub fn hams_register_shutdown(
+        hams: *mut Hams,
+        cb: extern "C" fn(*mut libc::c_void),
+        state: *mut libc::c_void,
+    ) -> i32;
+    pub fn hams_deregister_shutdown(hams: *mut Hams) -> i32;
 
     #[allow(improper_ctypes)]
     pub fn hams_alive_insert(hams: *mut Hams, probe: *mut BProbe) -> i32;

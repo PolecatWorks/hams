@@ -9,7 +9,7 @@ use thiserror::Error;
 /// FFI Enum for error handling mapping to C return codes
 pub enum FFIEnum {
     /// No Error
-    NoError = 1,
+    Success = 1,
     /// Null error
     NullError = 0,
     /// Unknown error

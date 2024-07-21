@@ -3,6 +3,18 @@ use thiserror::Error;
 
 use crate::hams::config::HamsConfigBuilderError;
 
+#[repr(C)]
+pub enum FFIEnum {
+    /// No Error
+    Success = 1,
+    /// Null error
+    NullError = 0,
+    /// Unknown error
+    UnknownError = -1,
+    /// CString error
+    CStringError = -2,
+}
+
 // Error type for handling errors on FFI calls
 #[derive(Error, Debug)]
 pub enum HamsError {

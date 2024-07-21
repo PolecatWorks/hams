@@ -8,6 +8,7 @@ use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
 
+use ffi_helpers::task::CancellationToken;
 use hamsrs::hams::config::HamsConfig;
 use libc::c_void;
 
@@ -100,7 +101,9 @@ pub fn main() -> ExitCode {
             let probe1 = ProbeKick::new("probe1", Duration::from_secs(10)).unwrap();
             println!("New Kick Probe CREATED");
 
-            let hams = Hams::new(config.hams).unwrap();
+            let ct = CancellationToken::new();
+
+            let hams = Hams::new(ct.clone(), config.hams).unwrap();
             println!("New HaMS CREATED");
 
             let state_string = String::from("Hello from Rust PROMETHEUS");

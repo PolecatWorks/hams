@@ -267,7 +267,7 @@ pub unsafe extern "C" fn hams_register_shutdown(
 
     catch_panic!(
         AssertUnwindSafe(hams).register_shutdown(my_cb, state).expect("Register shutdown callbacks");
-        Ok(FFIEnum::NoError as i32)
+        Ok(FFIEnum::Success as i32)
     )
 }
 
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn hams_deregister_shutdown(ptr: *mut Hams) -> i32 {
 
     catch_panic!(
         AssertUnwindSafe(hams).deregister_shutdown().expect("Deregister shutdown");
-        Ok(FFIEnum::NoError as i32)
+        Ok(FFIEnum::Success as i32)
     )
 }
 
@@ -1007,7 +1007,7 @@ mod tests {
                 &state as *const i32 as *mut c_void,
             )
         };
-        assert_eq!(retval, FFIEnum::NoError as i32);
+        assert_eq!(retval, FFIEnum::Success as i32);
 
         unsafe { hams_start(my_hams) };
 
@@ -1017,6 +1017,6 @@ mod tests {
         assert!(state == 1);
 
         let retval = unsafe { hams_deregister_shutdown(my_hams) };
-        assert_eq!(retval, FFIEnum::NoError as i32);
+        assert_eq!(retval, FFIEnum::Success as i32);
     }
 }

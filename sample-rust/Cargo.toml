@@ -12,6 +12,7 @@ hamsrs = { path = "../hamsrs" }
 libc = "~0.2"
 serde = { version = "~1.0", features = ['std', 'derive'] }
 figment = { version = "~0.10", features = ["yaml", "env"] }
+ffi_helpers = "~0.3"
 
 # for client
 reqwest = {version ="~0.12", features = [ "json"] }

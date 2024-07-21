@@ -87,6 +87,8 @@ impl ProbeCustom {
 
 #[cfg(test)]
 mod tests {
+    use ffi_helpers::task::CancellationToken;
+
     use crate::hams::config::HamsConfig;
 
     use super::*;
@@ -112,7 +114,7 @@ mod tests {
     /// Insert custom probe into hams
     #[test]
     fn add_custom_probe_to_hams() {
-        let hams = crate::hams::Hams::new(HamsConfig::default()).unwrap();
+        let hams = crate::hams::Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
         let probe_custom = ProbeCustom::new("test", true).unwrap();
 
         // hams.alive_insert_boxed( probe_custom.clone().boxed()).unwrap();

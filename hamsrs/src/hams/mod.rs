@@ -1,11 +1,13 @@
 pub mod config;
 
 use config::HamsConfig;
+use ffi_helpers::task::CancellationToken;
 use libc::c_void;
 use log::info;
 
 use crate::{
     ffi::{self, ffitraits::BoxedHealthProbe},
+    hamserror::FFIEnum,
     probes::Probe,
 };
 
@@ -16,6 +18,8 @@ use crate::{
 pub struct Hams {
     // This pointer must never be allowed to leave the struct
     c: *mut ffi::Hams,
+    // This is a cancellation token that is updated by HaMS to signal that it is time to stop
+    ct: CancellationToken,
 }
 
 impl Hams {
@@ -23,7 +27,10 @@ impl Hams {
     /// The return of thi call will have created an object via FFI to handle and manage
     /// your alive and readyness checks.
     /// It also manages your monitoring via prometheus exports
-    pub fn new(config: HamsConfig) -> Result<Hams, crate::hamserror::HamsError> {
+    pub fn new(
+        ct: CancellationToken,
+        config: HamsConfig,
+    ) -> Result<Hams, crate::hamserror::HamsError> {
         info!("Registering HaMS: {} @{}", &config.name, config.address);
         let c_name = std::ffi::CString::new(config.name)?;
         let c_address = std::ffi::CString::new(config.address.to_string())?;
@@ -34,7 +41,33 @@ impl Hams {
                 "Failed to create Hams object".to_string(),
             ));
         }
-        Ok(Hams { c })
+
+        let ct_box = Box::new(ct.clone());
+
+        let ct_retval = unsafe {
+            ffi::hams_register_shutdown(
+                c,
+                Hams::c_cancel_ct,
+                Box::into_raw(ct_box) as *mut libc::c_void,
+            )
+        };
+
+        if ct_retval != FFIEnum::Success as i32 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to register cancellation token".to_string(),
+            ));
+        }
+
+        Ok(Hams { ct, c })
+    }
+
+    /// This is a callback function that is called by the C API when it is time to stop
+    /// We cancel the cancellation token here
+    extern "C" fn c_cancel_ct(state: *mut libc::c_void) {
+        let ct = unsafe { &mut *(state as *mut CancellationToken) };
+
+        ct.cancel();
+        info!("Cancellation token cancelled")
     }
 
     /// Start the HaMS
@@ -187,15 +220,20 @@ mod tests {
     /// Start and stop HaMS
     #[test]
     fn test_hams_startstop() {
-        let hams = Hams::new(HamsConfig::default()).unwrap();
+        let ct = CancellationToken::new();
+        let hams = Hams::new(ct.clone(), HamsConfig::default()).unwrap();
         hams.start().unwrap();
+        assert!(!ct.cancelled());
+
         hams.stop().unwrap();
+
+        assert!(ct.cancelled());
     }
 
     /// Add and remove probes from HaMS
     #[test]
     fn add_probes_to_hams_alive() {
-        let hams = Hams::new(HamsConfig::default()).unwrap();
+        let hams = Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 
@@ -220,7 +258,7 @@ mod tests {
     /// Add and remove probes from HaMS ready and alive
     #[test]
     fn add_probes_to_hams_ready() {
-        let hams = Hams::new(HamsConfig::default()).unwrap();
+        let hams = Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 

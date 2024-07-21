@@ -150,6 +150,8 @@ impl ProbeManual {
 #[cfg(test)]
 mod tests {
 
+    use ffi_helpers::task::CancellationToken;
+
     use crate::hams::config::HamsConfig;
 
     use super::*;
@@ -173,7 +175,7 @@ mod tests {
     /// Add Manual Probe to Hams
     #[test]
     fn add_manual_probe_to_hams() {
-        let hams = crate::hams::Hams::new(HamsConfig::default()).unwrap();
+        let hams = crate::hams::Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
         let probe_manual = ProbeManual::new("test_probe", true).unwrap();
 
         println!("Probe: {:?}", probe_manual);
