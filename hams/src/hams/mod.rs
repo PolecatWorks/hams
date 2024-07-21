@@ -83,6 +83,7 @@ impl Hams {
     ///
     /// * 'name' - A string slice that holds the name of the HaMS
     pub fn new(config: HamsConfig) -> Hams {
+        // Create a new CancellationToken and then cancel it so it cannot be used further but needs to be replaced
         let ct = CancellationToken::new();
         ct.cancel();
         Hams {
@@ -110,12 +111,19 @@ impl Hams {
 
     pub fn register_shutdown(
         &self,
-        user_data: *mut c_void,
         cb: unsafe extern "C" fn(*mut c_void),
+        user_data: *mut c_void,
     ) -> Result<(), HamsError> {
-        println!("Add shutdown to {}", self.name);
+        info!("Add shutdown to {}", self.name);
 
         *self.shutdown_cb.lock()? = Some(HamsCallback { user_data, cb });
+        Ok(())
+    }
+
+    pub fn deregister_shutdown(&self) -> Result<(), HamsError> {
+        info!("Remove shutdown from {}", self.name);
+
+        *self.shutdown_cb.lock()? = None;
         Ok(())
     }
 
@@ -259,17 +267,16 @@ impl Hams {
         // Send ct.cancel() in case we exited the select based on a signal
         ct.cancel();
 
-        Hams::tigger_callback(my_shutdown_cb.clone())?;
+        Hams::call_shutdown_callback(my_shutdown_cb.lock()?.as_ref())?;
 
         info!("start_async is now complete for HaMS {}", self.name);
         Ok(())
     }
 
-    pub(crate) fn tigger_callback(
-        shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
+    pub(crate) fn call_shutdown_callback(
+        shutdown_cb: Option<&HamsCallback>,
     ) -> Result<(), HamsError> {
-        let hams_mg = shutdown_cb.lock()?;
-        match hams_mg.as_ref() {
+        match shutdown_cb.as_ref() {
             Some(hams_callback) => {
                 info!("Triggering shutdown callback");
                 unsafe { (hams_callback.cb)(hams_callback.user_data) };
@@ -392,5 +399,32 @@ mod tests {
 
         assert!(hams.ready_remove(&FFIProbe::from(probe0.clone()).into()));
         assert_eq!(hams.ready.len(), 1);
+    }
+
+    /// Test shutdown callback updating the state
+    #[test]
+    fn test_hams_shutdown_callback_state() {
+        let mut hams = Hams::new(HamsConfig::default());
+
+        let mut state = 0;
+
+        extern "C" fn shutdown_cb(ptr: *mut c_void) {
+            let state = unsafe { &mut *(ptr as *mut i32) };
+            *state += 1;
+        }
+
+        hams.register_shutdown(shutdown_cb, &mut state as *mut i32 as *mut c_void)
+            .expect("Registered shutdown");
+
+        Hams::call_shutdown_callback(hams.shutdown_cb.lock().unwrap().as_ref())
+            .expect("Called shutdown");
+
+        assert_eq!(state, 1);
+
+        hams.deregister_shutdown().expect("Deregistered shutdown");
+        Hams::call_shutdown_callback(hams.shutdown_cb.lock().unwrap().as_ref())
+            .expect("Called shutdown");
+
+        assert_eq!(state, 1);
     }
 }

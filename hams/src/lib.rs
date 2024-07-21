@@ -15,7 +15,7 @@ use crate::probe::ffitraits::HealthProbe;
 use crate::probe::{AsyncHealthProbe, FFIProbe};
 
 use self::hams::Hams;
-use error::HamsError;
+use error::{FFIEnum, HamsError};
 use ffi_helpers::catch_panic;
 use ffi_log2::{logger_init, LogParam};
 use hams::config::HamsConfig;
@@ -249,6 +249,40 @@ pub unsafe extern "C" fn hams_deregister_prometheus(ptr: *mut Hams) -> i32 {
     catch_panic!(
         AssertUnwindSafe(hams).deregister_prometheus().expect("Deregister prometheus");
         Ok(1)
+    )
+}
+
+/// Register a shutdown callback
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn hams_register_shutdown(
+    ptr: *mut Hams,
+    my_cb: extern "C" fn(ptr: *mut c_void),
+    state: *mut c_void,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    info!("Registering Shutdown callback for {}", hams.name);
+
+    catch_panic!(
+        AssertUnwindSafe(hams).register_shutdown(my_cb, state).expect("Register shutdown callbacks");
+        Ok(FFIEnum::NoError as i32)
+    )
+}
+
+/// DeRegister a shutdown callback
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn hams_deregister_shutdown(ptr: *mut Hams) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    info!("Deregistering Shutdown callback for {}", hams.name);
+
+    catch_panic!(
+        AssertUnwindSafe(hams).deregister_shutdown().expect("Deregister shutdown");
+        Ok(FFIEnum::NoError as i32)
     )
 }
 
@@ -950,5 +984,39 @@ mod tests {
 
         let retval = unsafe { hams_free(my_hams) };
         assert_eq!(retval, 1);
+    }
+
+    // Test of register deregister shutdown with state
+    #[test]
+    fn hams_register_deregister_shutdown() {
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8076").unwrap();
+
+        let state = 0;
+        extern "C" fn shutdown_callback(state: *mut c_void) {
+            let state = unsafe { &mut *(state as *mut i32) };
+            *state += 1;
+        }
+
+        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+
+        let retval = unsafe {
+            hams_register_shutdown(
+                my_hams,
+                shutdown_callback,
+                &state as *const i32 as *mut c_void,
+            )
+        };
+        assert_eq!(retval, FFIEnum::NoError as i32);
+
+        unsafe { hams_start(my_hams) };
+
+        assert!(state == 0);
+
+        unsafe { hams_stop(my_hams) };
+        assert!(state == 1);
+
+        let retval = unsafe { hams_deregister_shutdown(my_hams) };
+        assert_eq!(retval, FFIEnum::NoError as i32);
     }
 }

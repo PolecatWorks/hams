@@ -14,12 +14,19 @@ where
 {
     info!("starting Tokio");
 
-    let rt = tokio::runtime::Builder::new_current_thread()
+    tokio::runtime::Builder::new_current_thread()
+        .thread_name("HaMS")
         .enable_all()
-        .build()?;
+        .build()
+        .expect("Runtime created in current thread")
+        .block_on(my_function)
 
-    // enter = enter the tokio context to allow sleep/tcpstream
-    // https://docs.rs/tokio/latest/tokio/runtime/struct.Runtime.html#method.enter
-    let _guard = rt.enter();
-    rt.block_on(my_function)
+    // let rt = tokio::runtime::Builder::new_current_thread()
+    //     .enable_all()
+    //     .build()?;
+
+    // // enter = enter the tokio context to allow sleep/tcpstream
+    // // https://docs.rs/tokio/latest/tokio/runtime/struct.Runtime.html#method.enter
+    // let _guard = rt.enter();
+    // rt.block_on(my_function)
 }
