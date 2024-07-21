@@ -8,7 +8,8 @@ use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
 
-use ffi_helpers::task::CancellationToken;
+use tokio_util::sync::CancellationToken;
+
 use hamsrs::hams::config::HamsConfig;
 use libc::c_void;
 

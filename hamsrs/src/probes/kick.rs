@@ -97,7 +97,7 @@ impl ProbeKick {
 #[cfg(test)]
 mod tests {
 
-    use ffi_helpers::task::CancellationToken;
+    use tokio_util::sync::CancellationToken;
 
     use crate::hams::config::HamsConfig;
 

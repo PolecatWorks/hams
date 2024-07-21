@@ -1,9 +1,9 @@
 pub mod config;
 
 use config::HamsConfig;
-use ffi_helpers::task::CancellationToken;
 use libc::c_void;
 use log::info;
+use tokio_util::sync::CancellationToken;
 
 use crate::{
     ffi::{self, ffitraits::BoxedHealthProbe},
@@ -223,11 +223,11 @@ mod tests {
         let ct = CancellationToken::new();
         let hams = Hams::new(ct.clone(), HamsConfig::default()).unwrap();
         hams.start().unwrap();
-        assert!(!ct.cancelled());
+        assert!(!ct.is_cancelled());
 
         hams.stop().unwrap();
 
-        assert!(ct.cancelled());
+        assert!(ct.is_cancelled());
     }
 
     /// Add and remove probes from HaMS
