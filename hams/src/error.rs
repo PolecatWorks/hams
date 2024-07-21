@@ -16,6 +16,10 @@ pub enum FFIEnum {
     UnknownError = -1,
     /// CString error
     CStringError = -2,
+    /// AlreadyRunning error
+    AlreadyRunning = -3,
+    // NotRunning error
+    NotRunning = -4,
 }
 
 /// Allow conversion from i32 to FFIEnum (C return codes to FFIEnum)
@@ -24,8 +28,12 @@ impl TryFrom<i32> for FFIEnum {
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
         match value {
+            x if x == FFIEnum::Success as i32 => Ok(FFIEnum::Success),
             x if x == FFIEnum::NullError as i32 => Ok(FFIEnum::NullError),
+            x if x == FFIEnum::UnknownError as i32 => Ok(FFIEnum::UnknownError),
             x if x == FFIEnum::CStringError as i32 => Ok(FFIEnum::CStringError),
+            x if x == FFIEnum::AlreadyRunning as i32 => Ok(FFIEnum::AlreadyRunning),
+            x if x == FFIEnum::NotRunning as i32 => Ok(FFIEnum::NotRunning),
             x if x >= 0 => Err(HamsError::NotError(x)),
             _ => Err(HamsError::Unknown),
         }

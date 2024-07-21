@@ -309,12 +309,26 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     let hams = AssertUnwindSafe(unsafe { &mut *ptr });
-    info!("stop my ham {}", hams.name);
-    catch_panic!(
-        AssertUnwindSafe(hams).stop().expect("HaMS stopped here");
-        info!("HaMS stopped");
-        Ok(1)
-    )
+    info!("Stop HaMS {}", hams.name);
+    catch_panic!(match AssertUnwindSafe(hams).stop() {
+        Ok(_) => {
+            info!("HaMS stopped");
+            Ok(FFIEnum::Success as i32)
+        }
+        Err(e) => {
+            match e {
+                HamsError::NotRunning => {
+                    info!("HaMS already stopped");
+                    ffi_helpers::update_last_error(e);
+                    Ok(FFIEnum::NotRunning as i32)
+                }
+                _ => {
+                    println!("Failed to stop HaMS: {}", e);
+                    Err(e.into())
+                }
+            }
+        }
+    })
 }
 
 /// # Safety
@@ -895,7 +909,14 @@ mod tests {
 
         let retval = unsafe { hams_stop(my_hams) };
 
-        assert_eq!(retval, 1);
+        assert_eq!(retval, FFIEnum::Success as i32);
+
+        let retval = unsafe { hams_stop(my_hams) };
+        assert_eq!(retval, FFIEnum::NotRunning as i32);
+        assert_eq!(
+            ffi_error_to_result().err().unwrap().to_string(),
+            "FFI Error: Service is not running"
+        );
 
         let retval = unsafe { hams_free(my_hams) };
 
