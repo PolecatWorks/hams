@@ -48,7 +48,7 @@ List of topics that need work
   * [x] Consideration for future: https://openjdk.org/projects/panama/ and https://github.com/openjdk/jextract
 * [x] C/C++ bindings
   * [x] Show usage of C logging from Rust SO
-* [ ] Support for prometheus
+* [x] Support for prometheus
 * [x] Shutdown sequences
   * [*] Should Hams include shutdown or should that be provided ONLY by main loop. HaMS provides the signal handling and raises the shutdown_callback BUT it is up to the app on how to respond.
   * [x] How to map a shutdown signal from HaMS to main loop to enable a shutdown API
@@ -59,7 +59,7 @@ List of topics that need work
   * Health can pickup signals and then make shutdown callback
   * Health does not shutdown based on signals only on command from main thread
   * [*] SIG interrupts are detected by hams but not acted upon.. Except to make call against shutdown callback.
-* [ ] Create a rust lib to put nice Ergonomics around the rust FFI interface and expose as a library that is used by sample-rust or sample-rust2
+* [x] Create a rust lib to put nice Ergonomics around the rust FFI interface and expose as a library that is used by sample-rust or sample-rust2
 
 # Useful Reference
 List of useful sites to review
@@ -75,3 +75,7 @@ Check the link dependencies for a given binary ie dylib on osx or .so on linux
 # Autotools
 
 Build rust and other libraries and system install with autotools.
+
+    autoconf
+    ./configure
+    make
