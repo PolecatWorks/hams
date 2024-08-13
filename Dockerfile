@@ -3,7 +3,7 @@ RUN cargo install cargo-chef
 
 WORKDIR app
 
-FROM chef as planner
+FROM chef AS planner
 COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
@@ -20,19 +20,18 @@ VOLUME /app/target
 # So we hold the daemon mode of docker run
 CMD sleep infinity
 
-FROM buildcache as buildcacherelease
+FROM buildcache AS buildcacherelease
 # Build dependencies - this is the caching Docker layer!
 RUN cargo chef cook --release --recipe-path recipe.json
 # Build application
 
-FROM buildcacherelease as build
+FROM buildcacherelease AS build
 COPY . .
 RUN cargo build --release -p hams
-RUN ls -lh /app/target/release/
 
 # We do not need the Rust toolchain to run the binary!
 # FROM debian:bookworm-slim as runtime
 # https://github.com/GoogleContainerTools/distroless
-FROM scratch as runtime
+FROM scratch AS runtime
 WORKDIR app
 COPY --from=build /app/target/release/libhams.so /
