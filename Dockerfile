@@ -33,5 +33,4 @@ RUN cargo build --release -p hams
 # FROM debian:bookworm-slim as runtime
 # https://github.com/GoogleContainerTools/distroless
 FROM scratch AS runtime
-WORKDIR app
-COPY --from=build /app/target/release/libhams.so /
+COPY --from=build /app/target/release/libhams.so /usr/local/lib/
