@@ -8,11 +8,21 @@ A library written in rust to implement kubernetes lifecycle interfaces. It is wr
 # Update Shared Object
 
 When you have created your shared object lib you may need to update it with rpath pattern to allow it to be used in a generic location (eg relative to the binary)
+Review here for a good rpath overview: https://itwenty.me/posts/01-understanding-rpath/
 This is the command for OSX
 
-    install_name_tool -id @loader_path/lib/libhams.dylib target/debug/libhams.dylib
+    install_name_tool -id @rpath/../lib/libhams.dylib target/debug/libhams.dylib
 
+which will update the reference id to include an rpath (as shown)
 
+    otool -L target/debug/libhams.dylib
+    target/debug/libhams.dylib:
+        @rpath/../lib/libhams.dylib (compatibility version 0.0.0, current version 0.0.0)
+        /System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1300.120.2)
+        /System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61123.121.1)
+        /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 2503.1.0)
+        /usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.120.2)
 
 Typical usages are:
 * Rust
