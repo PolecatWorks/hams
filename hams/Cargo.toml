@@ -6,6 +6,7 @@ edition = "2021"
 authors = ["Ben Greene <BenJGreene@gmail.com>"]
 
 
+
 [features]
 default = ["warp"]
 warp = ["dep:warp"]
@@ -37,8 +38,14 @@ warp = { version = "^0.3", optional = true }
 cbindgen = "~0.26"
 
 
+[profile.dev]
+rpath = true
+
+
 [profile.release]
+rpath = true
 lto = true
+strip = "debuginfo"
 codegen-units = 1
 # strip = true # Automatically strip symbols from the binary. (ONLY available in nightly)
 

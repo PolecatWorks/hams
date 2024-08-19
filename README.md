@@ -5,6 +5,15 @@ Health Monitoring System
 
 A library written in rust to implement kubernetes lifecycle interfaces. It is written as a shared object so that it can be utilised by many languages.
 
+# Update Shared Object
+
+When you have created your shared object lib you may need to update it with rpath pattern to allow it to be used in a generic location (eg relative to the binary)
+This is the command for OSX
+
+    install_name_tool -id @loader_path/lib/libhams.dylib target/debug/libhams.dylib
+
+
+
 Typical usages are:
 * Rust
 * Python
