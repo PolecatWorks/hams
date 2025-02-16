@@ -18,7 +18,7 @@ tokio-util = "~0.7"
 
 # for client
 reqwest = {version ="~0.12", features = [ "json"] }
-tokio = { version = "~1", features = ["full"] }
-thiserror = "~1.0"
+tokio = { version = "~1.43", features = ["full"] }
+thiserror = "~2.0"
 futures = "~0.3"
 serde_json = { version="~1.0" }

@@ -24,6 +24,11 @@ which will update the reference id to include an rpath (as shown)
         /usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
         /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.120.2)
 
+Once you have completed the otool then copy the lib file to the target lib dir (inside sample-rust)
+
+  mkdir -p sample-rust/target/lib
+  cp target/debug/libhams.dylib sample-rust/target/lib
+
 Typical usages are:
 * Rust
 * Python
@@ -96,5 +101,6 @@ Check the link dependencies for a given binary ie dylib on osx or .so on linux
 Build rust and other libraries and system install with autotools.
 
     autoconf
+    automake --force-missing --add-missing
     ./configure
     make
