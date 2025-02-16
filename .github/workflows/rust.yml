@@ -25,7 +25,11 @@ jobs:
     # - name: Build SO - hams-core
       # run: cargo build -p hams-core --verbose
     - name: Build
-      run: cargo build --verbose
+      run: |
+        cargo build --verbose -p hams
+        mkdir -p target/lib
+        cp target/debug/libhams.so target/lib/libhams.so
+        cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
       # https://github.com/DataDog/libdatadog/actions/runs/6962141169/workflow

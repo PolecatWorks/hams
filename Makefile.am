@@ -40,6 +40,12 @@ dockerx:
 
 
 
+# Notes for building
+# cargo build -p hams
+# mkdir -p target/lib
+# install_name_tool -id @rpath/../lib/libhams.dylib target/debug/libhams.dylib
+# cp target/debug/libhams.dylib target/lib/
+
 
 cargo-watch:
 	@cargo watch -x 'build'
