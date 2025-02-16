@@ -101,5 +101,6 @@ Check the link dependencies for a given binary ie dylib on osx or .so on linux
 Build rust and other libraries and system install with autotools.
 
     autoconf
+    automake --force-missing --add-missing
     ./configure
     make
