@@ -10,7 +10,7 @@ RUN cargo chef prepare --recipe-path recipe.json
 FROM chef AS buildcache
 COPY --from=planner /app/recipe.json recipe.json
 
-FROM buildcache as dev
+FROM buildcache AS dev
 # Install dev tools
 RUN cargo install cargo-watch
 # Grab dependencies into target
