@@ -29,10 +29,10 @@ impl Hams {
     /// It also manages your monitoring via prometheus exports
     pub fn new(
         ct: CancellationToken,
-        config: HamsConfig,
+        config: &HamsConfig,
     ) -> Result<Hams, crate::hamserror::HamsError> {
         info!("Registering HaMS: {} @{}", &config.name, config.address);
-        let c_name = std::ffi::CString::new(config.name)?;
+        let c_name = std::ffi::CString::new(config.name.clone())?;
         let c_address = std::ffi::CString::new(config.address.to_string())?;
 
         let c = unsafe { ffi::hams_new(c_name.as_ptr(), c_address.as_ptr()) };

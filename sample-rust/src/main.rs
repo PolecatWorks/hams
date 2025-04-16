@@ -104,7 +104,7 @@ pub fn main() -> ExitCode {
 
             let ct = CancellationToken::new();
 
-            let hams = Hams::new(ct.clone(), config.hams).unwrap();
+            let hams = Hams::new(ct.clone(), &config.hams).unwrap();
             println!("New HaMS CREATED");
 
             let state_string = String::from("Hello from Rust PROMETHEUS");
