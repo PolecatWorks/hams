@@ -88,7 +88,7 @@ impl Hams {
         ct.cancel();
         Hams {
             name: config.name,
-            version: "UNDEFINED".to_owned(),
+            version: config.version,
             hams_version: env!("CARGO_PKG_VERSION").to_string(),
             hams_name: env!("CARGO_PKG_NAME").to_string(),
 
