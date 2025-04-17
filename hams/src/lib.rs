@@ -124,13 +124,20 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 #[no_mangle]
 pub unsafe extern "C" fn hams_new(
     name: *const libc::c_char,
+    version: *const libc::c_char,
     address: *const libc::c_char,
+    logging: bool,
 ) -> *mut Hams {
     ffi_helpers::null_pointer_check!(name);
+    ffi_helpers::null_pointer_check!(version);
     ffi_helpers::null_pointer_check!(address);
 
     catch_panic!(
         let name_str =  unsafe { CStr::from_ptr(name) }
+            .to_str()
+            .map_err(HamsError::from)?;
+
+        let version_str =  unsafe { CStr::from_ptr(version) }
             .to_str()
             .map_err(HamsError::from)?;
 
@@ -139,8 +146,10 @@ pub unsafe extern "C" fn hams_new(
             .map_err(HamsError::from)?;
 
         let config = HamsConfig{
+            name: name_str.to_string(),
+            version: version_str.to_string(),
             address: address_str.parse()?,
-            name: name_str.to_string()
+            logging,
          };
 
         info!("Registering HaMS: {}", name_str);
@@ -707,9 +716,18 @@ mod tests {
     #[test]
     fn register_prometheus() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");
@@ -753,9 +771,18 @@ mod tests {
     #[test]
     fn hams_init_free() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -768,9 +795,18 @@ mod tests {
 
     #[test]
     fn null_init_name() {
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(ptr::null(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                ptr::null(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         assert_eq!(my_hams, ptr::null_mut());
 
@@ -785,8 +821,17 @@ mod tests {
     #[test]
     fn null_init_address() {
         let c_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_name.as_ptr(), ptr::null()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_name.as_ptr(),
+                c_library_version.as_ptr(),
+                ptr::null(),
+                c_logging,
+            )
+        };
 
         assert_eq!(my_hams, ptr::null_mut());
 
@@ -801,9 +846,18 @@ mod tests {
     #[test]
     fn invalid_init_address() {
         let c_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("noaddress:noport").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         assert_eq!(my_hams, ptr::null_mut());
 
@@ -894,9 +948,18 @@ mod tests {
     #[test]
     fn ffi_hams_start_stop() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8077").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         assert_ne!(my_hams, ptr::null_mut());
 
@@ -927,20 +990,34 @@ mod tests {
     #[test]
     fn ffi_hams_start_port_in_use() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8078").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         assert_ne!(my_hams, ptr::null_mut());
-
-        println!("initialised HaMS");
 
         let retval = unsafe { hams_start(my_hams) };
         thread::sleep(Duration::from_secs(1));
 
         assert_eq!(retval, 1);
 
-        let my_hams2 = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams2 = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         assert_ne!(my_hams2, ptr::null_mut());
 
@@ -967,9 +1044,18 @@ mod tests {
     #[test]
     fn hams_insert_remove_manual() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8079").unwrap();
+        let c_logging = true;
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
         assert_ne!(my_hams, ptr::null_mut());
 
         println!("initialised HaMS");
@@ -1011,7 +1097,9 @@ mod tests {
     #[test]
     fn hams_register_deregister_shutdown() {
         let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
         let c_address = std::ffi::CString::new("0.0.0.0:8076").unwrap();
+        let c_logging = true;
 
         let state = 0;
         extern "C" fn shutdown_callback(state: *mut c_void) {
@@ -1019,7 +1107,14 @@ mod tests {
             *state += 1;
         }
 
-        let my_hams = unsafe { hams_new(c_library_name.as_ptr(), c_address.as_ptr()) };
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
 
         let retval = unsafe {
             hams_register_shutdown(

@@ -122,7 +122,8 @@ mod tests {
     /// Add Kick Probe to Hams
     #[test]
     fn add_kick_probe_to_hams() {
-        let hams = crate::hams::Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
+        let hams =
+            crate::hams::Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
         let probe_kick = ProbeKick::new("test", Duration::from_secs(1)).unwrap();
 
         println!("Probe: {:?}", probe_kick);

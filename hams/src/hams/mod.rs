@@ -370,6 +370,12 @@ mod tests {
         hams.start().expect("Started");
         thread::sleep(Duration::from_secs(1));
         hams.stop().expect("Stopped");
+
+        hams.start().expect("Started");
+        hams.stop().expect("Stopped");
+
+        hams.start().expect("Started");
+        hams.stop().expect("Stopped");
     }
 
     /// Test add and remove alive and ready checks

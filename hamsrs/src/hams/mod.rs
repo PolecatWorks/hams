@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_hams_startstop() {
         let ct = CancellationToken::new();
-        let hams = Hams::new(ct.clone(), HamsConfig::default()).unwrap();
+        let hams = Hams::new(ct.clone(), &HamsConfig::default()).unwrap();
         hams.start().unwrap();
         assert!(!ct.is_cancelled());
 
@@ -233,7 +233,7 @@ mod tests {
     /// Add and remove probes from HaMS
     #[test]
     fn add_probes_to_hams_alive() {
-        let hams = Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
+        let hams = Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 
@@ -258,7 +258,7 @@ mod tests {
     /// Add and remove probes from HaMS ready and alive
     #[test]
     fn add_probes_to_hams_ready() {
-        let hams = Hams::new(CancellationToken::new(), HamsConfig::default()).unwrap();
+        let hams = Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
         let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
         let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
 

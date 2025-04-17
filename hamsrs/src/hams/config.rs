@@ -11,6 +11,8 @@ pub struct HamsConfig {
     pub address: SocketAddr,
     /// Name for the service
     pub name: String,
+    /// Name for the service
+    pub version: String,
     /// enables logging for HaMS API
     pub logging: bool,
 }
@@ -20,6 +22,7 @@ impl Default for HamsConfig {
         Self {
             address: "0.0.0.0:8079".parse().unwrap(),
             name: "NO_NAME".to_string(),
+            version: "0.0.0".to_string(),
             logging: false,
         }
     }
