@@ -90,7 +90,7 @@ mod tests {
 
     use tokio_util::sync::CancellationToken;
 
-    use crate::hams::config::HamsConfig;
+    use crate::{hams::config::HamsConfig, Hams};
 
     use super::*;
 
@@ -116,8 +116,11 @@ mod tests {
     #[test]
     fn add_custom_probe_to_hams() {
         // TODO: This test is not working and leads memory
-        let hams =
-            crate::hams::Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
+
+        println!("THIS IS THE TEST");
+        let ct = CancellationToken::new();
+        let hc = HamsConfig::default();
+        let hams = Hams::new(ct.clone(), &hc).unwrap();
         let probe_custom = ProbeCustom::new("test", true).unwrap();
 
         // hams.alive_insert_boxed( probe_custom.clone().boxed()).unwrap();
