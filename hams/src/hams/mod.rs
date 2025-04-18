@@ -133,7 +133,7 @@ impl Hams {
         my_cb_free: extern "C" fn(*mut libc::c_char),
         state: *const c_void,
     ) -> Result<(), HamsError> {
-        println!("Add prometheus to {}", self.name);
+        info!("Add prometheus to {}", self.name);
 
         // self.prometheus_cb = Some(PrometheusCallback { my_cb, my_cb_free, state });
         *self.prometheus_cb.lock()? = Some(PrometheusCallback {
@@ -146,7 +146,7 @@ impl Hams {
 
     /// Deregister Prometheus
     pub fn deregister_prometheus(&mut self) -> Result<(), HamsError> {
-        println!("Remove prometheus from {}", self.name);
+        info!("Remove prometheus from {}", self.name);
 
         // self.prometheus_cb = None;
         *self.prometheus_cb.lock()? = None;
