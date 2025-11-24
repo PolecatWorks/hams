@@ -40,7 +40,7 @@ pub struct KickProbe {
 pub type BProbe = BoxedHealthProbe<'static>;
 
 #[link(name = "hams", kind = "dylib")]
-extern "C" {
+unsafe extern "C" {
     /// Configure logging for HaMS
     pub fn hams_logger_init(param: LogParam) -> i32;
 

@@ -1,7 +1,7 @@
 use libc::c_void;
 use std::ffi::CString;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn prometheus_response(ptr: *const c_void) -> *const libc::c_char {
     println!("Callback from C2");
 
@@ -13,7 +13,7 @@ pub extern "C" fn prometheus_response(ptr: *const c_void) -> *const libc::c_char
     c_str_prometheus.into_raw()
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn prometheus_response_free(ptr: *mut libc::c_char) {
     if ptr.is_null() {
         return;

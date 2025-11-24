@@ -147,7 +147,7 @@ mod tests {
     use std::time::Duration;
 
     use super::*;
-    use crate::probe::{kick::Kick, manual::Manual, FFIProbe};
+    use crate::probe::{FFIProbe, kick::Kick, manual::Manual};
 
     /// Test insert on a health check using manual
     #[test]

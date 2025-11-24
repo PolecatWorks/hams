@@ -1,7 +1,7 @@
-use std::ffi::c_char;
 use std::ffi::CString;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::ffi::c_char;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use libc::time_t;
 use log::info;
@@ -90,7 +90,7 @@ mod tests {
 
     use tokio_util::sync::CancellationToken;
 
-    use crate::{hams::config::HamsConfig, Hams};
+    use crate::{Hams, hams::config::HamsConfig};
 
     use super::*;
 

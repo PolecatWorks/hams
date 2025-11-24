@@ -2,7 +2,7 @@
 use super::HealthProbe;
 use libc::time_t;
 use std::{
-    ffi::{c_char, CString},
+    ffi::{CString, c_char},
     sync::{Arc, Mutex},
 };
 

@@ -300,17 +300,20 @@ pub async fn webservice<'a>(hams: Hams, ct: CancellationToken) -> tokio::task::J
 
     let api = hams_service(hams.clone());
 
-    let (_addr, server) =
-        warp::serve(api).bind_with_graceful_shutdown(hams.address, ct.cancelled_owned());
+    let server = warp::serve(api)
+        .bind(hams.address)
+        .await
+        .graceful(ct.cancelled_owned());
+    // .run().await;
 
     info!("Serving HaMS ({}) on address {}", hams.name, hams.address);
-    tokio::task::spawn(server)
+    tokio::task::spawn(server.run())
 }
 
 #[cfg(test)]
 mod tests {
 
-    use crate::probe::{manual::Manual, FFIProbe};
+    use crate::probe::{FFIProbe, manual::Manual};
 
     use super::*;
     use std::time::Duration;

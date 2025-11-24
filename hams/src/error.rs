@@ -192,20 +192,20 @@ mod tests {
     use ffi_helpers::{catch_panic, error_handling::clear_last_error};
     use libc::c_int;
 
-    use super::{ffi_error_to_result, HamsError};
+    use super::{HamsError, ffi_error_to_result};
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe extern "C" fn set_last_error() -> c_int {
         ffi_helpers::update_last_error(HamsError::Message("JUST ME".to_string()));
         0
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe extern "C" fn some_infallible_operation() -> c_int {
         catch_panic!(Ok(1))
     }
 
-    #[no_mangle]
+    #[unsafe(no_mangle)]
     unsafe extern "C" fn some_fallible_operation() -> c_int {
         catch_panic!(
             panic!("Shucks that was bad");

@@ -17,7 +17,7 @@ use crate::probe::{AsyncHealthProbe, FFIProbe};
 use self::hams::Hams;
 use error::{FFIEnum, HamsError};
 use ffi_helpers::catch_panic;
-use ffi_log2::{logger_init, LogParam};
+use ffi_log2::{LogParam, logger_init};
 use hams::config::HamsConfig;
 use libc::{c_int, c_void};
 use log::{error, info};
@@ -36,14 +36,14 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Fill this out
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hello_world() {
     println!("HOWDY World");
     println!("Hello I am {}:{}", NAME, VERSION);
 }
 
 /// Fill this out
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hello_node() -> c_int {
     println!("HOWDY Node");
     println!("Hello I am {}:{}", NAME, VERSION);
@@ -51,7 +51,7 @@ pub extern "C" fn hello_node() -> c_int {
 }
 
 /// Fill this out
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
     println!("HOWDY callback");
     my_cb();
@@ -62,7 +62,7 @@ pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
 
 /// C function to take two functions as callbacks.
 /// The first function returns a c string the second frees the c string
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hello_callback2(
     my_cb: extern "C" fn() -> *const libc::c_char,
     my_cb_free: extern "C" fn(*const libc::c_char),
@@ -75,7 +75,7 @@ pub extern "C" fn hello_callback2(
 }
 
 /// Return the version of the library
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hams_version() -> *const libc::c_char {
     let version = format!("{}:{}", NAME, VERSION);
     let c_version = std::ffi::CString::new(version).unwrap();
@@ -103,7 +103,7 @@ pub extern "C" fn hams_version() -> *const libc::c_char {
 /// ```
 ///
 /// Initialise the FFI based logging for this crate
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
     // ffi_helpers::null_pointer_check!(param);
     catch_panic!(
@@ -121,7 +121,7 @@ pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
 /// # Safety
 ///
 /// Initialise the hams object giving it a name on construction
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_new(
     name: *const libc::c_char,
     version: *const libc::c_char,
@@ -160,7 +160,7 @@ pub unsafe extern "C" fn hams_new(
 /// # Safety
 ///
 /// Free the HaMS. The object must be created wtih the hams_init function
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -223,7 +223,7 @@ pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
 ///
 /// assert_eq!(result, 1);
 /// ```
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_register_prometheus(
     ptr: *mut Hams,
     my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
@@ -248,7 +248,7 @@ pub unsafe extern "C" fn hams_register_prometheus(
 /// https://stackoverflow.com/questions/65762689/how-can-assertunwindsafe-be-used-with-the-catchunwind-future suggests we need to use AssertUnwindSafe to allow the use of async inside the catch_panic
 ///
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_deregister_prometheus(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -263,7 +263,7 @@ pub unsafe extern "C" fn hams_deregister_prometheus(ptr: *mut Hams) -> i32 {
 
 /// Register a shutdown callback
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_register_shutdown(
     ptr: *mut Hams,
     my_cb: extern "C" fn(ptr: *mut c_void),
@@ -282,7 +282,7 @@ pub unsafe extern "C" fn hams_register_shutdown(
 
 /// DeRegister a shutdown callback
 /// # Safety
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_deregister_shutdown(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -298,7 +298,7 @@ pub unsafe extern "C" fn hams_deregister_shutdown(ptr: *mut Hams) -> i32 {
 /// # Safety
 ///
 /// Start the HaMS service. This requires a valid hams object constructed from hams_init
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -313,7 +313,7 @@ pub unsafe extern "C" fn hams_start(ptr: *mut Hams) -> i32 {
 /// # Safety
 ///
 /// Stop the HaMS service. This requires a valid hams object constructed from hams_init
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -343,7 +343,7 @@ pub unsafe extern "C" fn hams_stop(ptr: *mut Hams) -> i32 {
 /// # Safety
 /// Insert a health probe into the alive list of a HaMS object
 /// This will take ownership of the probe and store it
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_alive_insert(
     ptr: *mut Hams,
     probe: *mut BoxedHealthProbe<'static>,
@@ -373,7 +373,7 @@ pub unsafe extern "C" fn hams_alive_insert(
 
 /// # Safety
 /// Remove a health probe from the alive list of a HaMS object
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_alive_remove(
     ptr: *mut Hams,
     probe: *mut BoxedHealthProbe<'static>,
@@ -402,7 +402,7 @@ pub unsafe extern "C" fn hams_alive_remove(
 /// # Safety
 /// Insert a health probe into the ready list of a HaMS object
 /// This will NOT take ownership of the probe but will store a copy of it
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_ready_insert(
     ptr: *mut Hams,
     probe: *mut BoxedHealthProbe<'static>,
@@ -433,7 +433,7 @@ pub unsafe extern "C" fn hams_ready_insert(
 
 /// # Safety
 /// Remove a health probe from the ready list of a HaMS object
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_ready_remove(
     ptr: *mut Hams,
     probe: *mut BoxedHealthProbe<'static>,
@@ -482,7 +482,7 @@ pub unsafe extern "C" fn hams_ready_remove(
 ///   We must return a ManualHealthProbe so that we can call set/enable etc. Later we box it for poly use
 /// # Safety
 /// Create a manual health probe
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool) -> *mut Manual {
     ffi_helpers::null_pointer_check!(name);
 
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn probe_manual_new(name: *const libc::c_char, check: bool
 ///
 /// # Safety
 /// Free the Manual Health Probe. The object must be created with HaMS library
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -520,7 +520,7 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
 /// Return a boxed health probe from the manual health probe
 /// # Safety
 /// Return a boxed health probe from the manual health probe
-#[no_mangle]
+#[unsafe(no_mangle)]
 // pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut () {
 pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealthProbe<'static> {
     ffi_helpers::null_pointer_check!(ptr);
@@ -542,7 +542,7 @@ pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealt
 /// Free Health Probe
 /// # Safety
 /// Free the Health Probe. The object must be created with HaMS library
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -559,7 +559,7 @@ pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
 /// # Safety
 /// Enable the Manual Health Probe
 /// This will set the check to true
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_manual_enable(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -574,7 +574,7 @@ pub unsafe extern "C" fn probe_manual_enable(ptr: *mut Manual) -> i32 {
 /// # Safety
 /// Disable the Manual Health Probe
 /// This will set the check to false
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_manual_disable(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -589,7 +589,7 @@ pub unsafe extern "C" fn probe_manual_disable(ptr: *mut Manual) -> i32 {
 /// # Safety
 /// Toggle the Manual Health Probe
 /// This will set the check to the opposite of the current value
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_manual_toggle(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -604,7 +604,7 @@ pub unsafe extern "C" fn probe_manual_toggle(ptr: *mut Manual) -> i32 {
 /// # Safety
 /// Check the Manual Health Probe
 /// This will return the current value of the check
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr, -1);
 
@@ -624,7 +624,7 @@ pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
 ///
 /// # Safety
 /// Create a kick health probe
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_kick_new(
     name: *const libc::c_char,
     margin_secs: c_int,
@@ -645,7 +645,7 @@ pub unsafe extern "C" fn probe_kick_new(
 ///
 /// # Safety
 /// Free the Health Probe. The object must be created with HaMS library
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -665,7 +665,7 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
 ///
 /// # Safety
 /// Call the kick method on the Kick object
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
@@ -679,7 +679,7 @@ pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
 /// Return a boxed health probe from the manual health probe
 /// # Safety
 /// Return a boxed health probe from the manual health probe
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn probe_kick_boxed(ptr: *mut Kick) -> *mut BoxedHealthProbe<'static> {
     ffi_helpers::null_pointer_check!(ptr);
 

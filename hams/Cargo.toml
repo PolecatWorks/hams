@@ -1,8 +1,8 @@
 [package]
 name = "hams"
 # Health And Monitoring System
-version = "0.2.0"
-edition = "2021"
+version = "0.3.0"
+edition = "2024"
 authors = ["Ben Greene <BenJGreene@gmail.com>"]
 
 
@@ -17,22 +17,22 @@ log = { version = "~0.4", features = ["release_max_level_info"] }
 ffi-log2 = { path = "../ffi-log2" }
 ffi_helpers = "~0.3"
 libc = "~0.2"
-tokio = { version = "~1.46", features = ["full"] }
+tokio = { version = "^1", features = ["full"] }
 tokio-util = "~0.7"
 futures = "~0.3"
 serde = { version = "~1.0", features = ['std', 'derive'] }
-serde_with = { version = "~3.14", features = ["time_0_3", "macros"] }
+serde_with = { version = "~3.16", features = ["time_0_3", "macros"] }
 serde_json = { version="~1.0" }
 aquamarine = { version =  "~0.6" }
 thin_trait_object = { version = "~1.1" }
 thiserror = "~2.0"
 url = { version = "2", features = ["serde"] }
-reqwest = { version = "~0.12", default-features = false}
+reqwest = { version = "^0.12", default-features = false}
 
 # Remove async-trait when rust supports dynamic dispatch in async Traits: https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html
 async-trait = "~0.1"
 
-warp = { version = "^0.3", optional = true }
+warp = { version = "^0.4", optional = true , features = ["server", "test"]}
 
 [build-dependencies]
 cbindgen = "~0.29"
