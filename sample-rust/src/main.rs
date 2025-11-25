@@ -24,8 +24,8 @@ use log::info;
 
 use hamsrs::Hams;
 
-use hamsrs::ProbeManual;
 use hamsrs::NAME;
+use hamsrs::ProbeManual;
 use hamsrs::VERSION;
 
 use sample::{prometheus_response, prometheus_response_free};
@@ -57,7 +57,7 @@ struct Cli {
     command: Option<Commands>,
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn prometheus_response0() {
     println!("Callback from C");
 }

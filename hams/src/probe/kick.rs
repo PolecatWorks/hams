@@ -1,6 +1,6 @@
 use crate::probe::HealthProbe;
 use libc::time_t;
-use std::ffi::{c_char, CString};
+use std::ffi::{CString, c_char};
 use std::time::{Duration, SystemTime};
 
 use super::BoxedHealthProbe;

@@ -1,10 +1,10 @@
 use std::convert::Infallible;
 
 use warp::{
+    Filter,
     hyper::StatusCode,
     reject::{Reject, Rejection},
-    reply::{json, Reply},
-    Filter,
+    reply::{Reply, json},
 };
 
 use crate::{error::HamsError, hams::Hams};

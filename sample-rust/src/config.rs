@@ -4,8 +4,8 @@ use hamsrs::hams::config::HamsConfig;
 use serde::Deserialize;
 
 use figment::{
-    providers::{Format, Yaml},
     Figment,
+    providers::{Format, Yaml},
 };
 
 #[derive(Debug, Deserialize, Clone)]

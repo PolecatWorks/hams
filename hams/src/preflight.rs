@@ -1,8 +1,8 @@
 use log::{error, info};
 use reqwest::Client;
 use serde::Deserialize;
-use serde_with::serde_as;
 use serde_with::DurationSeconds;
+use serde_with::serde_as;
 use std::time::Duration;
 use tokio::time::sleep;
 use url::Url;
