@@ -8,6 +8,34 @@ It is built as a shared object (`libhams.dylib` / `libhams.so`) so it can be uti
 
 ## Project Structure
 
+## Project Structure
+
+```mermaid
+graph TD
+    Client[External Client / Kubernetes]
+
+    subgraph Host_Process [Host Application Process]
+        HostApp[Host Application Code]
+
+        subgraph HaMS_Lib [HaMS Library]
+            FFI[FFI Interface]
+            Core[Core Logic]
+            WebServer[Embedded HTTP Server]
+            Probes[Probe Registry]
+        end
+    end
+
+    HostApp -->|Init & Register| FFI
+    FFI --> Core
+    Core --> Probes
+    Core --> WebServer
+
+    Client -->|GET /alive| WebServer
+    Client -->|GET /metrics| WebServer
+
+    Probes -.->|Check Status| HostApp
+```
+
 This repository consists of several key components:
 
 -   **`hams`**: The core library. It implements the health checks (alive/ready), web server, and FFI interface.
