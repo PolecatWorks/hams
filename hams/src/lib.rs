@@ -3,7 +3,7 @@
 //! Provide a FFI interface to health utility funcitons
 
 pub mod error;
-mod hams;
+pub mod hams;
 mod preflight;
 /// This module provides the health probes
 pub mod probe;
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
 /// This will register the prometheus callback with the HaMS object
 /// ```rust
 /// use libc;
-/// use self::{hams_new,hams_register_prometheus};
+/// use hams::{hams_new,hams_register_prometheus};
 ///
 /// // Define the callback function
 /// extern "C" fn prometheus_callback(state: *const libc::c_void) -> *mut libc::c_char {
@@ -170,7 +170,9 @@ pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
 ///
 /// // Create a HaMS object
 /// let name = std::ffi::CString::new("MyHaMS").unwrap();
-/// let hams = unsafe { hams_new(name.as_ptr()) };
+/// let version = std::ffi::CString::new("0.0.1").unwrap();
+/// let address = std::ffi::CString::new("127.0.0.1:0").unwrap();
+/// let hams = unsafe { hams_new(name.as_ptr(), version.as_ptr(), address.as_ptr(), true) };
 ///
 /// // Register the prometheus callback
 /// let result = unsafe {
