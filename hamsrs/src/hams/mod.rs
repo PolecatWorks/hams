@@ -205,6 +205,40 @@ impl Hams {
         }
         Ok(())
     }
+
+    /// Insert a probe into the startup checks
+    ///
+    /// This will insert a probe into the startup checks
+    pub fn startup_insert<T: Probe>(&self, probe: T) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
+            as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
+
+        let retval = unsafe { ffi::hams_startup_insert(self.c, probe_c) };
+
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to insert probe into startup checks".to_string(),
+            ));
+        }
+
+        Ok(())
+    }
+
+    pub fn startup_remove(
+        &self,
+        probe: &dyn crate::probes::Probe,
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?) as *mut ffi::BProbe;
+
+        let retval = unsafe { ffi::hams_startup_remove(self.c, probe_c) };
+
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to remove probe from startup checks".to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// This trait automatically handles the deallocation of the hams api when the Hams object
@@ -285,6 +319,30 @@ mod tests {
             .expect_err("Should not be able to remove the same probe twice");
 
         hams.ready_remove(&probe1)
+            .expect("Should be able to remove the probe");
+    }
+
+    /// Add and remove probes from HaMS startup
+    #[test]
+    fn add_probes_to_hams_startup() {
+        let hams = Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
+        let probe0 = crate::probes::ProbeManual::new("probe0", true).unwrap();
+        let probe1 = crate::probes::ProbeManual::new("probe1", true).unwrap();
+
+        hams.startup_insert(probe0.clone())
+            .expect("Should be able to add the probe");
+        hams.startup_insert(probe0.clone())
+            .expect_err("Should not be able to add the same probe twice");
+
+        hams.startup_insert(probe1.clone())
+            .expect("Should be able to add the probe");
+
+        hams.startup_remove(&probe0)
+            .expect("Should be able to remove the probe");
+        hams.startup_remove(&probe0)
+            .expect_err("Should not be able to remove the same probe twice");
+
+        hams.startup_remove(&probe1)
             .expect("Should be able to remove the probe");
     }
 }

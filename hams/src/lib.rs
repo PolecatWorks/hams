@@ -423,6 +423,67 @@ pub unsafe extern "C" fn hams_ready_remove(
 }
 
 /// # Safety
+/// Insert a health probe into the startup list of a HaMS object
+/// This will NOT take ownership of the probe but will store a copy of it
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hams_startup_insert(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+    catch_panic!(
+        // Take ownership of the probe
+        let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut ()) };
+
+        info!(
+            "Adding startup probe: {}",
+            unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy()
+        );
+
+        // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
+        let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
+
+        if AssertUnwindSafe(hams).startup_insert(ffi_probe) {
+            Ok(1)
+        } else {
+            Ok(0)
+        }
+    )
+}
+
+/// # Safety
+/// Remove a health probe from the startup list of a HaMS object
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hams_startup_remove(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+
+    catch_panic!(
+        // Take ownership of the probe
+        let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut ()) };
+
+        info!(
+            "Removing startup probe: {}",
+            unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy()
+        );
+
+        let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
+        match AssertUnwindSafe(hams).startup_remove(&ffi_probe) {
+            true => Ok(1),
+            false => Ok(0),
+        }
+    )
+}
+
+/// # Safety
 /// Check the alive probe to see if it is still alive
 /// TODO: This will require to store the runtime and block on teh thred while we execute on the async runtime
 // #[no_mangle]

@@ -125,6 +125,9 @@ pub fn main() -> ExitCode {
             hams.alive_insert(probe1.clone())
                 .expect("insert probe1 into alive");
 
+            hams.startup_insert(probe0.clone())
+                .expect("insert probe0 into startup");
+
             info!("HaMS Created, now starting it");
 
             hams.start().unwrap();

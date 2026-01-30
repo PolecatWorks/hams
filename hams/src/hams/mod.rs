@@ -61,6 +61,7 @@ pub struct Hams {
 
     pub alive: HealthCheck,
     pub ready: HealthCheck,
+    pub startup: HealthCheck,
 
     /// Token to cancel the service
     cancellation_token: CancellationToken,
@@ -102,6 +103,7 @@ impl Hams {
 
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
+            startup: HealthCheck::new("startup"),
             shutdown_cb: Arc::new(Mutex::new(None)),
             // prometheus_cb: None,
             prometheus_cb: Arc::new(Mutex::new(None)),
@@ -221,6 +223,16 @@ impl Hams {
     /// Remove probe from ready checks. Use BoxedHealthProbe to allow for FFI
     pub fn ready_remove(&mut self, probe: &Box<dyn AsyncHealthProbe + 'static>) -> bool {
         self.ready.remove(probe)
+    }
+
+    /// Insert probe to startup checks. Use BoxedHealthProbe to allow for FFI
+    pub fn startup_insert(&mut self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.startup.insert(probe)
+    }
+
+    /// Remove probe from startup checks. Use BoxedHealthProbe to allow for FFI
+    pub fn startup_remove(&mut self, probe: &Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.startup.remove(probe)
     }
 
     async fn start_async(&mut self, ct: CancellationToken) -> Result<(), HamsError> {
@@ -408,6 +420,16 @@ mod tests {
 
         assert!(hams.ready_remove(&FFIProbe::from(probe0.clone()).into()));
         assert_eq!(hams.ready.len(), 1);
+
+        assert_eq!(hams.startup.len(), 0);
+        assert!(hams.startup_insert(FFIProbe::from(probe0.clone()).into()));
+        assert_eq!(hams.startup.len(), 1);
+
+        assert!(hams.startup.insert(FFIProbe::from(probe1.clone()).into()));
+        assert_eq!(hams.startup.len(), 2);
+
+        assert!(hams.startup_remove(&FFIProbe::from(probe0.clone()).into()));
+        assert_eq!(hams.startup.len(), 1);
     }
 
     /// Test shutdown callback updating the state
