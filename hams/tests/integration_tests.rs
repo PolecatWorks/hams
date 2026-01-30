@@ -158,3 +158,47 @@ async fn test_http_metrics_endpoint() {
 
     hams.stop().expect("Failed to stop HaMS");
 }
+
+#[tokio::test]
+async fn test_concurrent_requests() {
+    let port = 8085;
+    let address = format!("127.0.0.1:{}", port).parse().unwrap();
+    let config = HamsConfig {
+        name: "concurrent_test".to_string(),
+        version: "1.0.0".to_string(),
+        address,
+        logging: true,
+    };
+
+    let mut hams = Hams::new(config);
+    hams.start().expect("Failed to start HaMS");
+    sleep(Duration::from_millis(100)).await;
+
+    let client = reqwest::Client::new();
+    let url_alive = format!("http://127.0.0.1:{}/hams/alive", port);
+    let url_ready = format!("http://127.0.0.1:{}/hams/ready", port);
+
+    let mut handles = vec![];
+
+    for _ in 0..50 {
+        let client = client.clone();
+        let url_alive = url_alive.clone();
+        let url_ready = url_ready.clone();
+
+        handles.push(tokio::spawn(async move {
+            for _ in 0..10 {
+                let resp = client.get(&url_alive).send().await.expect("Failed check");
+                assert_eq!(resp.status(), reqwest::StatusCode::OK);
+
+                let resp = client.get(&url_ready).send().await.expect("Failed check");
+                assert_eq!(resp.status(), reqwest::StatusCode::OK);
+            }
+        }));
+    }
+
+    for handle in handles {
+        handle.await.expect("Task failed");
+    }
+
+    hams.stop().expect("Failed to stop HaMS");
+}
