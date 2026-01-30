@@ -320,7 +320,7 @@ pub unsafe extern "C" fn hams_alive_insert(
         // Take ownership of the probe
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Adding alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Adding alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
         // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn hams_alive_remove(
         // Take ownership of the probe
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Removing alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Removing alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
         match AssertUnwindSafe(hams).alive_remove(&ffi_probe) {
@@ -379,8 +379,8 @@ pub unsafe extern "C" fn hams_ready_insert(
           // Take ownership of the probe
           let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-          info!("Adding alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
-          println!("Adding alive probe: {:?}", CString::from_raw(probe.name()).into_string().unwrap());
+          info!("Adding alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
+          println!("Adding alive probe: {:?}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
           // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
           let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
@@ -410,7 +410,7 @@ pub unsafe extern "C" fn hams_ready_remove(
         // Take ownership of the probe
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Removing alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Removing alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
         match AssertUnwindSafe(hams).ready_remove(&ffi_probe) {
@@ -474,7 +474,7 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        info!("Releasing manual probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Releasing manual probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
         Ok(1)
     )
@@ -512,7 +512,7 @@ pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        info!("Releasing probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Releasing probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
         Ok(1)
     )
@@ -618,7 +618,7 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
         // let name = &probe.name();
 
         // let name = CString::from_raw(probe.name());
-        info!("Releasing kick probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Releasing kick probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
         Ok(1)
     )

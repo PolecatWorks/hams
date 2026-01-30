@@ -10,6 +10,7 @@ use super::BoxedHealthProbe;
 #[derive(Debug, Clone, Hash, PartialEq)]
 pub struct Kick {
     name: String,
+    c_name: CString,
     /// The time of the last kick in seconds since UNIX_EPOCH
     latest: time_t,
     margin: Duration,
@@ -18,8 +19,10 @@ pub struct Kick {
 impl Kick {
     /// Create a new Kick probe with the given name and margin
     pub fn new<S: Into<String>>(name: S, margin: Duration) -> Self {
+        let name_str = name.into();
         Self {
-            name: name.into(),
+            c_name: CString::new(name_str.clone()).expect("CString::new failed"),
+            name: name_str,
             latest: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
@@ -48,8 +51,8 @@ impl Kick {
 
 impl HealthProbe for Kick {
     #[doc = "Name of the probe"]
-    fn name(&self) -> *mut c_char {
-        CString::new(self.name.clone()).unwrap().into_raw()
+    fn name(&self) -> *const c_char {
+        self.c_name.as_ptr()
     }
 
     fn check(&self, time: time_t) -> i32 {
@@ -87,8 +90,8 @@ mod tests {
         let probe = Kick::new("test", Duration::from_secs(1));
         let boxed_probe = probe.boxed_probe();
         assert_eq!(
-            unsafe { CString::from_raw(boxed_probe.name()) }
-                .into_string()
+            unsafe { std::ffi::CStr::from_ptr(boxed_probe.name()) }
+                .to_str()
                 .expect("Converted CString"),
             "test"
         );

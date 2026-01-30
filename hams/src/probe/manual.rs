@@ -16,14 +16,17 @@ struct Inner {
 #[derive(Debug, Clone)]
 pub struct Manual {
     name: String,
+    c_name: CString,
     enabled: Arc<Mutex<Inner>>,
 }
 
 impl Manual {
     /// Create a new Manual probe with the given name and enabled state
     pub fn new<S: Into<String>>(name: S, enabled: bool) -> Self {
+        let name_str = name.into();
         Self {
-            name: name.into(),
+            c_name: CString::new(name_str.clone()).expect("CString::new failed"),
+            name: name_str,
             enabled: Arc::new(Mutex::new(Inner { valid: enabled })),
         }
     }
@@ -51,8 +54,9 @@ impl Manual {
 
 impl HealthProbe for Manual {
     #[doc = "Name of the probe"]
-    fn name(&self) -> *mut c_char {
-        CString::new(self.name.clone()).unwrap().into_raw()
+    #[doc = "Name of the probe"]
+    fn name(&self) -> *const c_char {
+        self.c_name.as_ptr()
     }
 
     fn check(&self, _time: time_t) -> i32 {

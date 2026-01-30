@@ -81,7 +81,9 @@ where
 #[async_trait]
 impl AsyncHealthProbe for FFIProbe {
     fn name(&self) -> Result<String, HamsError> {
-        Ok(unsafe { CString::from_raw(self.probe.name()) }.into_string()?)
+        Ok(unsafe { std::ffi::CStr::from_ptr(self.probe.name()) }
+            .to_str()?
+            .to_string())
     }
 
     async fn check(&self, time: SystemTime) -> Result<bool, HamsError> {
@@ -152,15 +154,16 @@ impl<'a> Hash for BoxedHealthProbe<'a> {
     // NOTE: Use a unique identifier to distinguish probes. NOT the probe address.
     // Reference here: https://stackoverflow.com/questions/72148631/how-can-i-hash-by-a-raw-pointer
     fn hash<H: Hasher>(&self, state: &mut H) {
-        unsafe { CString::from_raw(self.name()) }.hash(state);
-        // self.name().unwrap().hash(state);
+        let n = unsafe { std::ffi::CStr::from_ptr(self.name()) };
+        n.hash(state);
     }
 }
 
 impl<'a> PartialEq for BoxedHealthProbe<'a> {
     fn eq(&self, other: &Self) -> bool {
-        unsafe { CString::from_raw(self.name()) }.into_string()
-            == unsafe { CString::from_raw(other.name()) }.into_string()
+        let n1 = unsafe { std::ffi::CStr::from_ptr(self.name()) };
+        let n2 = unsafe { std::ffi::CStr::from_ptr(other.name()) };
+        n1 == n2
     }
 }
 
@@ -221,7 +224,9 @@ mod tests {
     #[async_trait]
     impl AsyncHealthProbe for FFIProbe {
         fn name(&self) -> Result<String, HamsError> {
-            Ok(unsafe { CString::from_raw(self.probe.name()) }.into_string()?)
+            Ok(unsafe { std::ffi::CStr::from_ptr(self.probe.name()) }
+                .to_str()?
+                .to_string())
         }
 
         async fn check(&self, time: SystemTime) -> Result<bool, HamsError> {
@@ -268,6 +273,7 @@ mod tests {
         let probe2 = FFIProbe {
             probe: BoxedHealthProbe::new(Probe0 {
                 name: "test2".to_string(),
+                c_name: CString::new("test2").unwrap(),
                 check: true,
             }),
         };
@@ -295,13 +301,14 @@ mod tests {
     #[derive(Clone)]
     struct Probe0 {
         name: String,
+        c_name: CString,
         check: bool,
     }
 
     impl HealthProbe for Probe0 {
         #[doc = " Name of the probe"]
-        fn name(&self) -> *mut c_char {
-            CString::new(self.name.clone()).unwrap().into_raw()
+        fn name(&self) -> *const c_char {
+            self.c_name.as_ptr()
         }
 
         fn check(&self, _time: time_t) -> c_int {
@@ -313,14 +320,15 @@ mod tests {
     fn health_probe_to_from_boxed() {
         let probe = Probe0 {
             name: "test".to_string(),
+            c_name: CString::new("test").unwrap(),
             check: true,
         };
 
         let boxed = BoxedHealthProbe::new(probe.clone());
 
         assert_eq!(
-            unsafe { CString::from_raw(boxed.name()) }
-                .into_string()
+            unsafe { std::ffi::CStr::from_ptr(boxed.name()) }
+                .to_str()
                 .unwrap(),
             "test"
         );
@@ -330,12 +338,13 @@ mod tests {
     fn test_health_probe() {
         let probe = Probe0 {
             name: "test".to_string(),
+            c_name: CString::new("test").unwrap(),
             check: true,
         };
         // info!("Releasing kick probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
         assert_eq!(
-            unsafe { CString::from_raw(probe.name()) }
-                .into_string()
+            unsafe { std::ffi::CStr::from_ptr(probe.name()) }
+                .to_str()
                 .unwrap(),
             "test"
         );
@@ -352,10 +361,12 @@ mod tests {
     fn test_health_probe_hashset() {
         let probe0 = BoxedHealthProbe::new(Probe0 {
             name: "test".to_string(),
+            c_name: CString::new("test").unwrap(),
             check: true,
         });
         let probe1 = BoxedHealthProbe::new(Probe0 {
             name: "test".to_string(),
+            c_name: CString::new("test").unwrap(),
             check: true,
         });
         let mut set = std::collections::HashSet::new();

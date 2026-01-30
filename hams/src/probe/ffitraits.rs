@@ -6,10 +6,10 @@ use thin_trait_object::thin_trait_object;
 #[thin_trait_object]
 /// Trait for health probes
 pub trait HealthProbe: Sync + Send {
-    /// Name of the probe. Created as a c_str and converted to a raw pointer
-    /// to be used in FFI.
-    /// Received owns the pointer and is responsible for freeing it.
-    fn name(&self) -> *mut c_char;
+    /// Name of the probe. Returns a pointer to the internal C-string name.
+    /// The pointer is valid as long as the probe exists.
+    /// Receiver does NOT own the pointer and must NOT free it.
+    fn name(&self) -> *const c_char;
     /// Check the health of the probe
     /// Returns 1 if the probe is healthy, 0 otherwise
     /// Returns -1 if an error occurred
