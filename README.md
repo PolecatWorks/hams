@@ -27,50 +27,16 @@ This starts the service with a configuration file that sets the web server prefi
 
 ## API Reference
 
-The HaMS web server exposes the following endpoints (default port 8080, configurable):
+The HaMS web server exposes endpoints for health, readiness, version, and metrics.
 
-### Health Checks
+**See [API_HAMS.md](API_HAMS.md) for the complete API Reference.**
 
-*   **Liveness Probe**: `GET /hams/alive`
-    *   **Returns**: `200 OK` (if healthy) or `503 Service Unavailable` (if unhealthy).
-    *   **Response Body**:
-        ```json
-        {
-          "name": "HamName",
-          "valid": true
-        }
-        ```
-
-*   **Liveness Probe (Verbose)**: `GET /hams/alive_verbose`
-    *   **Returns**: Same status codes as above, but includes details for each registered probe.
-    *   **Response Body**:
-        ```json
-        {
-          "name": "HamName",
-          "valid": true,
-          "details": [
-            { "name": "probe1", "valid": true },
-            { "name": "probe2", "valid": false }
-          ]
-        }
-        ```
-
-*   **Readiness Probe**: `GET /hams/ready`
-    *   Similar to `/hams/alive`.
-
-*   **Readiness Probe (Verbose)**: `GET /hams/ready_verbose`
-    *   Similar to `/hams/alive_verbose`.
-
-### Lifecycle & Metrics
-
-*   **Version Info**: `GET /hams/version`
-    *   Returns JSON with service and library version details.
-
-*   **Shutdown**: `POST /hams/shutdown`
-    *   Triggers the registered shutdown callback in the host application.
-
-*   **Metrics**: `GET /hams/metrics`
-    *   Returns the output of the registered Prometheus callback (text/plain).
+### Quick Summary
+*   `GET /hams/alive`: Liveness probe.
+*   `GET /hams/ready`: Readiness probe.
+*   `GET /hams/version`: Version info.
+*   `GET /hams/metrics`: Prometheus metrics.
+*   `POST /hams/shutdown`: Trigger shutdown.
 
 ## Integration Details
 
