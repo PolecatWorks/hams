@@ -108,3 +108,53 @@ async fn test_http_version_endpoint() {
 
     hams.stop().expect("Failed to stop HaMS");
 }
+
+#[tokio::test]
+async fn test_http_metrics_endpoint() {
+    let port = 8084;
+    let address = format!("127.0.0.1:{}", port).parse().unwrap();
+    let config = HamsConfig {
+        name: "metrics_test".to_string(),
+        version: "1.0.0".to_string(),
+        address,
+        logging: true,
+    };
+
+    let mut hams = Hams::new(config);
+
+    // Mock callback for metrics
+    extern "C" fn mock_metrics_cb(_ptr: *const libc::c_void) -> *mut libc::c_char {
+        let metrics = "mock_metric 42\n".to_string();
+        std::ffi::CString::new(metrics).unwrap().into_raw()
+    }
+
+    extern "C" fn mock_metrics_free(ptr: *mut libc::c_char) {
+        unsafe {
+            if !ptr.is_null() {
+                drop(std::ffi::CString::from_raw(ptr));
+            }
+        }
+    }
+
+    hams.register_prometheus(mock_metrics_cb, mock_metrics_free, std::ptr::null())
+        .expect("Failed to register_prometheus");
+
+    hams.start().expect("Failed to start HaMS");
+    sleep(Duration::from_millis(100)).await;
+
+    let client = reqwest::Client::new();
+    let url = format!("http://127.0.0.1:{}/hams/metrics", port);
+
+    let resp = client
+        .get(&url)
+        .send()
+        .await
+        .expect("Failed to request metrics");
+    assert_eq!(resp.status(), reqwest::StatusCode::OK);
+
+    let body = resp.text().await.expect("Failed to get body");
+    // Verify content from our mock
+    assert_eq!(body, "mock_metric 42\n");
+
+    hams.stop().expect("Failed to stop HaMS");
+}
