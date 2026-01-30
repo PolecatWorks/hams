@@ -35,49 +35,10 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 /// Version of the Crate
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Fill this out
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_world() {
-    println!("HOWDY World");
-    println!("Hello I am {}:{}", NAME, VERSION);
-}
-
-/// Fill this out
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_node() -> c_int {
-    println!("HOWDY Node");
-    println!("Hello I am {}:{}", NAME, VERSION);
-    7
-}
-
-/// Fill this out
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
-    println!("HOWDY callback");
-    my_cb();
-    my_cb();
-    my_cb();
-    my_cb();
-}
-
-/// C function to take two functions as callbacks.
-/// The first function returns a c string the second frees the c string
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_callback2(
-    my_cb: extern "C" fn() -> *const libc::c_char,
-    my_cb_free: extern "C" fn(*const libc::c_char),
-) {
-    println!("HOWDY callback2");
-    let c_string = my_cb();
-    let c_string = unsafe { CStr::from_ptr(c_string) };
-    println!("C string: {:?}", c_string);
-    my_cb_free(c_string.as_ptr());
-}
-
 /// Return the version of the library
 #[unsafe(no_mangle)]
 pub extern "C" fn hams_version() -> *const libc::c_char {
-    let version = format!("{}:{}", NAME, VERSION);
+    let version = format!("{NAME}:{VERSION}");
     let c_version = std::ffi::CString::new(version).unwrap();
     c_version.into_raw()
 }
