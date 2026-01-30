@@ -108,7 +108,7 @@ impl Hams {
         Ok(())
     }
 
-    pub fn register_prometheus(
+    pub unsafe fn register_prometheus(
         &self,
         my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,
         my_cb_free: extern "C" fn(*mut libc::c_char),
