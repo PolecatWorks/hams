@@ -202,8 +202,14 @@ mod handlers {
 
     /// Handler for shutdown endpoint
     pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Rejection> {
-        // TODO: Call shutdown
-        // Hams::tigger_callback(hams.shutdown_cb.clone());
+        {
+            let cb_lock = hams
+                .shutdown_cb
+                .lock()
+                .map_err(|_e| warp::reject::custom(HamsError::PoisonError))?;
+
+            Hams::call_shutdown_callback(cb_lock.as_ref()).map_err(warp::reject::custom)?;
+        }
 
         version(hams).await
     }
@@ -253,7 +259,10 @@ mod handlers {
                 let c_string = (cb.my_cb)(cb.state);
 
                 let c_string_2 = unsafe { CStr::from_ptr(c_string) };
-                let metric_response = c_string_2.to_str().unwrap().to_string();
+                let metric_response = c_string_2
+                    .to_str()
+                    .map_err(|e| warp::reject::custom(HamsError::Utf8Error(e)))?
+                    .to_string();
 
                 (cb.my_cb_free)(c_string);
 

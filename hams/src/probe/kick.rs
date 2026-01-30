@@ -23,7 +23,7 @@ impl Kick {
             latest: SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .unwrap()
-                .as_millis()
+                .as_secs()
                 .try_into()
                 .unwrap(),
             margin,
@@ -35,7 +35,7 @@ impl Kick {
         self.latest = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
-            .as_millis()
+            .as_secs()
             .try_into()
             .unwrap();
     }
@@ -77,7 +77,7 @@ mod tests {
         assert!(probe.check(time_now) == 1);
         probe.kick();
         assert!(probe.check(time_now) == 1);
-        //No need to sleep, we can just check the time
+        // We can just check the time
         assert!(probe.check(time_now + 2) == 0);
     }
 
