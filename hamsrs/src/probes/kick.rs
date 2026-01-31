@@ -14,6 +14,7 @@ pub struct ProbeKickInner {
 
 impl Drop for ProbeKickInner {
     fn drop(&mut self) {
+        // SAFETY: `self.c` is a valid pointer managed by us.
         let retval = unsafe { ffi::probe_kick_free(self.c) };
 
         if retval == 0 {
@@ -29,8 +30,9 @@ impl ProbeKickInner {
     where
         S: std::fmt::Display,
     {
-        info!("New KickHealthProbe: {}", &name);
+        info!("New KickHealthProbe: {name}");
         let c_name = std::ffi::CString::new(name.into())?;
+        // SAFETY: `c_name` is valid.
         let c = unsafe { ffi::probe_kick_new(c_name.as_ptr(), margin.as_millis().try_into()?) };
 
         if c.is_null() {
@@ -42,6 +44,7 @@ impl ProbeKickInner {
     }
 
     pub fn kick(&self) -> Result<(), HamsError> {
+        // SAFETY: `self.c` is valid.
         let retval = unsafe { ffi::probe_kick_kick(self.c) };
 
         if retval == 0 {
@@ -51,12 +54,14 @@ impl ProbeKickInner {
     }
 
     fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
+        // SAFETY: `self.c` is valid.
         let c = unsafe { ffi::probe_kick_boxed(self.c) };
 
         if c.is_null() {
             // panic!("PUT GOOD ERROR HERE");
             return Err(HamsError::Message("Could not box probe".to_string()));
         }
+        // SAFETY: `c` is a valid pointer returned from ffi.
         let probe = unsafe { BoxedHealthProbe::from_raw(c as *mut ()) };
 
         Ok(probe)
@@ -76,6 +81,15 @@ impl Probe for ProbeKick {
 
 impl ProbeKick {
     /// Construct a new kick probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeKick;
+    /// use std::time::Duration;
+    ///
+    /// let probe = ProbeKick::new("test-kick-probe", Duration::from_secs(30)).unwrap();
+    /// ```
     pub fn new<S: Into<String>>(
         name: S,
         margin: Duration,
@@ -89,6 +103,16 @@ impl ProbeKick {
     }
 
     /// Kick the probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeKick;
+    /// use std::time::Duration;
+    ///
+    /// let probe = ProbeKick::new("test-kick", Duration::from_secs(30)).unwrap();
+    /// probe.kick().unwrap();
+    /// ```
     pub fn kick(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.kick()
     }
@@ -126,13 +150,13 @@ mod tests {
             crate::hams::Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
         let probe_kick = ProbeKick::new("test", Duration::from_secs(1)).unwrap();
 
-        println!("Probe: {:?}", probe_kick);
+        println!("Probe: {probe_kick:?}");
         let _p2 = probe_kick.clone();
 
         println!("Probe: {:?}", probe_kick);
 
         hams.alive_insert(probe_kick.clone()).unwrap();
-        println!("Probe added to hams: {:?}", probe_kick);
+        println!("Probe added to hams: {probe_kick:?}");
         hams.alive_remove(&probe_kick).unwrap();
     }
 }

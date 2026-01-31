@@ -24,19 +24,36 @@ pub struct Hams {
 
 impl Hams {
     /// Construct the new Hams.
-    /// The return of thi call will have created an object via FFI to handle and manage
+    /// The return of this call will have created an object via FFI to handle and manage
     /// your alive and readyness checks.
     /// It also manages your monitoring via prometheus exports
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::hams::{Hams, config::HamsConfigBuilder};
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// let ct = CancellationToken::new();
+    /// let config = HamsConfigBuilder::default()
+    ///     .name("my-service".to_string())
+    ///     .build()
+    ///     .unwrap();
+    ///
+    /// let hams = Hams::new(ct, &config);
+    /// assert!(hams.is_ok());
+    /// ```
     pub fn new(
         ct: CancellationToken,
         config: &HamsConfig,
     ) -> Result<Hams, crate::hamserror::HamsError> {
-        info!("Registering HaMS: {} @{}", &config.name, config.address);
+        info!("Registering HaMS: {} @{}", config.name, config.address);
         let c_name = std::ffi::CString::new(config.name.clone())?;
         let c_version = std::ffi::CString::new(config.version.clone())?;
         let c_address = std::ffi::CString::new(config.address.to_string())?;
         let c_logging = config.logging;
 
+        // SAFETY: The C strings are created from Rust strings and are valid for the duration of the call.
         let c = unsafe {
             ffi::hams_new(
                 c_name.as_ptr(),
@@ -53,6 +70,7 @@ impl Hams {
 
         let ct_box = Box::new(ct.clone());
 
+        // SAFETY: `c` is checked for null above. `ct_box` is converted to a raw pointer and passed to FFI, which takes ownership or invokes the callback with it.
         let ct_retval = unsafe {
             ffi::hams_register_shutdown(
                 c,
@@ -73,6 +91,7 @@ impl Hams {
     /// This is a callback function that is called by the C API when it is time to stop
     /// We cancel the cancellation token here
     extern "C" fn c_cancel_ct(state: *mut libc::c_void) {
+        // SAFETY: `state` is cast back to the original type `CancellationToken`. We assume the FFI passes back the correct pointer.
         let ct = unsafe { &mut *(state as *mut CancellationToken) };
 
         ct.cancel();
@@ -85,6 +104,7 @@ impl Hams {
     /// as well as the prometheus metrics
     ///
     pub fn start(&self) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer managed by Hams struct.
         let retval = unsafe { ffi::hams_start(self.c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -99,6 +119,7 @@ impl Hams {
     /// This will stop the HaMS and stop serving the readyness and liveness checks
     /// as well as the prometheus metrics
     pub fn stop(&self) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer managed by Hams struct.
         let retval = unsafe { ffi::hams_stop(self.c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -108,12 +129,17 @@ impl Hams {
         Ok(())
     }
 
+    /// Register a prometheus callback
+    ///
+    /// # Safety
+    /// This function acts on a raw pointer to FFI.
     pub unsafe fn register_prometheus(
         &self,
         my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,
         my_cb_free: extern "C" fn(*mut libc::c_char),
         state: *const c_void,
     ) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: The caller must ensure that the callback functions and state are valid.
         let retval = unsafe { ffi::hams_register_prometheus(self.c, my_cb, my_cb_free, state) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -126,6 +152,7 @@ impl Hams {
     /// De-register the prometheus
     /// This will stop the prometheus metrics from being served
     pub fn deregister_prometheus(&self) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer managed by Hams struct.
         let retval = unsafe { ffi::hams_deregister_prometheus(self.c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -138,10 +165,26 @@ impl Hams {
     /// Insert a probe into the alive checks
     ///
     /// This will insert a probe into the alive checks AND will pass ownership of the probe to the HaMS
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::hams::{Hams, config::HamsConfigBuilder};
+    /// use hamsrs::probes::ProbeManual;
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// let ct = CancellationToken::new();
+    /// let config = HamsConfigBuilder::default().build().unwrap();
+    /// let mut hams = Hams::new(ct, &config).unwrap();
+    ///
+    /// let probe = ProbeManual::new("test-probe", true).unwrap();
+    /// hams.alive_insert(probe);
+    /// ```
     pub fn alive_insert<T: Probe>(&self, probe: T) -> Result<(), crate::hamserror::HamsError> {
         let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
             as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
 
+        // SAFETY: `self.c` is a valid pointer. `probe_c` is transferred to FFI which takes ownership.
         let retval = unsafe { ffi::hams_alive_insert(self.c, probe_c) };
 
         if retval == 0 {
@@ -162,6 +205,7 @@ impl Hams {
         let probe_c =
             BoxedHealthProbe::into_raw(b_probe) as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
 
+        // SAFETY: `self.c` is a valid pointer. `probe_c` is passed to FFI.
         let retval = unsafe { ffi::hams_alive_remove(self.c, probe_c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -175,10 +219,26 @@ impl Hams {
     /// Insert a probe into the alive checks
     ///
     /// This will insert a probe into the alive checks
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::hams::{Hams, config::HamsConfigBuilder};
+    /// use hamsrs::probes::ProbeManual;
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// let ct = CancellationToken::new();
+    /// let config = HamsConfigBuilder::default().build().unwrap();
+    /// let mut hams = Hams::new(ct, &config).unwrap();
+    ///
+    /// let probe = ProbeManual::new("ready-probe", true).unwrap();
+    /// hams.ready_insert(probe);
+    /// ```
     pub fn ready_insert<T: Probe>(&self, probe: T) -> Result<(), crate::hamserror::HamsError> {
         let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
             as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
 
+        // SAFETY: `self.c` is a valid pointer. `probe_c` is passed to FFI.
         let retval = unsafe { ffi::hams_ready_insert(self.c, probe_c) };
 
         if retval == 0 {
@@ -196,6 +256,7 @@ impl Hams {
     ) -> Result<(), crate::hamserror::HamsError> {
         let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?) as *mut ffi::BProbe;
 
+        // SAFETY: `self.c` is a valid pointer. `probe_c` is passed to FFI.
         let retval = unsafe { ffi::hams_ready_remove(self.c, probe_c) };
 
         if retval == 0 {
@@ -209,10 +270,26 @@ impl Hams {
     /// Insert a probe into the startup checks
     ///
     /// This will insert a probe into the startup checks
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::hams::{Hams, config::HamsConfigBuilder};
+    /// use hamsrs::probes::ProbeManual;
+    /// use tokio_util::sync::CancellationToken;
+    ///
+    /// let ct = CancellationToken::new();
+    /// let config = HamsConfigBuilder::default().build().unwrap();
+    /// let mut hams = Hams::new(ct, &config).unwrap();
+    ///
+    /// let probe = ProbeManual::new("startup-probe", true).unwrap();
+    /// hams.startup_insert(probe);
+    /// ```
     pub fn startup_insert<T: Probe>(&self, probe: T) -> Result<(), crate::hamserror::HamsError> {
         let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
             as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
 
+        // SAFETY: `self.c` is a valid pointer. `probe_c` is passed to FFI.
         let retval = unsafe { ffi::hams_startup_insert(self.c, probe_c) };
 
         if retval == 0 {
@@ -230,6 +307,7 @@ impl Hams {
     ) -> Result<(), crate::hamserror::HamsError> {
         let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?) as *mut ffi::BProbe;
 
+        // SAFETY: `self.c` is a valid pointer. `probe_c` is passed to FFI.
         let retval = unsafe { ffi::hams_startup_remove(self.c, probe_c) };
 
         if retval == 0 {
@@ -246,6 +324,7 @@ impl Hams {
 impl Drop for Hams {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
+        // SAFETY: `self.c` is a valid pointer that we own.
         let retval = unsafe { ffi::hams_free(self.c) };
         if retval == 0 {
             panic!("FAILED to free HaMS");
