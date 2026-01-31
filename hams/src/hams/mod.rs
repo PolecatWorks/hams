@@ -490,7 +490,9 @@ mod tests {
     #[cfg_attr(miri, ignore)]
     #[test]
     fn obj_hams_start_stop() {
-        let mut hams = Hams::new(HamsConfig::default());
+        let mut config = HamsConfig::default();
+        config.address = "0.0.0.0:0".parse().unwrap();
+        let mut hams = Hams::new(config);
         hams.start().expect("Started");
         thread::sleep(Duration::from_secs(1));
         hams.stop().expect("Stopped");
@@ -572,7 +574,9 @@ mod tests {
     /// Test that startup and shutdown tasks actually run
     #[test]
     fn test_startup_shutdown_execution() {
-        let mut hams = Hams::new(HamsConfig::default());
+        let mut config = HamsConfig::default();
+        config.address = "0.0.0.0:0".parse().unwrap();
+        let mut hams = Hams::new(config);
 
         // We use a manual probe that starts "true" (healthy)
         let startup_probe = Manual::new("startup_probe", true);

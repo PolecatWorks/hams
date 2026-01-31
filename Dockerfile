@@ -27,6 +27,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 
 FROM buildcacherelease AS build
 COPY . .
+RUN cargo test -p hams -p hamsrs
 RUN cargo build --release -p hams
 
 # We do not need the Rust toolchain to run the binary!
