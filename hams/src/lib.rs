@@ -1278,10 +1278,44 @@ mod tests {
         unsafe { hams_free(my_hams) };
     }
 
+    // Test shutdown task insert
+    #[test]
+    fn test_shutdown_task_insert() {
+        use crate::probe::http::{probe_http_boxed, probe_http_free, probe_http_new};
+
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8073").unwrap();
+        let c_logging = true;
+
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
+
+        let c_probe_name = std::ffi::CString::new("http_probe_shutdown").unwrap();
+        let c_url = std::ffi::CString::new("http://example.com").unwrap();
+        let http_probe =
+            unsafe { probe_http_new(c_probe_name.as_ptr(), c_url.as_ptr(), std::ptr::null(), 0) };
+
+        // probe_http_boxed returns a new BoxedHealthProbe (cloned internally)
+        let boxed_probe = unsafe { probe_http_boxed(http_probe) };
+
+        let retval = unsafe { hams_shutdown_task_insert(my_hams, boxed_probe, 3, 100, 1000) };
+        assert_eq!(retval, 1);
+
+        unsafe { probe_http_free(http_probe) };
+        unsafe { hams_free(my_hams) };
+    }
+
     // Test inserting HTTP probe into alive check to ensure it doesn't panic on async runtime
     #[test]
     fn test_http_probe_in_alive_check() {
-        use crate::probe::http::{probe_http_new, probe_http_boxed, probe_http_free};
+        use crate::probe::http::{probe_http_boxed, probe_http_free, probe_http_new};
 
         let c_library_name = std::ffi::CString::new("name").unwrap();
         let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
@@ -1301,7 +1335,8 @@ mod tests {
         // Use a URL that will likely fail or succeed but shouldn't panic.
         // We just want to check runtime compatibility.
         let c_url = std::ffi::CString::new("http://example.com").unwrap();
-        let http_probe = unsafe { probe_http_new(c_probe_name.as_ptr(), c_url.as_ptr(), std::ptr::null(), 0) };
+        let http_probe =
+            unsafe { probe_http_new(c_probe_name.as_ptr(), c_url.as_ptr(), std::ptr::null(), 0) };
 
         let boxed_probe = unsafe { probe_http_boxed(http_probe) };
 

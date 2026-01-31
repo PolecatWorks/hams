@@ -1,7 +1,7 @@
-use libc::{c_int, time_t, c_char};
-use reqwest::blocking::Client;
+use libc::{c_char, c_int, time_t};
 use reqwest::StatusCode;
-use std::ffi::{CString, CStr};
+use reqwest::blocking::Client;
+use std::ffi::{CStr, CString};
 use std::time::Duration;
 use url::Url;
 
@@ -18,13 +18,20 @@ pub struct HttpProbe {
 }
 
 impl HttpProbe {
-    pub fn new<S: Into<String>>(name: S, url: &str, expected_codes: Option<Vec<u16>>) -> Result<Self, HamsError> {
+    pub fn new<S: Into<String>>(
+        name: S,
+        url: &str,
+        expected_codes: Option<Vec<u16>>,
+    ) -> Result<Self, HamsError> {
         let name_str = name.into();
         let c_name = CString::new(name_str.clone()).map_err(|e| HamsError::NulError(e))?;
         let url = Url::parse(url).map_err(|e| HamsError::Message(format!("Invalid URL: {}", e)))?;
 
         let codes = match expected_codes {
-            Some(codes) => codes.iter().filter_map(|&c| StatusCode::from_u16(c).ok()).collect(),
+            Some(codes) => codes
+                .iter()
+                .filter_map(|&c| StatusCode::from_u16(c).ok())
+                .collect(),
             None => vec![StatusCode::OK],
         };
 
@@ -50,11 +57,11 @@ impl HealthProbe for HttpProbe {
 
         match client.get(self.url.clone()).send() {
             Ok(response) => {
-                 if self.expected_codes.contains(&response.status()) {
-                     1
-                 } else {
-                     0
-                 }
+                if self.expected_codes.contains(&response.status()) {
+                    1
+                } else {
+                    0
+                }
             }
             Err(_) => 0,
         }

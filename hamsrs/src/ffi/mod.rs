@@ -42,6 +42,12 @@ pub struct DnsProbe {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
+#[repr(C)]
+pub struct TcpProbe {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
 /// Opaque object representing HaMS Probe objects.
 /// Low level API access to the CAPI
 // #[repr(C)]
@@ -131,6 +137,14 @@ unsafe extern "C" {
     pub fn probe_dns_new(name: *const libc::c_char, host: *const libc::c_char) -> *mut DnsProbe;
     pub fn probe_dns_free(probe: *mut DnsProbe) -> i32;
     pub fn probe_dns_boxed(probe: *mut DnsProbe) -> *mut BProbe;
+
+    pub fn probe_tcp_new(
+        name: *const libc::c_char,
+        addr: *const libc::c_char,
+        timeout_ms: u64,
+    ) -> *mut TcpProbe;
+    pub fn probe_tcp_free(probe: *mut TcpProbe) -> i32;
+    pub fn probe_tcp_boxed(probe: *mut TcpProbe) -> *mut BProbe;
 
     pub fn probe_free(probe: *mut BProbe) -> i32;
 }

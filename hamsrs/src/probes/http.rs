@@ -1,7 +1,10 @@
-use std::sync::Arc;
-use crate::{ffi::{self, ffitraits::BoxedHealthProbe}, hamserror::HamsError};
-use log::info;
 use super::Probe;
+use crate::{
+    ffi::{self, ffitraits::BoxedHealthProbe},
+    hamserror::HamsError,
+};
+use log::info;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct ProbeHttpInner {
@@ -25,11 +28,12 @@ impl ProbeHttpInner {
             None => (std::ptr::null(), 0),
         };
 
-        let c = unsafe {
-            ffi::probe_http_new(c_name.as_ptr(), c_url.as_ptr(), codes_ptr, codes_len)
-        };
+        let c =
+            unsafe { ffi::probe_http_new(c_name.as_ptr(), c_url.as_ptr(), codes_ptr, codes_len) };
         if c.is_null() {
-            return Err(HamsError::Message("Failed to create Http Probe".to_string()));
+            return Err(HamsError::Message(
+                "Failed to create Http Probe".to_string(),
+            ));
         }
         Ok(Self { c })
     }
@@ -43,12 +47,20 @@ impl ProbeHttpInner {
     }
 }
 
+/// A probe that makes an HTTP HEAD request to a URL and checks the response status code.
 #[derive(Clone, Debug)]
 pub struct ProbeHttp {
     pub inner: Arc<ProbeHttpInner>,
 }
 
 impl ProbeHttp {
+    /// Construct a new HTTP probe
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the probe
+    /// * `url` - The URL to check
+    /// * `codes` - Optional list of allowed HTTP status codes. If `None` or empty, default codes (200-299) are used.
     pub fn new(name: &str, url: &str, codes: Option<&[u16]>) -> Result<Self, HamsError> {
         Ok(Self {
             inner: Arc::new(ProbeHttpInner::new(name, url, codes)?),

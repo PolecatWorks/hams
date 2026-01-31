@@ -1,7 +1,10 @@
-use std::sync::Arc;
-use crate::{ffi::{self, ffitraits::BoxedHealthProbe}, hamserror::HamsError};
-use log::info;
 use super::Probe;
+use crate::{
+    ffi::{self, ffitraits::BoxedHealthProbe},
+    hamserror::HamsError,
+};
+use log::info;
+use std::sync::Arc;
 
 #[derive(Debug)]
 pub struct ProbeDnsInner {
@@ -36,12 +39,19 @@ impl ProbeDnsInner {
     }
 }
 
+/// A probe that checks DNS resolution for a given hostname.
 #[derive(Clone, Debug)]
 pub struct ProbeDns {
     pub inner: Arc<ProbeDnsInner>,
 }
 
 impl ProbeDns {
+    /// Construct a new DNS probe
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the probe
+    /// * `host` - The hostname to resolve
     pub fn new(name: &str, host: &str) -> Result<Self, HamsError> {
         Ok(Self {
             inner: Arc::new(ProbeDnsInner::new(name, host)?),
