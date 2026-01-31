@@ -15,7 +15,7 @@ env:
   # Use docker.io for Docker Hub if empty
   REGISTRY: ghcr.io
   # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository }}-backend
+  IMAGE_NAME: ${{ github.repository }}
 
 concurrency:
   # This concurrency group ensures that only one job in the group runs at a time.
@@ -35,8 +35,10 @@ jobs:
         with:
           filters: |
             backend:
-              - 'backend/**'
-              - '.github/workflows/backend-docker-publish.yml'
+              - 'hams/**'
+              - 'hamsrs/**'
+              - 'ffi-log2/**'
+              - '.github/workflows/docker-publish.yml'
 
   build:
     needs: check-paths
@@ -50,7 +52,7 @@ jobs:
 
     # runs-on: ubuntu-latest
     runs-on: ${{ matrix.platform == 'linux/amd64' && 'ubuntu-24.04' || matrix.platform == 'linux/arm64' && 'ubuntu-24.04-arm' }}
-    name: ${{ matrix.platform }} Backend Docker
+    name: ${{ matrix.platform }} Docker
     permissions:
       contents: read
       packages: write
@@ -114,15 +116,15 @@ jobs:
         id: build
         uses: docker/build-push-action@v6
         with:
-          context: backend
+          context: .
           push: ${{ github.event_name != 'pull_request' }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
           outputs: type=image,name=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }},push-by-digest=true,name-canonical=true,push=true,oci-mediatypes=true
           cache-from: |
-            type=gha,scope=${{ github.repository }}-backend-${{ github.ref_name }}-${{ matrix.platform }}
-            type=gha,scope=${{ github.repository }}-backend-main-${{ matrix.platform }}
-          cache-to: type=gha,mode=max,scope=${{ github.repository }}-backend-${{ github.ref_name }}-${{ matrix.platform }}
+            type=gha,scope=${{ github.repository }}-${{ github.ref_name }}-${{ matrix.platform }}
+            type=gha,scope=${{ github.repository }}-main-${{ matrix.platform }}
+          cache-to: type=gha,mode=max,scope=${{ github.repository }}-${{ github.ref_name }}-${{ matrix.platform }}
 
       - name: Export digest
         run: |
@@ -163,9 +165,9 @@ jobs:
         run: |
           repo_name="${{ github.repository }}"
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')-backend/dev" >> $GITHUB_ENV
+            echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')/dev" >> $GITHUB_ENV
           else
-            echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')-backend" >> $GITHUB_ENV
+            echo "IMAGE_NAME_LOWERCASE=$(echo "$repo_name" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
           fi
 
       - name: Download digests
@@ -231,7 +233,7 @@ jobs:
           docker buildx imagetools inspect '${{ env.REGISTRY }}/${{ env.IMAGE_NAME_LOWERCASE }}:${{ steps.meta.outputs.version }}'
 
   ci-success:
-    name: Backend CI Success
+    name: CI Success
     needs: [check-paths, merge]
     if: always()
     runs-on: ubuntu-latest
