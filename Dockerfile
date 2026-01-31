@@ -1,7 +1,6 @@
-FROM rust:1-trixie AS chef
-RUN cargo install cargo-chef
+FROM lukemathwalker/cargo-chef:latest-rust-1 AS chef
 
-WORKDIR app
+WORKDIR /app
 
 FROM chef AS planner
 COPY . .
