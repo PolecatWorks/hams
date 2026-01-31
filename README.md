@@ -1,106 +1,212 @@
-# HaMS
-Health Monitoring System
+# HaMS: Health and Monitoring System
 
 [![Rust](https://github.com/PolecatWorks/hams/actions/workflows/rust.yml/badge.svg)](https://github.com/PolecatWorks/hams/actions/workflows/rust.yml)
 
-A library written in rust to implement kubernetes lifecycle interfaces. It is written as a shared object so that it can be utilised by many languages.
+HaMS is a health and monitoring library written in Rust. It is designed to implement Kubernetes lifecycle interfaces (Liveness/Readiness probes) and expose metrics.
 
-# Update Shared Object
+It is built as a shared object (`libhams.dylib` / `libhams.so`) so it can be utilized by multiple languages (C/C++, Python, Node.js, Java/Kotlin) via FFI.
 
-When you have created your shared object lib you may need to update it with rpath pattern to allow it to be used in a generic location (eg relative to the binary)
-Review here for a good rpath overview: https://itwenty.me/posts/01-understanding-rpath/
-This is the command for OSX
+## Project Structure
 
-    install_name_tool -id @rpath/../lib/libhams.dylib target/debug/libhams.dylib
+## Project Structure
 
-which will update the reference id to include an rpath (as shown)
+```mermaid
+graph TD
+    Client[External Client / Kubernetes]
 
-    otool -L target/debug/libhams.dylib
-    target/debug/libhams.dylib:
-        @rpath/../lib/libhams.dylib (compatibility version 0.0.0, current version 0.0.0)
-        /System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration (compatibility version 1.0.0, current version 1300.120.2)
-        /System/Library/Frameworks/Security.framework/Versions/A/Security (compatibility version 1.0.0, current version 61123.121.1)
-        /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation (compatibility version 150.0.0, current version 2503.1.0)
-        /usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
-        /usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1345.120.2)
+    subgraph Host_Process [Host Application Process]
+        HostApp[Host Application Code]
 
-Once you have completed the otool then copy the lib file to the target lib dir (inside sample-rust)
+        subgraph HaMS_Lib [HaMS Library]
+            FFI[FFI Interface]
+            Core[Core Logic]
+            WebServer[Embedded HTTP Server]
+            Probes[Probe Registry]
+        end
+    end
 
-  mkdir -p sample-rust/target/lib
-  cp target/debug/libhams.dylib sample-rust/target/lib
+    HostApp -->|Init & Register| FFI
+    FFI --> Core
+    Core --> Probes
+    Core --> WebServer
 
-Typical usages are:
-* Rust
-* Python
-* C/C++
-* Java/Kotlin
-* Node
+    Client -->|GET /alive| WebServer
+    Client -->|GET /metrics| WebServer
 
+    Probes -.->|Check Status| HostApp
+```
 
-# Test with Miri
+This repository consists of several key components:
 
-Run the command
+-   **`hams`**: The core library. It implements the health checks (alive/ready), web server, and FFI interface.
+-   **`hamsrs`**: A safe Rust wrapper around the `hams` FFI. Use this if you are integrating HaMS into a Rust application.
+-   **`ffi-log2`**: A utility library that enables the shared object to log via the host application's logger, ensuring unified logging.
+-   **`sample-rust`**: An example Rust application demonstrating how to use `hamsrs` and `ffi-log2`.
 
-    cargo watch -x 'miri test'
+## Usage (Rust)
 
-# Run and test
+To run the Rust sample application, which demonstrates a fully integrated HaMS service:
 
-Run the command
+```bash
+cargo watch -x "run -- --config sample-rust/test_data/config.yaml start"
+```
 
-    cargo watch -x "run -- --config sample-rust/test_data/config.yaml start"
+This starts the service with a configuration file that sets the web server prefix to `api`.
 
+## API Reference
 
+The HaMS web server exposes a lightweight HTTP server to provide health checks, readiness probes, version information, and metrics.
 
-# ToDo
+**Default Port**: `8080` (Configurable via `HamsConfig`)
 
-List of topics that need work
+### Health & Readiness
 
-* [x] Build core library as shared object
-  * [x] Logging over FFI
-  * [x] Web serving a health endopint
-  * [ ] Tests against webservice
-  * [x] Alive http check
-  * [x] Ready http check
-* [x] Validate CAPI calls to protect against stupid CAPI errors (null, etc)
-* [x] Wrap CAPI interface with rust interface and use of Result<>
-* [ ] Helm sample chart using APIs
-* [x] Rust bindings
-  * [x] Rust cli program to demonstrate usage
-* [x] Python bindings
-* [x] NodeJS bindings
-* [x] Java/Kotlin bindings
-  * [x] Consideration for future: https://openjdk.org/projects/panama/ and https://github.com/openjdk/jextract
-* [x] C/C++ bindings
-  * [x] Show usage of C logging from Rust SO
-* [x] Support for prometheus
-* [x] Shutdown sequences
-  * [*] Should Hams include shutdown or should that be provided ONLY by main loop. HaMS provides the signal handling and raises the shutdown_callback BUT it is up to the app on how to respond.
-  * [x] How to map a shutdown signal from HaMS to main loop to enable a shutdown API
-* [ ] Show an example with header propagation to follow on calls: https://istio.io/latest/docs/tasks/observability/distributed-tracing/overview/
-* [*] Create callback for health endpoint to indicate the service is to be shut down
-* [ ] Check and update the shutdown hook so that it completes the shutdown process before yeilding the shutdown http API
-* [*] Remove shutdown trigger on main thread and use ONLY the health thread as trigger for shutdowns via callback.
-  * Health can pickup signals and then make shutdown callback
-  * Health does not shutdown based on signals only on command from main thread
-  * [*] SIG interrupts are detected by hams but not acted upon.. Except to make call against shutdown callback.
-* [x] Create a rust lib to put nice Ergonomics around the rust FFI interface and expose as a library that is used by sample-rust or sample-rust2
+#### `GET /hams/alive`
+**Description**: Liveness probe. Checks if the service is running and all "alive" checks are passing.
+**Responses**:
+- `200 OK`: Service is healthy.
+- `503 Service Unavailable`: Service is unhealthy (one or more probes failed).
 
-# Useful Reference
-List of useful sites to review
-* https://rust-unofficial.github.io/patterns/intro.html
-* https://medium.com/dwelo-r-d/wrapping-unsafe-c-libraries-in-rust-d75aeb283c65
-*
+**Response Body (JSON)**:
+```json
+{
+  "name": "HamName",
+  "valid": true
+}
+```
 
-# Check Link Dependencies
-Check the link dependencies for a given binary ie dylib on osx or .so on linux
+#### `GET /hams/ready`
+**Description**: Readiness probe. Checks if the service is ready to accept traffic and all "ready" checks are passing.
+**Responses**:
+- `200 OK`: Service is ready.
+- `503 Service Unavailable`: Service is not ready.
 
-    otool -L <binary>
+**Response Body (JSON)**:
+```json
+{
+  "name": "HamName",
+  "valid": true
+}
+```
 
-# Autotools
+#### `GET /hams/alive_verbose` / `GET /hams/ready_verbose`
+**Description**: Detailed version of the probes, listing the status of each individual check.
+**Responses**: `200` or `503`.
 
-Build rust and other libraries and system install with autotools.
+**Response Body (JSON)**:
+```json
+{
+  "name": "HamName",
+  "valid": true,
+  "details": [
+    { "name": "database_connection", "valid": true },
+    { "name": "cache_warmup", "valid": false }
+  ]
+}
+```
 
-    autoconf
-    automake --force-missing --add-missing
-    ./configure
-    make
+### Lifecycle
+
+#### `GET /hams/version`
+**Description**: Returns version information for the service and the HaMS library itself.
+**Responses**:
+- `200 OK`
+
+**Response Body (JSON)**:
+```json
+{
+  "name": "Service Name",
+  "version": "1.0.0",
+  "hams_name": "HaMS",
+  "hams_version": "0.1.0"
+}
+```
+
+#### `POST /hams/shutdown`
+**Description**: Triggers the registered shutdown callback in the host application. Used for graceful shutdown requests.
+**Responses**:
+- `200 OK`: Shutdown signal received.
+- `500 Internal Server Error`: Failed to trigger shutdown.
+
+### Metrics
+
+#### `GET /hams/metrics`
+**Description**: Exposes metrics in Prometheus text format (or any format supported by the registered callback).
+**Responses**:
+- `200 OK`: Metrics retrieved successfully.
+- `500 Internal Server Error`: Accessing metrics failed (e.g., locking issue, callback implementation error).
+
+**Response Format**: `text/plain`
+
+## Error Handling
+
+The API returns appropriate HTTP status codes for various failure conditions:
+
+| Status Code | Reason | Description |
+| :--- | :--- | :--- |
+| `409 Conflict` | Already Running | The service or a component is already active. |
+| `503 Service Unavailable` | Cancelled | The operation was cancelled. |
+| `406 Not Acceptable` | Probe Not Good | The requested probe name is invalid. |
+| `500 Internal Server Error` | Callback Error | The external callback (FFI) failed. |
+| `500 Internal Server Error` | Join Error | Failed to join an internal thread. |
+| `500 Internal Server Error` | FFI Error | A low-level FFI error occurred (e.g., null pointer, buffer size). |
+
+## Integration Details
+
+### `hamsrs` (Rust Integration)
+
+`hamsrs` provides a high-level, safe Rust API.
+
+```rust
+use hamsrs::{Hams, ProbeManual};
+use hamsrs::hams::config::HamsConfig;
+
+// Initialize logging (bridges hams internal logs to your app's logger)
+hamsrs::hams_logger_init(ffi_log2::log_param()).unwrap();
+
+// Create probes
+let manual_probe = ProbeManual::new("manual_check", true).unwrap();
+
+// Create and start HaMS
+let config = HamsConfig::default();
+let hams = Hams::new(cancellation_token, &config).unwrap();
+
+// Register probes
+hams.alive_insert(manual_probe.clone()).expect("Failed to insert probe");
+
+hams.start().unwrap();
+```
+
+### Manual Build / C-API Usage
+
+If you are building the shared object directly for use in C/C++ or other languages without using Cargo's linking, you may need to adjust the `rpath` on macOS to ensure the library can be found relative to your binary.
+
+**macOS `rpath` Adjustment:**
+
+```bash
+# Update the ID to include an rpath
+install_name_tool -id @rpath/../lib/libhams.dylib target/debug/libhams.dylib
+
+# Verification
+otool -L target/debug/libhams.dylib
+```
+
+**Check Link Dependencies:**
+
+```bash
+otool -L <binary>
+```
+
+## Testing with Miri
+
+To run tests with Miri (Undefined Behavior detector):
+
+```bash
+cargo watch -x 'miri test'
+```
+
+## Useful References
+
+*   [Rust FFI Patterns](https://rust-unofficial.github.io/patterns/intro.html)
+*   [Understanding RPATH](https://itwenty.me/posts/01-understanding-rpath/)
+*   [Wrapping Unsafe C Libraries in Rust](https://medium.com/dwelo-r-d/wrapping-unsafe-c-libraries-in-rust-d75aeb283c65)

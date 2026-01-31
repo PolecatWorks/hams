@@ -109,11 +109,13 @@ pub fn main() -> ExitCode {
 
             let state_string = String::from("Hello from Rust PROMETHEUS");
 
-            hams.register_prometheus(
-                prometheus_response,
-                prometheus_response_free,
-                &state_string as *const String as *const c_void,
-            )
+            unsafe {
+                hams.register_prometheus(
+                    prometheus_response,
+                    prometheus_response_free,
+                    &state_string as *const String as *const c_void,
+                )
+            }
             .expect("register prometheus CBs");
 
             hams.alive_insert(probe0.clone())

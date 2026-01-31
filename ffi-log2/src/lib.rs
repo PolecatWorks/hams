@@ -60,7 +60,7 @@ impl RustStr {
 
 /// Provide an enum class for describing the type of logging to use
 #[repr(usize)]
-#[derive(Copy, Debug, Hash)]
+#[derive(Copy, Debug, Hash, PartialEq, Eq)]
 pub enum ExternCLevel {
     /// The "error" level.
     ///
@@ -88,15 +88,27 @@ pub enum ExternCLevel {
 }
 
 impl From<Level> for ExternCLevel {
-    fn from(_myvalue: Level) -> Self {
-        // TODO: Make correct transorm of enums
-        ExternCLevel::Info
+    // From Level (Rust) to ExternCLevel (FFI)
+    fn from(level: Level) -> Self {
+        match level {
+            Level::Error => ExternCLevel::Error,
+            Level::Warn => ExternCLevel::Warn,
+            Level::Info => ExternCLevel::Info,
+            Level::Debug => ExternCLevel::Debug,
+            Level::Trace => ExternCLevel::Trace,
+        }
     }
 }
 impl Into<Level> for ExternCLevel {
+    // From ExternCLevel (FFI) to Level (Rust)
     fn into(self) -> Level {
-        // TODO: Make correct transorm of enums
-        Level::Info
+        match self {
+            ExternCLevel::Error => Level::Error,
+            ExternCLevel::Warn => Level::Warn,
+            ExternCLevel::Info => Level::Info,
+            ExternCLevel::Debug => Level::Debug,
+            ExternCLevel::Trace => Level::Trace,
+        }
     }
 }
 impl Clone for ExternCLevel {
@@ -107,7 +119,7 @@ impl Clone for ExternCLevel {
 }
 
 #[repr(usize)]
-#[derive(Copy, Debug, Hash)]
+#[derive(Copy, Debug, Hash, PartialEq, Eq)]
 /// Describe the filtering level to apply
 pub enum ExternCLevelFilter {
     /// A level lower than all log levels.
@@ -125,15 +137,29 @@ pub enum ExternCLevelFilter {
 }
 
 impl From<LevelFilter> for ExternCLevelFilter {
-    fn from(_myvalue: LevelFilter) -> Self {
-        ExternCLevelFilter::Info
-        // TODO: Make correct transorm of enums
+    // From LevelFilter (Rust) to ExternCLevelFilter (FFI)
+    fn from(filter: LevelFilter) -> Self {
+        match filter {
+            LevelFilter::Off => ExternCLevelFilter::Off,
+            LevelFilter::Error => ExternCLevelFilter::Error,
+            LevelFilter::Warn => ExternCLevelFilter::Warn,
+            LevelFilter::Info => ExternCLevelFilter::Info,
+            LevelFilter::Debug => ExternCLevelFilter::Debug,
+            LevelFilter::Trace => ExternCLevelFilter::Trace,
+        }
     }
 }
 impl Into<LevelFilter> for ExternCLevelFilter {
+    // From ExternCLevelFilter (FFI) to LevelFilter (Rust)
     fn into(self) -> LevelFilter {
-        LevelFilter::Info
-        // TODO: Make correct transorm of enums
+        match self {
+            ExternCLevelFilter::Off => LevelFilter::Off,
+            ExternCLevelFilter::Error => LevelFilter::Error,
+            ExternCLevelFilter::Warn => LevelFilter::Warn,
+            ExternCLevelFilter::Info => LevelFilter::Info,
+            ExternCLevelFilter::Debug => LevelFilter::Debug,
+            ExternCLevelFilter::Trace => LevelFilter::Trace,
+        }
     }
 }
 impl Clone for ExternCLevelFilter {
@@ -378,5 +404,66 @@ pub fn log_param() -> LogParam {
         log,
         flush,
         level: log::max_level().into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use log::{Level, LevelFilter};
+
+    #[test]
+    fn test_level_conversion() {
+        assert_eq!(ExternCLevel::from(Level::Error), ExternCLevel::Error);
+        assert_eq!(ExternCLevel::from(Level::Warn), ExternCLevel::Warn);
+        assert_eq!(ExternCLevel::from(Level::Info), ExternCLevel::Info);
+        assert_eq!(ExternCLevel::from(Level::Debug), ExternCLevel::Debug);
+        assert_eq!(ExternCLevel::from(Level::Trace), ExternCLevel::Trace);
+
+        let level_error: Level = ExternCLevel::Error.into();
+        assert_eq!(level_error, Level::Error);
+
+        // Test round trip
+        assert_eq!(
+            Into::<Level>::into(ExternCLevel::from(Level::Warn)),
+            Level::Warn
+        );
+    }
+
+    #[test]
+    fn test_level_filter_conversion() {
+        assert_eq!(
+            ExternCLevelFilter::from(LevelFilter::Off),
+            ExternCLevelFilter::Off
+        );
+        assert_eq!(
+            ExternCLevelFilter::from(LevelFilter::Error),
+            ExternCLevelFilter::Error
+        );
+        assert_eq!(
+            ExternCLevelFilter::from(LevelFilter::Warn),
+            ExternCLevelFilter::Warn
+        );
+        assert_eq!(
+            ExternCLevelFilter::from(LevelFilter::Info),
+            ExternCLevelFilter::Info
+        );
+        assert_eq!(
+            ExternCLevelFilter::from(LevelFilter::Debug),
+            ExternCLevelFilter::Debug
+        );
+        assert_eq!(
+            ExternCLevelFilter::from(LevelFilter::Trace),
+            ExternCLevelFilter::Trace
+        );
+
+        let filter_off: LevelFilter = ExternCLevelFilter::Off.into();
+        assert_eq!(filter_off, LevelFilter::Off);
+
+        // Test round trip
+        assert_eq!(
+            Into::<LevelFilter>::into(ExternCLevelFilter::from(LevelFilter::Debug)),
+            LevelFilter::Debug
+        );
     }
 }

@@ -39,27 +39,73 @@ async fn handle_rejection(err: Rejection) -> std::result::Result<impl Reply, Inf
                 StatusCode::INTERNAL_SERVER_ERROR,
                 json(&"IO Error".to_string()),
             ),
-            HamsError::AlreadyRunning => todo!(),
-            HamsError::Cancelled => todo!(),
-            HamsError::CallbackError => todo!(),
-            HamsError::JoinError2 => todo!(),
-            HamsError::JoinError(_) => todo!(),
-            HamsError::NoThread => todo!(),
-            HamsError::NulError(_) => todo!(),
+            HamsError::AlreadyRunning => {
+                (StatusCode::CONFLICT, json(&"Already Running".to_string()))
+            }
+            HamsError::Cancelled => (
+                StatusCode::SERVICE_UNAVAILABLE,
+                json(&"Service Cancelled".to_string()),
+            ),
+            HamsError::CallbackError => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&"Callback Error".to_string()),
+            ),
+            HamsError::JoinError2 => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&"Thread Join Error".to_string()),
+            ),
+            HamsError::JoinError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("Join Error: {e:?}")),
+            ),
+            HamsError::NoThread => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&"No Service Thread".to_string()),
+            ),
+            HamsError::NulError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("Nul Error: {e}")),
+            ),
             HamsError::ProbeNotGood(probename) => (StatusCode::NOT_ACCEPTABLE, json(probename)),
-            HamsError::PreflightCheck => todo!(),
-            HamsError::ShutdownCheck => todo!(),
-            HamsError::CStringToString(_) => todo!(),
-            HamsError::TryFromIntError(_) => todo!(),
-            HamsError::SystemTimeError(_) => todo!(),
-            HamsError::FFIError(_msg) => todo!(),
-            HamsError::Utf8Error(_) => todo!(),
-            HamsError::FFIErrorBufferNotBigEnough => todo!(),
-            HamsError::NotError(_) => todo!(),
-            // Add match arms for the remaining error variants here
+            HamsError::PreflightCheck => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&"Preflight Check Failed".to_string()),
+            ),
+            HamsError::ShutdownCheck => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&"Shutdown Check Failed".to_string()),
+            ),
+            HamsError::CStringToString(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("CString Conversion Error: {e:?}")),
+            ),
+            HamsError::TryFromIntError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("Integer Conversion Error: {e}")),
+            ),
+            HamsError::SystemTimeError(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("System Time Error: {e}")),
+            ),
+            HamsError::FFIError(msg) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("FFI Error: {msg}")),
+            ),
+            HamsError::Utf8Error(e) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("UTF8 Error: {e}")),
+            ),
+            HamsError::FFIErrorBufferNotBigEnough => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&"FFI Buffer Too Small".to_string()),
+            ),
+            HamsError::NotError(i) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json(&format!("Unknown Error Code: {i}")),
+            ),
         }
     } else {
-        eprintln!("unhandled error: {:?}", err);
+        eprintln!("unhandled error: {err:?}");
         (
             StatusCode::INTERNAL_SERVER_ERROR,
             json(&"Internal Server Error".to_string()),
@@ -156,8 +202,14 @@ mod handlers {
 
     /// Handler for shutdown endpoint
     pub async fn shutdown_handler(hams: Hams) -> Result<impl warp::Reply, Rejection> {
-        // TODO: Call shutdown
-        // Hams::tigger_callback(hams.shutdown_cb.clone());
+        {
+            let cb_lock = hams
+                .shutdown_cb
+                .lock()
+                .map_err(|_e| warp::reject::custom(HamsError::PoisonError))?;
+
+            Hams::call_shutdown_callback(cb_lock.as_ref()).map_err(warp::reject::custom)?;
+        }
 
         version(hams).await
     }
@@ -207,7 +259,10 @@ mod handlers {
                 let c_string = (cb.my_cb)(cb.state);
 
                 let c_string_2 = unsafe { CStr::from_ptr(c_string) };
-                let metric_response = c_string_2.to_str().unwrap().to_string();
+                let metric_response = c_string_2
+                    .to_str()
+                    .map_err(|e| warp::reject::custom(HamsError::Utf8Error(e)))?
+                    .to_string();
 
                 (cb.my_cb_free)(c_string);
 

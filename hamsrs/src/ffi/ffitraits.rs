@@ -9,7 +9,7 @@ pub trait HealthProbe: Sync + Send {
     /// Name of the probe. Created as a c_str and converted to a raw pointer
     /// to be used in FFI.
     /// Received owns the pointer and is responsible for freeing it.
-    fn name(&self) -> *mut c_char;
+    fn name(&self) -> *const c_char;
     /// Check the health of the probe
     /// Returns 1 if the probe is healthy, 0 otherwise
     /// Returns -1 if an error occurred

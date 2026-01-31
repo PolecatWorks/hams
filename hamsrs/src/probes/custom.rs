@@ -15,13 +15,13 @@ use super::Probe;
 
 #[derive(Clone)]
 pub struct ProbeCustom {
-    name: String,
+    name: CString,
     valid: Arc<AtomicBool>,
 }
 
 impl HealthProbe for ProbeCustom {
-    fn name(&self) -> *mut c_char {
-        CString::new(self.name.clone()).unwrap().into_raw()
+    fn name(&self) -> *const c_char {
+        self.name.as_ptr()
     }
 
     fn check(&self, _time: time_t) -> i32 {
@@ -34,9 +34,7 @@ impl Probe for ProbeCustom {
         let probe = BoxedHealthProbe::new(self.clone());
 
         println!("ProbeCustom::boxed: {:?}", probe.name());
-        let pname = unsafe { CString::from_raw(probe.name()) }
-            .into_string()
-            .unwrap();
+        let pname = unsafe { std::ffi::CStr::from_ptr(probe.name()) }.to_string_lossy();
         println!("THIS IS THE BOXED PROBE: {:?}", pname);
 
         Ok(probe)
@@ -53,9 +51,9 @@ impl ProbeCustom {
         S: std::fmt::Display,
     {
         info!("New CustomHealthProbe: {}", &name);
-
+        let c_name = CString::new(name.into()).unwrap();
         Ok(Self {
-            name: name.into(),
+            name: c_name,
             valid: Arc::new(AtomicBool::new(valid)),
             // inner: Arc::new(ProbeCustomInner::new(name, valid)?),
         })
@@ -98,8 +96,8 @@ mod tests {
     fn test_custom_probe() {
         let mut probe = ProbeCustom::new("test", true).unwrap();
         assert_eq!(
-            unsafe { CString::from_raw(probe.name()) }
-                .into_string()
+            unsafe { std::ffi::CStr::from_ptr(probe.name()) }
+                .to_str()
                 .unwrap(),
             "test"
         );

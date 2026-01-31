@@ -16,10 +16,6 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 /// Version of the Crate
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-pub fn hello_world() {
-    unsafe { ffi::hello_world() }
-}
-
 pub fn hams_version() -> String {
     let c_str = unsafe { ffi::hams_version() };
     let r_str = unsafe { CStr::from_ptr(c_str) };

@@ -3,7 +3,7 @@
 //! Provide a FFI interface to health utility funcitons
 
 pub mod error;
-mod hams;
+pub mod hams;
 mod preflight;
 /// This module provides the health probes
 pub mod probe;
@@ -35,49 +35,10 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 /// Version of the Crate
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Fill this out
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_world() {
-    println!("HOWDY World");
-    println!("Hello I am {}:{}", NAME, VERSION);
-}
-
-/// Fill this out
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_node() -> c_int {
-    println!("HOWDY Node");
-    println!("Hello I am {}:{}", NAME, VERSION);
-    7
-}
-
-/// Fill this out
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_callback(my_cb: extern "C" fn()) {
-    println!("HOWDY callback");
-    my_cb();
-    my_cb();
-    my_cb();
-    my_cb();
-}
-
-/// C function to take two functions as callbacks.
-/// The first function returns a c string the second frees the c string
-#[unsafe(no_mangle)]
-pub extern "C" fn hello_callback2(
-    my_cb: extern "C" fn() -> *const libc::c_char,
-    my_cb_free: extern "C" fn(*const libc::c_char),
-) {
-    println!("HOWDY callback2");
-    let c_string = my_cb();
-    let c_string = unsafe { CStr::from_ptr(c_string) };
-    println!("C string: {:?}", c_string);
-    my_cb_free(c_string.as_ptr());
-}
-
 /// Return the version of the library
 #[unsafe(no_mangle)]
 pub extern "C" fn hams_version() -> *const libc::c_char {
-    let version = format!("{}:{}", NAME, VERSION);
+    let version = format!("{NAME}:{VERSION}");
     let c_version = std::ffi::CString::new(version).unwrap();
     c_version.into_raw()
 }
@@ -189,7 +150,7 @@ pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
 /// This will register the prometheus callback with the HaMS object
 /// ```rust
 /// use libc;
-/// use self::{hams_new,hams_register_prometheus};
+/// use hams::{hams_new,hams_register_prometheus};
 ///
 /// // Define the callback function
 /// extern "C" fn prometheus_callback(state: *const libc::c_void) -> *mut libc::c_char {
@@ -209,7 +170,9 @@ pub unsafe extern "C" fn hams_free(ptr: *mut Hams) -> i32 {
 ///
 /// // Create a HaMS object
 /// let name = std::ffi::CString::new("MyHaMS").unwrap();
-/// let hams = unsafe { hams_new(name.as_ptr()) };
+/// let version = std::ffi::CString::new("0.0.1").unwrap();
+/// let address = std::ffi::CString::new("127.0.0.1:0").unwrap();
+/// let hams = unsafe { hams_new(name.as_ptr(), version.as_ptr(), address.as_ptr(), true) };
 ///
 /// // Register the prometheus callback
 /// let result = unsafe {
@@ -357,7 +320,7 @@ pub unsafe extern "C" fn hams_alive_insert(
         // Take ownership of the probe
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Adding alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Adding alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
         // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
@@ -387,7 +350,7 @@ pub unsafe extern "C" fn hams_alive_remove(
         // Take ownership of the probe
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Removing alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Removing alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
         match AssertUnwindSafe(hams).alive_remove(&ffi_probe) {
@@ -416,8 +379,8 @@ pub unsafe extern "C" fn hams_ready_insert(
           // Take ownership of the probe
           let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-          info!("Adding alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
-          println!("Adding alive probe: {:?}", CString::from_raw(probe.name()).into_string().unwrap());
+          info!("Adding alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
+          println!("Adding alive probe: {:?}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
           // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
           let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
@@ -447,7 +410,7 @@ pub unsafe extern "C" fn hams_ready_remove(
         // Take ownership of the probe
         let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
-        info!("Removing alive probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Removing alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
 
         let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
         match AssertUnwindSafe(hams).ready_remove(&ffi_probe) {
@@ -511,7 +474,7 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        info!("Releasing manual probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Releasing manual probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
         Ok(1)
     )
@@ -549,7 +512,7 @@ pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
     catch_panic!(
         let probe = Box::from_raw(ptr);
 
-        info!("Releasing probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Releasing probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
         Ok(1)
     )
@@ -655,7 +618,7 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
         // let name = &probe.name();
 
         // let name = CString::from_raw(probe.name());
-        info!("Releasing kick probe: {}", CString::from_raw(probe.name()).into_string().unwrap());
+        info!("Releasing kick probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
         Ok(1)
     )
