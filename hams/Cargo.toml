@@ -27,7 +27,7 @@ aquamarine = { version =  "~0.6" }
 thin_trait_object = { version = "~1.1" }
 thiserror = "~2.0"
 url = { version = "2", features = ["serde"] }
-reqwest = { version = "^0.13", default-features = false, features = ["json"] }
+reqwest = { version = "^0.12", default-features = false, features = ["json", "blocking"] }
 
 # Remove async-trait when rust supports dynamic dispatch in async Traits: https://blog.rust-lang.org/2023/12/21/async-fn-rpit-in-traits.html
 async-trait = "~0.1"
