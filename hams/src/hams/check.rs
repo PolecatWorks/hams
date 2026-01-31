@@ -23,7 +23,7 @@ impl warp::Reply for HealthCheckResult {
             if self.valid {
                 warp::http::StatusCode::OK
             } else {
-                warp::http::StatusCode::NOT_ACCEPTABLE
+                warp::http::StatusCode::SERVICE_UNAVAILABLE
             },
         )
         .into_response()
