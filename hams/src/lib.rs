@@ -18,7 +18,7 @@ use self::hams::Hams;
 use error::{FFIEnum, HamsError};
 use ffi_helpers::catch_panic;
 use ffi_log2::{LogParam, logger_init};
-use hams::config::HamsConfig;
+use hams::config::{HamsConfig, TaskConfig};
 use libc::{c_int, c_void};
 use log::{error, info};
 use probe::ffitraits::BoxedHealthProbe;
@@ -28,6 +28,7 @@ use probe::manual::Manual;
 use std::ffi::{CStr, CString};
 use std::panic::AssertUnwindSafe;
 use std::process;
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Name of the Crate
@@ -490,6 +491,100 @@ pub unsafe extern "C" fn hams_startup_remove(
         }
     )
 }
+
+/// # Safety
+/// Insert a task into the startup list
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hams_startup_task_insert(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+    retries: u32,
+    sleep_ms: u64,
+    timeout_ms: u64,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+
+    catch_panic!(
+        // Take ownership of the probe
+        let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut ()) };
+
+        info!(
+            "Adding startup task: {}",
+            unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy()
+        );
+
+        // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
+        let ffi_probe = Arc::new(FFIProbe::from(probe)) as Arc<dyn AsyncHealthProbe>;
+
+        let config = TaskConfig {
+            retries,
+            sleep_ms,
+            timeout_ms,
+        };
+
+        AssertUnwindSafe(hams).startup_task_insert(ffi_probe, config);
+        Ok(1)
+    )
+}
+
+/// # Safety
+/// Insert a task into the shutdown list
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hams_shutdown_task_insert(
+    ptr: *mut Hams,
+    probe: *mut BoxedHealthProbe<'static>,
+    retries: u32,
+    sleep_ms: u64,
+    timeout_ms: u64,
+) -> i32 {
+    ffi_helpers::null_pointer_check!(ptr);
+    ffi_helpers::null_pointer_check!(probe);
+
+    let hams = AssertUnwindSafe(unsafe { &mut *ptr });
+
+    catch_panic!(
+        // Take ownership of the probe
+        let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut ()) };
+
+        info!(
+            "Adding shutdown task: {}",
+            unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy()
+        );
+
+        let ffi_probe = Arc::new(FFIProbe::from(probe)) as Arc<dyn AsyncHealthProbe>;
+
+        let config = TaskConfig {
+            retries,
+            sleep_ms,
+            timeout_ms,
+        };
+
+        AssertUnwindSafe(hams).shutdown_task_insert(ffi_probe, config);
+        Ok(1)
+    )
+}
+
+/// # Safety
+/// Check the alive probe to see if it is still alive
+/// TODO: This will require to store the runtime and block on teh thred while we execute on the async runtime
+// #[no_mangle]
+// pub unsafe extern "C" fn hams_alive_check(ptr: *mut Hams) -> i32 {
+//     ffi_helpers::null_pointer_check!(ptr, -1);
+
+//     let now = Instant::now();
+//     catch_panic!(
+//         let hams = unsafe {&mut *ptr};
+
+//         if hams.alive.check(now).await.valid {
+//             Ok(1)
+//         } else {
+//             Ok(0)
+//         }
+//     )
+// }
 
 /// Return a manual health probe
 ///   We must return a ManualHealthProbe so that we can call set/enable etc. Later we box it for poly use
@@ -1147,5 +1242,39 @@ mod tests {
 
         let retval = unsafe { hams_deregister_shutdown(my_hams) };
         assert_eq!(retval, FFIEnum::Success as i32);
+    }
+
+    // Test startup task insert
+    #[test]
+    fn test_startup_task_insert() {
+        use crate::probe::http::{probe_http_boxed, probe_http_free, probe_http_new};
+
+        let c_library_name = std::ffi::CString::new("name").unwrap();
+        let c_library_version = std::ffi::CString::new("0.0.0").unwrap();
+        let c_address = std::ffi::CString::new("0.0.0.0:8075").unwrap();
+        let c_logging = true;
+
+        let my_hams = unsafe {
+            hams_new(
+                c_library_name.as_ptr(),
+                c_library_version.as_ptr(),
+                c_address.as_ptr(),
+                c_logging,
+            )
+        };
+
+        let c_probe_name = std::ffi::CString::new("http_probe").unwrap();
+        let c_url = std::ffi::CString::new("http://example.com").unwrap();
+        let http_probe =
+            unsafe { probe_http_new(c_probe_name.as_ptr(), c_url.as_ptr(), std::ptr::null(), 0) };
+
+        // probe_http_boxed returns a new BoxedHealthProbe (cloned internally)
+        let boxed_probe = unsafe { probe_http_boxed(http_probe) };
+
+        let retval = unsafe { hams_startup_task_insert(my_hams, boxed_probe, 3, 100, 1000) };
+        assert_eq!(retval, 1);
+
+        unsafe { probe_http_free(http_probe) };
+        unsafe { hams_free(my_hams) };
     }
 }

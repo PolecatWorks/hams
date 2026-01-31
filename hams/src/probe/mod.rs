@@ -15,6 +15,10 @@ pub(crate) mod ffitraits;
 pub mod kick;
 /// This module contains the manual probe
 pub mod manual;
+/// This module contains the http probe
+pub mod http;
+/// This module contains the dns probe
+pub mod dns;
 
 /// Detail structure for replies from ready and alive for a single probe
 #[derive(Serialize, PartialEq, Clone)]
@@ -38,7 +42,7 @@ impl Display for HealthProbeResult {
 }
 
 #[async_trait]
-pub(crate) trait AsyncHealthProbe: Debug + Sync + Send {
+pub trait AsyncHealthProbe: Debug + Sync + Send {
     // pub(crate) trait AsyncHealthProbe: Debug + Sync + Send + Eq + Hash {
     fn name(&self) -> Result<String, HamsError>;
 
@@ -64,7 +68,7 @@ impl Eq for dyn AsyncHealthProbe {}
 /// This stuct includes a BoxedHealthProbe for the FFI probe
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub struct FFIProbe {
-    probe: BoxedHealthProbe<'static>,
+    probe: std::sync::Arc<BoxedHealthProbe<'static>>,
 }
 
 impl<T> From<T> for FFIProbe
@@ -73,7 +77,7 @@ where
 {
     fn from(probe: T) -> Self {
         FFIProbe {
-            probe: BoxedHealthProbe::new(probe),
+            probe: std::sync::Arc::new(BoxedHealthProbe::new(probe)),
         }
     }
 }
@@ -92,7 +96,11 @@ impl AsyncHealthProbe for FFIProbe {
             .as_secs()
             .try_into()?;
 
-        let check_reply = self.probe.check(epoch_secs);
+        let probe = self.probe.clone();
+        let check_reply = tokio::task::spawn_blocking(move || probe.check(epoch_secs))
+            .await
+            .map_err(|e| HamsError::JoinError(e.into()))?;
+
         match check_reply {
             1 => Ok(true),
             0 => Ok(false),
@@ -216,35 +224,8 @@ mod tests {
         }
     }
 
-    #[derive(Debug, PartialEq, Eq, Hash)]
-    struct FFIProbe {
-        probe: BoxedHealthProbe<'static>,
-    }
-
-    #[async_trait]
-    impl AsyncHealthProbe for FFIProbe {
-        fn name(&self) -> Result<String, HamsError> {
-            Ok(unsafe { std::ffi::CStr::from_ptr(self.probe.name()) }
-                .to_str()?
-                .to_string())
-        }
-
-        async fn check(&self, time: SystemTime) -> Result<bool, HamsError> {
-            let epoch_secs = time
-                .duration_since(SystemTime::UNIX_EPOCH)?
-                .as_secs()
-                .try_into()?;
-            let reply = self.probe.check(epoch_secs);
-
-            if reply == 1 {
-                Ok(true)
-            } else if reply == 0 {
-                Ok(false)
-            } else {
-                Err(HamsError::Message("Error in check probe".to_string()))
-            }
-        }
-    }
+    // Re-use FFIProbe definition from super instead of redefining it incorrectly (without Arc)
+    use super::FFIProbe;
 
     /// Confirm check and name work for AsyncHealthProbe
     #[tokio::test]
@@ -270,13 +251,11 @@ mod tests {
             name: "test1".to_string(),
             check: false,
         };
-        let probe2 = FFIProbe {
-            probe: BoxedHealthProbe::new(Probe0 {
-                name: "test2".to_string(),
-                c_name: CString::new("test2").unwrap(),
-                check: true,
-            }),
-        };
+        let probe2 = FFIProbe::from(Probe0 {
+            name: "test2".to_string(),
+            c_name: CString::new("test2").unwrap(),
+            check: true,
+        });
 
         let probes: Vec<Box<dyn AsyncHealthProbe>> =
             vec![Box::new(probe0), Box::new(probe1), Box::new(probe2)];

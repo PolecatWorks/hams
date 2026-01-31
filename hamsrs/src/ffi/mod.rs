@@ -30,6 +30,18 @@ pub struct KickProbe {
     _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
 }
 
+#[repr(C)]
+pub struct HttpProbe {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
+#[repr(C)]
+pub struct DnsProbe {
+    _data: [u8; 0],
+    _marker: core::marker::PhantomData<(*mut u8, core::marker::PhantomPinned)>,
+}
+
 /// Opaque object representing HaMS Probe objects.
 /// Low level API access to the CAPI
 // #[repr(C)]
@@ -68,6 +80,21 @@ unsafe extern "C" {
     pub fn hams_ready_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
     pub fn hams_startup_insert(hams: *mut Hams, probe: *mut BProbe) -> i32;
     pub fn hams_startup_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
+    pub fn hams_startup_task_insert(
+        hams: *mut Hams,
+        probe: *mut BProbe,
+        retries: u32,
+        sleep_ms: u64,
+        timeout_ms: u64,
+    ) -> i32;
+    pub fn hams_shutdown_task_insert(
+        hams: *mut Hams,
+        probe: *mut BProbe,
+        retries: u32,
+        sleep_ms: u64,
+        timeout_ms: u64,
+    ) -> i32;
+
     pub fn hams_register_prometheus(
         hams: *mut Hams,
         my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,
@@ -91,6 +118,19 @@ unsafe extern "C" {
     pub fn probe_kick_free(probe: *mut KickProbe) -> i32;
     pub fn probe_kick_boxed(probe: *mut KickProbe) -> *mut BProbe;
     pub fn probe_kick_kick(probe: *mut KickProbe) -> i32;
+
+    pub fn probe_http_new(
+        name: *const libc::c_char,
+        url: *const libc::c_char,
+        codes: *const u16,
+        codes_len: usize,
+    ) -> *mut HttpProbe;
+    pub fn probe_http_free(probe: *mut HttpProbe) -> i32;
+    pub fn probe_http_boxed(probe: *mut HttpProbe) -> *mut BProbe;
+
+    pub fn probe_dns_new(name: *const libc::c_char, host: *const libc::c_char) -> *mut DnsProbe;
+    pub fn probe_dns_free(probe: *mut DnsProbe) -> i32;
+    pub fn probe_dns_boxed(probe: *mut DnsProbe) -> *mut BProbe;
 
     pub fn probe_free(probe: *mut BProbe) -> i32;
 }

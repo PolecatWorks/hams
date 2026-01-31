@@ -6,15 +6,17 @@ use std::{
     net::SocketAddr,
     sync::{Arc, Mutex},
     thread::{self, JoinHandle},
+    time::SystemTime,
 };
 
 use crate::{
     error::HamsError, hams::check::HealthCheck, probe::AsyncHealthProbe, tokio_tools::run_in_tokio,
 };
 
-use config::HamsConfig;
+use config::{HamsConfig, TaskConfig};
+use futures::future::join_all;
 use libc::c_void;
-use log::info;
+use log::{error, info};
 use tokio::signal::unix::signal;
 
 use tokio::signal::unix::SignalKind;
@@ -63,6 +65,10 @@ pub struct Hams {
     pub ready: HealthCheck,
     pub startup: HealthCheck,
 
+    // Configurable startup and shutdown tasks
+    pub startup_tasks: Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
+    pub shutdown_tasks: Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
+
     /// Token to cancel the service
     cancellation_token: CancellationToken,
 
@@ -73,8 +79,6 @@ pub struct Hams {
 
     /// Callback to be called on prometheus
     pub(crate) prometheus_cb: Arc<Mutex<Option<PrometheusCallback>>>,
-    // /// Tokio runtime
-    // pub(crate) rt: Arc<Mutex<Option<tokio::runtime::Runtime>>>,
 }
 
 impl Hams {
@@ -104,10 +108,12 @@ impl Hams {
             alive: HealthCheck::new("alive"),
             ready: HealthCheck::new("ready"),
             startup: HealthCheck::new("startup"),
+
+            startup_tasks: Arc::new(Mutex::new(Vec::new())),
+            shutdown_tasks: Arc::new(Mutex::new(Vec::new())),
+
             shutdown_cb: Arc::new(Mutex::new(None)),
-            // prometheus_cb: None,
             prometheus_cb: Arc::new(Mutex::new(None)),
-            // rt: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -137,7 +143,6 @@ impl Hams {
     ) -> Result<(), HamsError> {
         info!("Add prometheus to {}", self.name);
 
-        // self.prometheus_cb = Some(PrometheusCallback { my_cb, my_cb_free, state });
         *self.prometheus_cb.lock()? = Some(PrometheusCallback {
             my_cb,
             my_cb_free,
@@ -150,9 +155,16 @@ impl Hams {
     pub fn deregister_prometheus(&mut self) -> Result<(), HamsError> {
         info!("Remove prometheus from {}", self.name);
 
-        // self.prometheus_cb = None;
         *self.prometheus_cb.lock()? = None;
         Ok(())
+    }
+
+    pub fn startup_task_insert(&mut self, probe: Arc<dyn AsyncHealthProbe>, config: TaskConfig) {
+        self.startup_tasks.lock().unwrap().push((probe, config));
+    }
+
+    pub fn shutdown_task_insert(&mut self, probe: Arc<dyn AsyncHealthProbe>, config: TaskConfig) {
+        self.shutdown_tasks.lock().unwrap().push((probe, config));
     }
 
     pub fn start(&mut self) -> Result<(), HamsError> {
@@ -235,8 +247,89 @@ impl Hams {
         self.startup.remove(probe)
     }
 
+    async fn run_tasks(
+        &self,
+        tasks_mutex: &Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
+        phase: &str,
+    ) -> Result<(), HamsError> {
+        let tasks = tasks_mutex.lock().unwrap();
+
+        if tasks.is_empty() {
+            return Ok(());
+        }
+
+        info!("Running {} {} tasks", tasks.len(), phase);
+
+        let mut futures = Vec::new();
+
+        for (probe, config) in tasks.iter() {
+            let probe = probe.clone();
+            let config = *config;
+            let phase = phase.to_string();
+
+            futures.push(tokio::spawn(async move {
+                let mut attempts = 0;
+                let timeout_duration = std::time::Duration::from_millis(config.timeout_ms);
+
+                loop {
+                    attempts += 1;
+
+                    let check_future = probe.check(SystemTime::now());
+                    let result = tokio::time::timeout(timeout_duration, check_future).await;
+
+                    let success = match result {
+                        Ok(Ok(true)) => true,
+                        Ok(Ok(false)) => false,
+                        Ok(Err(_)) => false,
+                        Err(_) => false, // Timeout
+                    };
+
+                    if success {
+                        info!(
+                            "Task {}/{} succeeded",
+                            phase,
+                            probe.name().unwrap_or_default()
+                        );
+                        return Ok(());
+                    } else {
+                        if attempts >= config.retries {
+                            error!(
+                                "Task {}/{} failed after {} attempts",
+                                phase,
+                                probe.name().unwrap_or_default(),
+                                attempts
+                            );
+                            return Err(HamsError::Message(format!(
+                                "Task {} failed",
+                                probe.name().unwrap_or_default()
+                            )));
+                        }
+                        tokio::time::sleep(std::time::Duration::from_millis(config.sleep_ms)).await;
+                    }
+                }
+            }));
+        }
+
+        drop(tasks);
+
+        let results = join_all(futures).await;
+
+        for res in results {
+            match res {
+                Ok(Ok(())) => continue,
+                Ok(Err(e)) => return Err(e),
+                Err(e) => return Err(HamsError::JoinError(e.into())),
+            }
+        }
+
+        info!("All {} tasks completed successfully", phase);
+        Ok(())
+    }
+
     async fn start_async(&mut self, ct: CancellationToken) -> Result<(), HamsError> {
         info!("Starting ASYNC");
+
+        self.run_tasks(&self.startup_tasks, "Startup").await?;
 
         // Put code here to spawn the service parts (ie hams service)
         // for each service get a channel to allow us to shut it down
@@ -280,6 +373,8 @@ impl Hams {
         ct.cancel();
 
         Hams::call_shutdown_callback(my_shutdown_cb.lock()?.as_ref())?;
+
+        self.run_tasks(&self.shutdown_tasks, "Shutdown").await?;
 
         info!("start_async is now complete for HaMS {}", self.name);
         Ok(())

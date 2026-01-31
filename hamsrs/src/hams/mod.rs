@@ -267,6 +267,56 @@ impl Hams {
         Ok(())
     }
 
+    /// Insert a task into the startup tasks
+    ///
+    /// This will insert a task into the startup tasks
+    pub fn startup_task_insert<T: Probe>(
+        &self,
+        probe: T,
+        retries: u32,
+        sleep_ms: u64,
+        timeout_ms: u64,
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
+            as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
+
+        let retval = unsafe {
+            ffi::hams_startup_task_insert(self.c, probe_c, retries, sleep_ms, timeout_ms)
+        };
+
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to insert task into startup tasks".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Insert a task into the shutdown tasks
+    ///
+    /// This will insert a task into the shutdown tasks
+    pub fn shutdown_task_insert<T: Probe>(
+        &self,
+        probe: T,
+        retries: u32,
+        sleep_ms: u64,
+        timeout_ms: u64,
+    ) -> Result<(), crate::hamserror::HamsError> {
+        let probe_c = BoxedHealthProbe::into_raw(probe.boxed()?)
+            as *mut ffi::ffitraits::BoxedHealthProbe<'static>;
+
+        let retval = unsafe {
+            ffi::hams_shutdown_task_insert(self.c, probe_c, retries, sleep_ms, timeout_ms)
+        };
+
+        if retval == 0 {
+            return Err(crate::hamserror::HamsError::Message(
+                "Failed to insert task into shutdown tasks".to_string(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Insert a probe into the startup checks
     ///
     /// This will insert a probe into the startup checks
