@@ -66,6 +66,8 @@ unsafe extern "C" {
     pub fn hams_alive_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
     pub fn hams_ready_insert(hams: *mut Hams, probe: *mut BProbe) -> i32;
     pub fn hams_ready_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
+    pub fn hams_startup_insert(hams: *mut Hams, probe: *mut BProbe) -> i32;
+    pub fn hams_startup_remove(hams: *mut Hams, probe: *mut BProbe) -> i32;
     pub fn hams_register_prometheus(
         hams: *mut Hams,
         my_cb: extern "C" fn(state: *const c_void) -> *const libc::c_char,

@@ -138,6 +138,14 @@ pub fn hams_service(
         .and(with_healthcheck(hams.ready.clone()))
         .and_then(handlers::check_verbose_handler);
 
+    let startup = warp::path("startup")
+        .and(with_healthcheck(hams.startup.clone()))
+        .and_then(handlers::check_handler);
+
+    let startup_verbose = warp::path("startup_verbose")
+        .and(with_healthcheck(hams.startup.clone()))
+        .and_then(handlers::check_verbose_handler);
+
     let version = warp::path("version")
         .and(warp::get())
         .and(with_hams(hams.clone()))
@@ -155,6 +163,8 @@ pub fn hams_service(
             .or(ready)
             .or(alive_verbose)
             .or(ready_verbose)
+            .or(startup)
+            .or(startup_verbose)
             .or(metrics)
             .recover(handle_rejection),
     )
@@ -363,6 +373,21 @@ mod handlers {
             let reply = warp::test::request()
                 .method("GET")
                 .path("/hams/ready")
+                .reply(&api)
+                .await;
+
+            assert_eq!(reply.status(), StatusCode::OK);
+        }
+
+        #[tokio::test]
+        #[cfg_attr(miri, ignore)]
+        async fn test_startup() {
+            let hams = Hams::new(HamsConfig::default());
+            let api = hams_service(hams);
+
+            let reply = warp::test::request()
+                .method("GET")
+                .path("/hams/startup")
                 .reply(&api)
                 .await;
 

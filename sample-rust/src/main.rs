@@ -125,6 +125,9 @@ pub fn main() -> ExitCode {
             hams.alive_insert(probe1.clone())
                 .expect("insert probe1 into alive");
 
+            hams.startup_insert(probe0.clone())
+                .expect("insert probe0 into startup");
+
             info!("HaMS Created, now starting it");
 
             hams.start().unwrap();
@@ -141,7 +144,11 @@ pub fn main() -> ExitCode {
 
             run_client_test().expect("run client test");
 
-            thread::sleep(Duration::from_secs(10));
+            info!("HaMS Started, running until cancellation");
+
+            while !ct.is_cancelled() {
+                thread::sleep(Duration::from_millis(100));
+            }
 
             hams.stop().unwrap();
 
