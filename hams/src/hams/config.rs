@@ -26,6 +26,23 @@ impl Default for HamsConfig {
     }
 }
 
+#[derive(Debug, Clone, Copy, Deserialize)]
+pub struct TaskConfig {
+    pub retries: u32,
+    pub sleep_ms: u64,
+    pub timeout_ms: u64,
+}
+
+impl Default for TaskConfig {
+    fn default() -> Self {
+        Self {
+            retries: 3,
+            sleep_ms: 1000,
+            timeout_ms: 5000,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

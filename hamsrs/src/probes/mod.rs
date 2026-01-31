@@ -1,9 +1,13 @@
 mod custom;
 mod kick;
 mod manual;
+mod http;
+mod dns;
 
 pub use kick::ProbeKick;
 pub use manual::ProbeManual;
+pub use http::ProbeHttp;
+pub use dns::ProbeDns;
 
 use crate::{ffi, hamserror::HamsError};
 
