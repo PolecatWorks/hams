@@ -1,9 +1,9 @@
-use libc::{c_int, time_t, c_char};
-use std::ffi::{CString, CStr};
+use libc::{c_char, c_int, time_t};
+use std::ffi::{CStr, CString};
 use std::net::ToSocketAddrs;
 
-use crate::error::HamsError;
 use super::{BoxedHealthProbe, HealthProbe};
+use crate::error::HamsError;
 
 #[derive(Debug, Clone)]
 pub struct DnsProbe {
@@ -52,10 +52,7 @@ use ffi_helpers::catch_panic;
 use log::info;
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn probe_dns_new(
-    name: *const c_char,
-    host: *const c_char,
-) -> *mut DnsProbe {
+pub unsafe extern "C" fn probe_dns_new(name: *const c_char, host: *const c_char) -> *mut DnsProbe {
     ffi_helpers::null_pointer_check!(name);
     ffi_helpers::null_pointer_check!(host);
 

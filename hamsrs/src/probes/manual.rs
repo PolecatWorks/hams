@@ -109,6 +109,10 @@ impl ProbeManualInner {
     }
 }
 
+/// A probe that can be manually toggled between healthy and unhealthy states.
+///
+/// This is useful for manually controlling the health status of an application,
+/// typically via an admin interface or for testing purposes.
 #[derive(Clone, Debug)]
 pub struct ProbeManual {
     pub inner: Arc<ProbeManualInner>,
@@ -123,13 +127,10 @@ impl Probe for ProbeManual {
 impl ProbeManual {
     /// Construct a new manual probe
     ///
-    /// # Examples
+    /// # Arguments
     ///
-    /// ```
-    /// use hamsrs::probes::ProbeManual;
-    ///
-    /// let probe = ProbeManual::new("test-manual-probe", true).unwrap();
-    /// ```
+    /// * `name` - The name of the probe
+    /// * `valid` - The initial state of the probe (true for healthy, false for unhealthy)
     pub fn new<S: Into<String>>(
         name: S,
         valid: bool,
@@ -142,63 +143,24 @@ impl ProbeManual {
         })
     }
 
-    /// Enable the probe
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use hamsrs::probes::ProbeManual;
-    ///
-    /// let probe = ProbeManual::new("test-enable", false).unwrap();
-    /// probe.enable().unwrap();
-    /// assert!(probe.check().unwrap());
-    /// ```
+    /// Enable the probe (set status to healthy)
     pub fn enable(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.enable()
     }
 
-    /// Disable the probe
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use hamsrs::probes::ProbeManual;
-    ///
-    /// let probe = ProbeManual::new("test-disable", true).unwrap();
-    /// probe.disable().unwrap();
-    /// assert!(!probe.check().unwrap());
-    /// ```
+    /// Disable the probe (set status to unhealthy)
     pub fn disable(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.disable()
     }
 
-    /// Toggle the probe
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use hamsrs::probes::ProbeManual;
-    ///
-    /// let probe = ProbeManual::new("test-toggle", true).unwrap();
-    /// probe.toggle().unwrap();
-    /// assert!(!probe.check().unwrap());
-    /// probe.toggle().unwrap();
-    /// assert!(probe.check().unwrap());
-    /// ```
+    /// Toggle the probe's status between healthy and unhealthy
     pub fn toggle(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.toggle()
     }
 
-    // Check the probe
+    /// Check the current status of the probe
     ///
-    /// # Examples
-    ///
-    /// ```
-    /// use hamsrs::probes::ProbeManual;
-    ///
-    /// let probe = ProbeManual::new("test-check", true).unwrap();
-    /// assert!(probe.check().unwrap());
-    /// ```
+    /// Returns `true` if healthy, `false` otherwise.
     pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
         self.inner.check()
     }

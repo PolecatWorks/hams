@@ -11,14 +11,15 @@ use std::time::SystemTime;
 
 pub(crate) mod ffitraits;
 
+/// This module contains the dns probe
+pub mod dns;
+/// This module contains the http probe
+pub mod http;
 /// This module contains the kick probe
 pub mod kick;
 /// This module contains the manual probe
 pub mod manual;
-/// This module contains the http probe
-pub mod http;
-/// This module contains the dns probe
-pub mod dns;
+pub mod tcp;
 
 /// Detail structure for replies from ready and alive for a single probe
 #[derive(Serialize, PartialEq, Clone)]

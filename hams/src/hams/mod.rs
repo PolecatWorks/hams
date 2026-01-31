@@ -33,15 +33,20 @@ pub(crate) struct HamsCallback {
 /// Send impl.
 unsafe impl Send for HamsCallback {}
 
+/// Callback struct for Prometheus metrics collection
 #[derive(Debug, Clone)]
 pub struct PrometheusCallback {
+    /// Function pointer to the external callback
     pub my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
+    /// Function pointer to free the result string
     pub my_cb_free: extern "C" fn(*mut libc::c_char),
+    /// Opaque pointer to state passed to the callback
     pub state: *const c_void,
 }
 
 unsafe impl Send for PrometheusCallback {}
 
+/// Main struct for the Health and Monitoring System
 #[derive(Debug, Clone)]
 pub struct Hams {
     /// Name of the application this HaMS is for
@@ -56,17 +61,21 @@ pub struct Hams {
     /// Provide the address on which to serve the HaMS readyness and liveness
     address: SocketAddr,
 
-    // preflights run successfully before the service starts
+    /// preflights run successfully before the service starts
     pub preflights: HealthCheck,
-    // shutdowns run after the service has been requested to stop
+    /// shutdowns run after the service has been requested to stop
     pub shutdowns: HealthCheck,
 
+    /// Liveness checks
     pub alive: HealthCheck,
+    /// Readiness checks
     pub ready: HealthCheck,
+    /// Startup checks
     pub startup: HealthCheck,
 
-    // Configurable startup and shutdown tasks
+    /// Configurable startup tasks
     pub startup_tasks: Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
+    /// Configurable shutdown tasks
     pub shutdown_tasks: Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
 
     /// Token to cancel the service
@@ -252,6 +261,9 @@ impl Hams {
         tasks_mutex: &Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
         phase: &str,
     ) -> Result<(), HamsError> {
+        // We use std::sync::Mutex here because we do NOT hold the lock across any .await points.
+        // The critical section below (cloning probes/config and spawning tasks) is purely synchronous
+        // and non-blocking, so the standard Mutex is more efficient than tokio::sync::Mutex.
         let tasks = tasks_mutex.lock().unwrap();
 
         if tasks.is_empty() {
@@ -310,6 +322,8 @@ impl Hams {
             }));
         }
 
+        // Explicitly drop the lock before we await anything.
+        // This ensures we don't hold a sync mutex across an await point.
         drop(tasks);
 
         let results = join_all(futures).await;
@@ -528,6 +542,7 @@ mod tests {
     }
 
     /// Test shutdown callback updating the state
+
     #[test]
     fn test_hams_shutdown_callback_state() {
         let mut hams = Hams::new(HamsConfig::default());
@@ -552,5 +567,50 @@ mod tests {
             .expect("Called shutdown");
 
         assert_eq!(state, 1);
+    }
+
+    /// Test that startup and shutdown tasks actually run
+    #[test]
+    fn test_startup_shutdown_execution() {
+        let mut hams = Hams::new(HamsConfig::default());
+
+        // We use a manual probe that starts "true" (healthy)
+        let startup_probe = Manual::new("startup_probe", true);
+        let shutdown_probe = Manual::new("shutdown_probe", true);
+
+        // Add startup task (should pass immediately)
+        // Wrap in FFIProbe to adapt sync HealthProbe to AsyncHealthProbe
+        hams.startup_task_insert(
+            Arc::new(FFIProbe::from(startup_probe)),
+            TaskConfig {
+                // Short timeout, sleep, and 1 retry
+                retries: 1,
+                sleep_ms: 10,
+                timeout_ms: 500,
+            },
+        );
+
+        // Add shutdown task
+        hams.shutdown_task_insert(
+            Arc::new(FFIProbe::from(shutdown_probe)),
+            TaskConfig {
+                retries: 1,
+                sleep_ms: 10,
+                timeout_ms: 500,
+            },
+        );
+
+        // Start hams (this runs startup tasks in async)
+        hams.start().expect("Started");
+
+        // Wait a bit for startup tasks to complete
+        thread::sleep(Duration::from_millis(100));
+
+        // Stop hams (this runs shutdown tasks)
+        hams.stop().expect("Stopped");
+
+        // Since we can't easily introspect the internal completion logs without mocking logger,
+        // we're relying on the fact that start/stop didn't error.
+        // A more robust test might check side effects if we had a probe that caused them.
     }
 }

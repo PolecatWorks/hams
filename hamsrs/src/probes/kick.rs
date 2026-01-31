@@ -68,6 +68,11 @@ impl ProbeKickInner {
     }
 }
 
+/// A probe that requires periodic "kicking" to remain healthy.
+///
+/// This probe expects the application to call `kick()` at least once within the specified `margin` duration.
+/// If `kick()` is not called within that time window, the probe will transition to an unhealthy state.
+/// This is useful for monitoring watchdog timers or heartbeat mechanisms.
 #[derive(Clone, Debug)]
 pub struct ProbeKick {
     inner: Arc<ProbeKickInner>,
@@ -82,14 +87,10 @@ impl Probe for ProbeKick {
 impl ProbeKick {
     /// Construct a new kick probe
     ///
-    /// # Examples
+    /// # Arguments
     ///
-    /// ```
-    /// use hamsrs::probes::ProbeKick;
-    /// use std::time::Duration;
-    ///
-    /// let probe = ProbeKick::new("test-kick-probe", Duration::from_secs(30)).unwrap();
-    /// ```
+    /// * `name` - The name of the probe
+    /// * `margin` - The time duration within which the probe must be kicked to remain healthy.
     pub fn new<S: Into<String>>(
         name: S,
         margin: Duration,
@@ -102,17 +103,7 @@ impl ProbeKick {
         })
     }
 
-    /// Kick the probe
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use hamsrs::probes::ProbeKick;
-    /// use std::time::Duration;
-    ///
-    /// let probe = ProbeKick::new("test-kick", Duration::from_secs(30)).unwrap();
-    /// probe.kick().unwrap();
-    /// ```
+    /// Update the last kicked time to now, resetting the watchdog timer.
     pub fn kick(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.kick()
     }

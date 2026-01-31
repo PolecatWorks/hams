@@ -128,6 +128,19 @@ pub fn main() -> ExitCode {
             hams.startup_insert(probe0.clone())
                 .expect("insert probe0 into startup");
 
+            // Add a startup task that just sleeps for a bit
+            hams.startup_task_insert(
+                probe0.clone(),
+                3,    // retries
+                100,  // sleep_ms
+                5000, // timeout_ms
+            )
+            .expect("insert startup task");
+
+            // Add a shutdown task
+            hams.shutdown_task_insert(probe0.clone(), 1, 100, 1000)
+                .expect("insert shutdown task");
+
             info!("HaMS Created, now starting it");
 
             hams.start().unwrap();

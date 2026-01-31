@@ -13,6 +13,11 @@ use crate::ffi::ffitraits::{BoxedHealthProbe, HealthProbe};
 
 use super::Probe;
 
+/// A custom probe that allows implementing health check logic via internal state.
+///
+/// This probe maintains a boolean state (`valid`) which determines its health.
+/// It can be used for custom health checks where the logic allows toggling the state
+/// from within the Rust application.
 #[derive(Clone)]
 pub struct ProbeCustom {
     name: CString,
@@ -42,7 +47,12 @@ impl Probe for ProbeCustom {
 }
 
 impl ProbeCustom {
-    /// Construct a new manual probe
+    /// Construct a new custom probe
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the probe
+    /// * `valid` - The initial state of the probe (true for healthy, false for unhealthy)
     pub fn new<S: Into<String>>(
         name: S,
         valid: bool,
@@ -59,25 +69,25 @@ impl ProbeCustom {
         })
     }
 
-    /// Enable the probe
+    /// Enable the probe (set status to healthy)
     pub fn enable(&mut self) -> Result<(), crate::hamserror::HamsError> {
         self.valid.store(true, Ordering::Relaxed);
         Ok(())
     }
 
-    /// Disable the probe
+    /// Disable the probe (set status to unhealthy)
     pub fn disable(&mut self) -> Result<(), crate::hamserror::HamsError> {
         self.valid.store(false, Ordering::Relaxed);
         Ok(())
     }
 
-    /// Toggle the probe
+    /// Toggle the probe's status
     pub fn toggle(&mut self) -> Result<(), crate::hamserror::HamsError> {
         self.valid.fetch_xor(true, Ordering::Relaxed);
         Ok(())
     }
 
-    // Check the probe
+    /// Check the current status of the probe
     pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
         Ok(self.valid.load(Ordering::Relaxed))
     }

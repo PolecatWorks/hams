@@ -218,8 +218,24 @@ let manual_probe = ProbeManual::new("manual_check", true).unwrap();
 let config = HamsConfig::default();
 let hams = Hams::new(cancellation_token, &config).unwrap();
 
+
 // Register probes
 hams.alive_insert(manual_probe.clone()).expect("Failed to insert probe");
+
+// Register Startup/Shutdown Tasks
+hams.startup_task_insert(
+    manual_probe.clone(),
+    3,    // retries
+    100,  // sleep_ms between retries
+    5000, // timeout_ms
+).expect("Failed to insert startup task");
+
+hams.shutdown_task_insert(
+    manual_probe.clone(),
+    3,
+    100,
+    1000,
+).expect("Failed to insert shutdown task");
 
 hams.start().unwrap();
 ```
