@@ -36,6 +36,53 @@ graph TD
     Probes -.->|Check Status| HostApp
 ```
 
+## Lifecycle Sequence
+
+```mermaid
+sequenceDiagram
+    participant App as Host App
+    participant HaMS as HaMS Lib
+    participant Tasks as Startup/Shutdown Tasks
+    participant Web as Web Server
+    participant User as External Client
+
+    App->>HaMS: Init (hams_new)
+    App->>HaMS: Register Startup Tasks (hams_startup_task_insert)
+    App->>HaMS: Register Shutdown Tasks (hams_shutdown_task_insert)
+    App->>HaMS: Register Alive/Ready Probes
+
+    App->>HaMS: Start (hams_start)
+
+    rect rgb(200, 255, 200)
+    Note over HaMS, Tasks: Startup Phase
+    HaMS->>Tasks: Run Startup Tasks (Parallel)
+    Tasks-->>HaMS: Success
+    end
+
+    HaMS->>Web: Start Listening (Spawn Web Server)
+
+    loop Service Active
+        User->>Web: GET /alive
+        Web-->>User: 200 OK (if healthy)
+    end
+
+    Note over App, Web: Service Running...
+
+    alt Shutdown Signal (SIGTERM/SIGINT) or Stop Call
+        App->>HaMS: Stop (hams_stop)
+
+        HaMS->>App: Trigger Shutdown Callback
+
+        rect rgb(255, 200, 200)
+        Note over HaMS, Tasks: Shutdown Phase
+        HaMS->>Tasks: Run Shutdown Tasks (Parallel)
+        Tasks-->>HaMS: Completed
+        end
+
+        HaMS->>Web: Stop Server
+    end
+```
+
 This repository consists of several key components:
 
 -   **`hams`**: The core library. It implements the health checks (alive/ready), web server, and FFI interface.
