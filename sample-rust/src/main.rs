@@ -144,7 +144,11 @@ pub fn main() -> ExitCode {
 
             run_client_test().expect("run client test");
 
-            thread::sleep(Duration::from_secs(10));
+            info!("HaMS Started, running until cancellation");
+
+            while !ct.is_cancelled() {
+                thread::sleep(Duration::from_millis(100));
+            }
 
             hams.stop().unwrap();
 
