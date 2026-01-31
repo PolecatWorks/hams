@@ -14,7 +14,12 @@ use crate::{ffi, hamserror::HamsError};
 // }
 
 pub trait Probe {
-    /// Get the Boxed Probe for the probe. This is used to pass the probe to the C API
-    /// This method provides a cloned BProbe that is owned by the caller
+    /// Get the Boxed Probe for the probe.
+    ///
+    /// This method is used to pass the probe to the C API.
+    /// It provides a cloned `BProbe` that is owned by the caller.
+    ///
+    /// # Errors
+    /// Returns a `HamsError` if the probe cannot be boxed.
     fn boxed(&self) -> Result<ffi::BProbe, HamsError>;
 }

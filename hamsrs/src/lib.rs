@@ -18,8 +18,13 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn hams_version() -> String {
     let c_str = unsafe { ffi::hams_version() };
+    if c_str.is_null() {
+        return String::new();
+    }
     let r_str = unsafe { CStr::from_ptr(c_str) };
-    r_str.to_str().unwrap().to_string()
+    let result = r_str.to_str().unwrap().to_string();
+    unsafe { ffi::hams_version_free(c_str) };
+    result
 }
 
 /// Initialise logging

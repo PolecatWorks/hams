@@ -17,6 +17,7 @@ pub struct ProbeManualInner {
 impl Drop for ProbeManualInner {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
+        // SAFETY: `self.c` is a valid pointer that this struct owns.
         let retval = unsafe { ffi::probe_manual_free(self.c) };
         if retval == 0 {
             panic!("FAILED to free Probe");
@@ -31,9 +32,10 @@ impl ProbeManualInner {
     where
         S: std::fmt::Display + Into<String>,
     {
-        info!("New ManualHealthProbe: {}", &name);
+        info!("New ManualHealthProbe: {name}");
 
         let c_name = std::ffi::CString::new(name.into())?;
+        // SAFETY: `c_name` string is valid.
         let c = unsafe { ffi::probe_manual_new(c_name.as_ptr(), valid) };
 
         if c.is_null() {
@@ -46,6 +48,7 @@ impl ProbeManualInner {
 
     /// Enable the probe
     pub fn enable(&self) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer.
         let retval = unsafe { ffi::probe_manual_enable(self.c, true) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -56,6 +59,7 @@ impl ProbeManualInner {
     }
     /// Disable the probe
     pub fn disable(&self) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer.
         let retval = unsafe { ffi::probe_manual_disable(self.c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -67,6 +71,7 @@ impl ProbeManualInner {
 
     /// Toggle the probe
     pub fn toggle(&self) -> Result<(), crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer.
         let retval = unsafe { ffi::probe_manual_toggle(self.c) };
         if retval == 0 {
             return Err(crate::hamserror::HamsError::Message(
@@ -77,6 +82,7 @@ impl ProbeManualInner {
     }
     // Check the probe
     pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
+        // SAFETY: `self.c` is a valid pointer.
         let retval = unsafe { ffi::probe_manual_check(self.c) };
         if retval == -1 {
             // TODO: Retrieve the actual error from FFI and return it using: https://docs.rs/ffi_helpers/0.3.0/ffi_helpers/error_handling/index.html
@@ -88,6 +94,7 @@ impl ProbeManualInner {
     }
 
     fn boxed(&self) -> Result<ffi::BProbe, HamsError> {
+        // SAFETY: `self.c` is a valid pointer.
         let c = unsafe { ffi::probe_manual_boxed(self.c) };
 
         if c.is_null() {
@@ -95,6 +102,7 @@ impl ProbeManualInner {
             return Err(HamsError::Message("Could not box probe".to_string()));
         }
 
+        // SAFETY: `c` is a valid pointer returned from ffi.
         let probe = unsafe { BoxedHealthProbe::from_raw(c as *mut ()) };
 
         Ok(probe)
@@ -114,6 +122,14 @@ impl Probe for ProbeManual {
 
 impl ProbeManual {
     /// Construct a new manual probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeManual;
+    ///
+    /// let probe = ProbeManual::new("test-manual-probe", true).unwrap();
+    /// ```
     pub fn new<S: Into<String>>(
         name: S,
         valid: bool,
@@ -127,21 +143,62 @@ impl ProbeManual {
     }
 
     /// Enable the probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeManual;
+    ///
+    /// let probe = ProbeManual::new("test-enable", false).unwrap();
+    /// probe.enable().unwrap();
+    /// assert!(probe.check().unwrap());
+    /// ```
     pub fn enable(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.enable()
     }
 
     /// Disable the probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeManual;
+    ///
+    /// let probe = ProbeManual::new("test-disable", true).unwrap();
+    /// probe.disable().unwrap();
+    /// assert!(!probe.check().unwrap());
+    /// ```
     pub fn disable(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.disable()
     }
 
     /// Toggle the probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeManual;
+    ///
+    /// let probe = ProbeManual::new("test-toggle", true).unwrap();
+    /// probe.toggle().unwrap();
+    /// assert!(!probe.check().unwrap());
+    /// probe.toggle().unwrap();
+    /// assert!(probe.check().unwrap());
+    /// ```
     pub fn toggle(&self) -> Result<(), crate::hamserror::HamsError> {
         self.inner.toggle()
     }
 
     // Check the probe
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use hamsrs::probes::ProbeManual;
+    ///
+    /// let probe = ProbeManual::new("test-check", true).unwrap();
+    /// assert!(probe.check().unwrap());
+    /// ```
     pub fn check(&self) -> Result<bool, crate::hamserror::HamsError> {
         self.inner.check()
     }
@@ -179,13 +236,13 @@ mod tests {
             crate::hams::Hams::new(CancellationToken::new(), &HamsConfig::default()).unwrap();
         let probe_manual = ProbeManual::new("test_probe", true).unwrap();
 
-        println!("Probe: {:?}", probe_manual);
+        println!("Probe: {probe_manual:?}");
         let _p2 = probe_manual.clone();
 
         println!("Probe: {:?}", probe_manual);
 
         hams.alive_insert(probe_manual.clone()).unwrap();
-        println!("Probe added to hams: {:?}", probe_manual);
+        println!("Probe added to hams: {probe_manual:?}");
         hams.alive_remove(&probe_manual).unwrap();
     }
 }

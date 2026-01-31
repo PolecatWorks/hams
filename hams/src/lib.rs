@@ -43,6 +43,17 @@ pub extern "C" fn hams_version() -> *const libc::c_char {
     c_version.into_raw()
 }
 
+/// Free the string returned by hams_version
+///
+/// # Safety
+/// This function must be called with a pointer returned by hams_version
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hams_version_free(ptr: *mut libc::c_char) {
+    if !ptr.is_null() {
+        drop(CString::from_raw(ptr));
+    }
+}
+
 #[cfg_attr(doc, aquamarine::aquamarine)]
 ///
 /// Register logging for uservice
@@ -380,11 +391,8 @@ pub unsafe extern "C" fn hams_ready_insert(
           let probe = unsafe { BoxedHealthProbe::from_raw(probe as *mut () ) };
 
           info!("Adding alive probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
-          println!("Adding alive probe: {:?}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
-
           // Convert a BoxedHealthProbe to a FFIProbe (which is a Box<dyn AsyncHealthProbe>) so we can store it
           let ffi_probe = Box::new(FFIProbe::from(probe)) as Box<dyn AsyncHealthProbe>;
-          println!("using FFIProbe {:?}", ffi_probe.name());
 
         if AssertUnwindSafe(hams).ready_insert(ffi_probe) {
             Ok(1)
@@ -482,25 +490,6 @@ pub unsafe extern "C" fn hams_startup_remove(
         }
     )
 }
-
-/// # Safety
-/// Check the alive probe to see if it is still alive
-/// TODO: This will require to store the runtime and block on teh thred while we execute on the async runtime
-// #[no_mangle]
-// pub unsafe extern "C" fn hams_alive_check(ptr: *mut Hams) -> i32 {
-//     ffi_helpers::null_pointer_check!(ptr, -1);
-
-//     let now = Instant::now();
-//     catch_panic!(
-//         let hams = unsafe {&mut *ptr};
-
-//         if hams.alive.check(now).await.valid {
-//             Ok(1)
-//         } else {
-//             Ok(0)
-//         }
-//     )
-// }
 
 /// Return a manual health probe
 ///   We must return a ManualHealthProbe so that we can call set/enable etc. Later we box it for poly use

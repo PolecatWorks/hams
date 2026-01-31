@@ -77,6 +77,7 @@ unsafe extern "C" {
     pub fn hams_deregister_prometheus(hams: *mut Hams) -> i32;
 
     pub fn hams_version() -> *const libc::c_char;
+    pub fn hams_version_free(ptr: *const libc::c_char);
 
     pub fn probe_manual_new(name: *const libc::c_char, valid: bool) -> *mut ManualProbe;
     pub fn probe_manual_free(probe: *mut ManualProbe) -> i32;
