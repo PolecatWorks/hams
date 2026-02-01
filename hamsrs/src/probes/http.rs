@@ -11,6 +11,9 @@ pub struct ProbeHttpInner {
     pub c: *mut ffi::HttpProbe,
 }
 
+unsafe impl Send for ProbeHttpInner {}
+unsafe impl Sync for ProbeHttpInner {}
+
 impl Drop for ProbeHttpInner {
     fn drop(&mut self) {
         unsafe { ffi::probe_http_free(self.c) };

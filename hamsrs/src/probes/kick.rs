@@ -12,6 +12,9 @@ pub struct ProbeKickInner {
     pub c: *mut ffi::KickProbe,
 }
 
+unsafe impl Send for ProbeKickInner {}
+unsafe impl Sync for ProbeKickInner {}
+
 impl Drop for ProbeKickInner {
     fn drop(&mut self) {
         // SAFETY: `self.c` is a valid pointer managed by us.

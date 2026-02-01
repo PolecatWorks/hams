@@ -1,18 +1,19 @@
 use crate::probe::HealthProbe;
 use libc::time_t;
 use std::ffi::{CString, c_char};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
 
 use super::BoxedHealthProbe;
 
 /// A liveness check that automatically fails when the timer has not been reset before
 /// the duration. Equivalent of a dead mans handle.
-#[derive(Debug, Clone, Hash, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Kick {
     name: String,
     c_name: CString,
     /// The time of the last kick in seconds since UNIX_EPOCH
-    latest: time_t,
+    latest: Arc<Mutex<time_t>>,
     margin: Duration,
 }
 
@@ -23,19 +24,21 @@ impl Kick {
         Self {
             c_name: CString::new(name_str.clone()).expect("CString::new failed"),
             name: name_str,
-            latest: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                .try_into()
-                .unwrap(),
+            latest: Arc::new(Mutex::new(
+                SystemTime::now()
+                    .duration_since(SystemTime::UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    .try_into()
+                    .unwrap(),
+            )),
             margin,
         }
     }
 
     /// Reset the timer
-    pub fn kick(&mut self) {
-        self.latest = SystemTime::now()
+    pub fn kick(&self) {
+        *self.latest.lock().unwrap() = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs()
@@ -58,7 +61,7 @@ impl HealthProbe for Kick {
     fn check(&self, time: time_t) -> i32 {
         let duration_secs: i64 = self.margin.as_secs().try_into().unwrap();
 
-        (time < self.latest + duration_secs) as i32
+        (time < *self.latest.lock().unwrap() + duration_secs) as i32
     }
 }
 
@@ -71,11 +74,11 @@ mod tests {
 
     #[test]
     fn test_kick() {
-        let mut probe = Kick::new("test", Duration::from_secs(1));
+        let probe = Kick::new("test", Duration::from_secs(1));
 
         // let time_now = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs().try_into().unwrap();
 
-        let time_now = probe.latest;
+        let time_now = *probe.latest.lock().unwrap();
 
         assert!(probe.check(time_now) == 1);
         probe.kick();

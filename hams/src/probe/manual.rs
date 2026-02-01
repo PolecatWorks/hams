@@ -32,17 +32,17 @@ impl Manual {
     }
 
     /// Enable the probe
-    pub fn enable(&mut self) {
+    pub fn enable(&self) {
         self.enabled.lock().unwrap().valid = true;
     }
 
     /// Disable the probe
-    pub fn disable(&mut self) {
+    pub fn disable(&self) {
         self.enabled.lock().unwrap().valid = false;
     }
 
     /// Toggle the probe
-    pub fn toggle(&mut self) {
+    pub fn toggle(&self) {
         let mut inner = self.enabled.lock().unwrap();
         inner.valid = !inner.valid;
     }
