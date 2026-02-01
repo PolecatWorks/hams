@@ -11,6 +11,9 @@ pub struct ProbeDnsInner {
     pub c: *mut ffi::DnsProbe,
 }
 
+unsafe impl Send for ProbeDnsInner {}
+unsafe impl Sync for ProbeDnsInner {}
+
 impl Drop for ProbeDnsInner {
     fn drop(&mut self) {
         unsafe { ffi::probe_dns_free(self.c) };

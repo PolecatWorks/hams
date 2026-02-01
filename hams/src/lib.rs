@@ -672,7 +672,7 @@ pub unsafe extern "C" fn probe_manual_enable(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &mut *ptr;
+        let probe = &*ptr;
         probe.enable();
         Ok(1)
     )
@@ -687,7 +687,7 @@ pub unsafe extern "C" fn probe_manual_disable(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &mut *ptr;
+        let probe = &*ptr;
         probe.disable();
         Ok(1)
     )
@@ -702,7 +702,7 @@ pub unsafe extern "C" fn probe_manual_toggle(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &mut *ptr;
+        let probe = &*ptr;
         probe.toggle();
         Ok(1)
     )
@@ -722,7 +722,7 @@ pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
         .as_secs();
 
     catch_panic!(
-        let probe = &mut *ptr;
+        let probe = &*ptr;
 
         Ok(probe.check(now.try_into()?) as i32)
     )
@@ -778,7 +778,7 @@ pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &mut *ptr;
+        let probe = &*ptr;
         probe.kick();
         Ok(1)
     )

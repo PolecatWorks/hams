@@ -11,6 +11,9 @@ pub struct ProbeTcpInner {
     pub c: *mut ffi::TcpProbe,
 }
 
+unsafe impl Send for ProbeTcpInner {}
+unsafe impl Sync for ProbeTcpInner {}
+
 impl Drop for ProbeTcpInner {
     fn drop(&mut self) {
         unsafe { ffi::probe_tcp_free(self.c) };

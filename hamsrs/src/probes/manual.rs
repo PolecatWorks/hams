@@ -14,6 +14,9 @@ pub struct ProbeManualInner {
     pub c: *mut ffi::ManualProbe,
 }
 
+unsafe impl Send for ProbeManualInner {}
+unsafe impl Sync for ProbeManualInner {}
+
 impl Drop for ProbeManualInner {
     /// Releaes the HaMS ffi on drop
     fn drop(&mut self) {
