@@ -51,7 +51,7 @@ pub extern "C" fn hams_version() -> *const libc::c_char {
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hams_version_free(ptr: *mut libc::c_char) {
     if !ptr.is_null() {
-        drop(CString::from_raw(ptr));
+        unsafe { drop(CString::from_raw(ptr)) };
     }
 }
 
@@ -80,7 +80,7 @@ pub unsafe extern "C" fn hams_version_free(ptr: *mut libc::c_char) {
 pub extern "C" fn hams_logger_init(param: LogParam) -> i32 {
     // ffi_helpers::null_pointer_check!(param);
     catch_panic!(
-        logger_init(param);
+        unsafe { logger_init(param) };
         info!(
             "Logging registered for {}:{} (PID: {})",
             NAME,
@@ -617,7 +617,7 @@ pub unsafe extern "C" fn probe_manual_free(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = Box::from_raw(ptr);
+        let probe = unsafe { Box::from_raw(ptr) };
 
         info!("Releasing manual probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
@@ -635,7 +635,7 @@ pub unsafe extern "C" fn probe_manual_boxed(ptr: *mut Manual) -> *mut BoxedHealt
 
     catch_panic!(
         let x = {
-            let probe =  (*ptr).clone();
+            let probe =  unsafe { (*ptr).clone() };
             let boxed_probe = BoxedHealthProbe::new(probe);
 
 
@@ -655,7 +655,7 @@ pub unsafe extern "C" fn probe_free(ptr: *mut BoxedHealthProbe) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = Box::from_raw(ptr);
+        let probe = unsafe { Box::from_raw(ptr) };
 
         info!("Releasing probe: {}", unsafe { CStr::from_ptr(probe.name()) }.to_string_lossy());
         drop(probe);
@@ -672,7 +672,7 @@ pub unsafe extern "C" fn probe_manual_enable(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &*ptr;
+        let probe = unsafe { &*ptr };
         probe.enable();
         Ok(1)
     )
@@ -687,7 +687,7 @@ pub unsafe extern "C" fn probe_manual_disable(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &*ptr;
+        let probe = unsafe { &*ptr };
         probe.disable();
         Ok(1)
     )
@@ -702,7 +702,7 @@ pub unsafe extern "C" fn probe_manual_toggle(ptr: *mut Manual) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &*ptr;
+        let probe = unsafe { &*ptr };
         probe.toggle();
         Ok(1)
     )
@@ -722,7 +722,7 @@ pub unsafe extern "C" fn probe_manual_check(ptr: *mut Manual) -> i32 {
         .as_secs();
 
     catch_panic!(
-        let probe = &*ptr;
+        let probe = unsafe { &*ptr };
 
         Ok(probe.check(now.try_into()?) as i32)
     )
@@ -758,7 +758,7 @@ pub unsafe extern "C" fn probe_kick_free(ptr: *mut Kick) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = Box::from_raw(ptr);
+        let probe = unsafe { Box::from_raw(ptr) };
 
         // let name = &probe.name();
 
@@ -778,7 +778,7 @@ pub unsafe extern "C" fn probe_kick_kick(ptr: *mut Kick) -> i32 {
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = &*ptr;
+        let probe = unsafe { &*ptr };
         probe.kick();
         Ok(1)
     )
@@ -792,7 +792,7 @@ pub unsafe extern "C" fn probe_kick_boxed(ptr: *mut Kick) -> *mut BoxedHealthPro
     ffi_helpers::null_pointer_check!(ptr);
 
     catch_panic!(
-        let probe = (*ptr).clone();
+        let probe = unsafe { (*ptr).clone() };
         let boxed_probe = BoxedHealthProbe::new(probe);
 
         Ok(boxed_probe.into_raw() as *mut BoxedHealthProbe<'static>)
