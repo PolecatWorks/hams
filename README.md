@@ -88,14 +88,14 @@ This repository consists of several key components:
 -   **`hams`**: The core library. It implements the health checks (alive/ready), web server, and FFI interface.
 -   **`hamsrs`**: A safe Rust wrapper around the `hams` FFI. Use this if you are integrating HaMS into a Rust application.
 -   **`ffi-log2`**: A utility library that enables the shared object to log via the host application's logger, ensuring unified logging.
--   **`sample-rust`**: An example Rust application demonstrating how to use `hamsrs` and `ffi-log2`.
+-   **`sample-rust-shared`**: An example Rust application demonstrating how to use `hamsrs` and `ffi-log2`.
 
 ## Usage (Rust)
 
 To run the Rust sample application, which demonstrates a fully integrated HaMS service:
 
 ```bash
-cargo watch -x "run -- --config sample-rust/test_data/config.yaml start"
+cargo watch -x "run -- --config sample-rust-shared/test_data/config.yaml start"
 ```
 
 This starts the service with a configuration file that sets the web server prefix to `api`.

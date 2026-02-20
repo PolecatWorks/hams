@@ -2,7 +2,7 @@ RELEASE ?=
 
 NAME=hams
 
-SUBDIRS = sample-c sample-ts sample-rust sample-kotlin
+SUBDIRS = sample-c sample-ts sample-rust-shared sample-kotlin
 
 CARGO_TARGET = $(if $(RELEASE), target/release, target/debug)
 CARGO_BUILD_FLAGS = $(if $(RELEASE), --release,)
@@ -11,7 +11,7 @@ ACLOCAL_AMFLAGS = -I m4
 
 
 
-$(CARGO_TARGET)/libhams.dylib $(top_build_prefix)$(CARGO_TARGET)/sample-rust:
+$(CARGO_TARGET)/libhams.dylib $(top_build_prefix)$(CARGO_TARGET)/sample-rust-shared:
 	$(CARGO) build $(CARGO_BUILD_FLAGS)
 
 status:

@@ -7,18 +7,18 @@ config:
     prefix: sample
 
 # command:
-# - /usr/local/bin/sample-rust
+# - /usr/local/bin/sample-rust-shared
 # args:
-# - sample_rust
+# - sample_rust_shared
 # - --config
 # - /config/config.yaml
 # - start
 
 init:
   command:
-  - /usr/local/bin/sample-rust
+  - /usr/local/bin/sample-rust-shared
   args:
-  - sample_rust
+  - sample_rust_shared
   - --config
   - /config/config.yaml
   - validate
@@ -26,7 +26,7 @@ init:
 replicaCount: 1
 
 image:
-  repository: polecatworks/sample-rust
+  repository: polecatworks/sample-rust-shared
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
