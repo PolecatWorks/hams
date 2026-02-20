@@ -9,4 +9,4 @@
 # Run Code
 (from top dir)
 
-    cargo watch -x "run -- --config sample-rust/test_data/config.yaml start"
+    cargo watch -x "run -- --config sample-rust-shared/test_data/config.yaml start"

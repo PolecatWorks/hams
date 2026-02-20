@@ -1,5 +1,5 @@
 [package]
-name = "sample-rust"
+name = "sample-rust-shared"
 version = "0.3.0"
 edition = "2024"
 
