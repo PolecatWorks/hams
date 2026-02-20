@@ -12,6 +12,7 @@ members = [
     "hams",
     "hamsrs",
     "sample-rust-shared",
+    "sample-rust-static",
 ]
 resolver = "2"
 # exclude = ["rust_cli"]

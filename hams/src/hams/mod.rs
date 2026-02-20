@@ -21,30 +21,24 @@ use tokio::signal::unix::signal;
 
 use tokio::signal::unix::SignalKind;
 use tokio_util::sync::CancellationToken;
+use std::ffi::CStr;
+use std::fmt;
 
-#[derive(Debug)]
-pub(crate) struct HamsCallback {
-    user_data: *mut c_void,
-    cb: unsafe extern "C" fn(*mut c_void),
+pub(crate) struct CallbackFn(pub Box<dyn Fn() + Send>);
+
+impl fmt::Debug for CallbackFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "CallbackFn")
+    }
 }
 
-/// Manually provide the Send impl for HamsCallBack to indicate it is thread safe.
-/// This is required because HamsCallback cannot automatically derive if it can support
-/// Send impl.
-unsafe impl Send for HamsCallback {}
+pub(crate) struct PrometheusFn(pub Box<dyn Fn() -> String + Send>);
 
-/// Callback struct for Prometheus metrics collection
-#[derive(Debug, Clone)]
-pub struct PrometheusCallback {
-    /// Function pointer to the external callback
-    pub my_cb: extern "C" fn(ptr: *const c_void) -> *mut libc::c_char,
-    /// Function pointer to free the result string
-    pub my_cb_free: extern "C" fn(*mut libc::c_char),
-    /// Opaque pointer to state passed to the callback
-    pub state: *const c_void,
+impl fmt::Debug for PrometheusFn {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PrometheusFn")
+    }
 }
-
-unsafe impl Send for PrometheusCallback {}
 
 /// Main struct for the Health and Monitoring System
 #[derive(Debug, Clone)]
@@ -52,11 +46,11 @@ pub struct Hams {
     /// Name of the application this HaMS is for
     pub(crate) name: String,
     /// Provide the version of the application
-    pub(crate) version: String,
+    pub version: String,
     /// Provide the version of the release of HaMS
-    pub(crate) hams_version: String,
+    pub hams_version: String,
     /// Provide the name of the package
-    pub(crate) hams_name: String,
+    pub hams_name: String,
 
     /// Provide the address on which to serve the HaMS readyness and liveness
     address: SocketAddr,
@@ -82,12 +76,12 @@ pub struct Hams {
     cancellation_token: CancellationToken,
 
     /// Callback to be called on shutdown
-    pub(crate) shutdown_cb: Arc<Mutex<Option<HamsCallback>>>,
+    pub(crate) shutdown_cb: Arc<Mutex<Option<CallbackFn>>>,
     /// joinhandle to wait when shutting down service
     thread_jh: Arc<Mutex<Option<JoinHandle<Result<(), HamsError>>>>>,
 
     /// Callback to be called on prometheus
-    pub(crate) prometheus_cb: Arc<Mutex<Option<PrometheusCallback>>>,
+    pub(crate) prometheus_cb: Arc<Mutex<Option<PrometheusFn>>>,
 }
 
 impl Hams {
@@ -133,7 +127,21 @@ impl Hams {
     ) -> Result<(), HamsError> {
         info!("Add shutdown to {}", self.name);
 
-        *self.shutdown_cb.lock()? = Some(HamsCallback { user_data, cb });
+        let user_data_addr = user_data as usize;
+
+        let closure = move || {
+             unsafe { cb(user_data_addr as *mut c_void) };
+        };
+
+        *self.shutdown_cb.lock()? = Some(CallbackFn(Box::new(closure)));
+        Ok(())
+    }
+
+    pub fn register_shutdown_closure<F>(&self, cb: F) -> Result<(), HamsError>
+    where F: Fn() + Send + 'static
+    {
+        info!("Add shutdown closure to {}", self.name);
+        *self.shutdown_cb.lock()? = Some(CallbackFn(Box::new(cb)));
         Ok(())
     }
 
@@ -152,11 +160,30 @@ impl Hams {
     ) -> Result<(), HamsError> {
         info!("Add prometheus to {}", self.name);
 
-        *self.prometheus_cb.lock()? = Some(PrometheusCallback {
-            my_cb,
-            my_cb_free,
-            state,
-        });
+        let state_addr = state as usize;
+
+        let closure = move || -> String {
+            unsafe {
+                let ptr = my_cb(state_addr as *const c_void);
+                if ptr.is_null() {
+                    return String::new();
+                }
+                let c_str = CStr::from_ptr(ptr);
+                let result = c_str.to_string_lossy().to_string();
+                my_cb_free(ptr);
+                result
+            }
+        };
+
+        *self.prometheus_cb.lock()? = Some(PrometheusFn(Box::new(closure)));
+        Ok(())
+    }
+
+    pub fn register_prometheus_closure<F>(&self, cb: F) -> Result<(), HamsError>
+    where F: Fn() -> String + Send + 'static
+    {
+        info!("Add prometheus closure to {}", self.name);
+        *self.prometheus_cb.lock()? = Some(PrometheusFn(Box::new(cb)));
         Ok(())
     }
 
@@ -395,12 +422,12 @@ impl Hams {
     }
 
     pub(crate) fn call_shutdown_callback(
-        shutdown_cb: Option<&HamsCallback>,
+        shutdown_cb: Option<&CallbackFn>,
     ) -> Result<(), HamsError> {
-        match shutdown_cb.as_ref() {
-            Some(hams_callback) => {
+        match shutdown_cb {
+            Some(callback) => {
                 info!("Triggering shutdown callback");
-                unsafe { (hams_callback.cb)(hams_callback.user_data) };
+                (callback.0)();
                 info!("Completed shutdown callback")
             }
             None => {
@@ -462,28 +489,35 @@ mod tests {
             }
         }
 
-        let prometheus_cb = PrometheusCallback {
-            my_cb: prometheus,
-            my_cb_free: prometheus_free,
-            state: &"splat".to_string() as *const String as *const c_void,
-        };
+        let state = "splat".to_string();
 
         hams.register_prometheus(
-            prometheus_cb.my_cb,
-            prometheus_cb.my_cb_free,
-            prometheus_cb.state,
+            prometheus,
+            prometheus_free,
+            &state as *const String as *const c_void,
         )
         .expect("Registered prometheus");
 
         let prometheus_cb = hams.prometheus_cb.lock().unwrap();
         let prometheus_cb = prometheus_cb.as_ref().unwrap();
 
-        let ptr = (prometheus_cb.my_cb)(prometheus_cb.state);
-        let c_str = unsafe { std::ffi::CStr::from_ptr(ptr) };
-        let str_slice = c_str.to_str().unwrap();
-        assert_eq!(str_slice, "test splat");
+        let result = (prometheus_cb.0)();
+        assert_eq!(result, "test splat");
+    }
 
-        (prometheus_cb.my_cb_free)(ptr);
+    #[test]
+    fn test_prometheus_closure() {
+        let mut hams = Hams::new(HamsConfig::default());
+
+        hams.register_prometheus_closure(|| {
+            "test closure".to_string()
+        }).expect("Registered prometheus closure");
+
+        let prometheus_cb = hams.prometheus_cb.lock().unwrap();
+        let prometheus_cb = prometheus_cb.as_ref().unwrap();
+
+        let result = (prometheus_cb.0)();
+        assert_eq!(result, "test closure");
     }
 
     /// Create a hams then start and stop it
@@ -569,6 +603,24 @@ mod tests {
             .expect("Called shutdown");
 
         assert_eq!(state, 1);
+    }
+
+    #[test]
+    fn test_hams_shutdown_closure_state() {
+        let mut hams = Hams::new(HamsConfig::default());
+
+        let state = Arc::new(Mutex::new(0));
+        let state_clone = state.clone();
+
+        hams.register_shutdown_closure(move || {
+            let mut s = state_clone.lock().unwrap();
+            *s += 1;
+        }).expect("Registered shutdown closure");
+
+        Hams::call_shutdown_callback(hams.shutdown_cb.lock().unwrap().as_ref())
+            .expect("Called shutdown");
+
+        assert_eq!(*state.lock().unwrap(), 1);
     }
 
     /// Test that startup and shutdown tasks actually run

@@ -2,7 +2,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 
 /// Configuration for the HAMS service
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 #[serde(default)]
 pub struct HamsConfig {
     /// Hostname to start the webservice on

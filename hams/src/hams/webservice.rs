@@ -187,7 +187,7 @@ mod handlers {
     use crate::{error::HamsError, hams::check::HealthCheck};
     use log::{error, info};
     use serde::Serialize;
-    use std::{ffi::CStr, time::SystemTime};
+    use std::time::SystemTime;
     use warp::{http::Response, reject::Rejection};
 
     /// Reply structure for Version response
@@ -265,19 +265,8 @@ mod handlers {
         let metrics = match *x {
             Some(ref cb) => {
                 info!("Metrics are here");
-
-                let c_string = (cb.my_cb)(cb.state);
-
-                let c_string_2 = unsafe { CStr::from_ptr(c_string) };
-                let metric_response = c_string_2
-                    .to_str()
-                    .map_err(|e| warp::reject::custom(HamsError::Utf8Error(e)))?
-                    .to_string();
-
-                (cb.my_cb_free)(c_string);
-
-                metric_response
-                // "Metrics go here".to_string()
+                // Calling the closure directly now
+                (cb.0)()
             }
             None => {
                 info!("Metrics are NOT here");
