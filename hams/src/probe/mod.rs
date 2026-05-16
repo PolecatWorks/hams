@@ -11,6 +11,7 @@ use std::time::SystemTime;
 
 pub(crate) mod ffitraits;
 
+pub mod async_http;
 /// This module contains the dns probe
 pub mod dns;
 /// This module contains the http probe

@@ -8,12 +8,12 @@ use clap::Subcommand;
 use env_logger::Env;
 use ffi_log2::log_param;
 
-use hams::hams::config::TaskConfig;
-use hams::probe::manual::Manual;
-use hams::probe::kick::Kick;
-use hams::probe::FFIProbe;
-use hams::probe::AsyncHealthProbe;
 use hams::hams::Hams;
+use hams::hams::config::TaskConfig;
+use hams::probe::AsyncHealthProbe;
+use hams::probe::FFIProbe;
+use hams::probe::kick::Kick;
+use hams::probe::manual::Manual;
 
 mod client;
 mod config;
@@ -89,9 +89,8 @@ pub fn main() -> ExitCode {
 
             let state_string = String::from("Hello from Rust PROMETHEUS");
 
-            hams.register_prometheus_closure(move || {
-                format!("test {}", state_string)
-            }).expect("register prometheus closure");
+            hams.register_prometheus_closure(move || format!("test {}", state_string))
+                .expect("register prometheus closure");
 
             // Insert probes
             // Note: FFIProbe adapts synchronous HealthProbe (like Manual/Kick) to AsyncHealthProbe
@@ -111,10 +110,7 @@ pub fn main() -> ExitCode {
                 sleep_ms: 100,
                 timeout_ms: 5000,
             };
-            hams.startup_task_insert(
-                Arc::new(FFIProbe::from(probe0.clone())),
-                startup_config
-            );
+            hams.startup_task_insert(Arc::new(FFIProbe::from(probe0.clone())), startup_config);
 
             // Add a shutdown task
             let shutdown_config = TaskConfig {
@@ -122,10 +118,7 @@ pub fn main() -> ExitCode {
                 sleep_ms: 100,
                 timeout_ms: 1000,
             };
-            hams.shutdown_task_insert(
-                Arc::new(FFIProbe::from(probe0.clone())),
-                shutdown_config
-            );
+            hams.shutdown_task_insert(Arc::new(FFIProbe::from(probe0.clone())), shutdown_config);
 
             info!("HaMS Created, now starting it");
 
@@ -136,7 +129,8 @@ pub fn main() -> ExitCode {
 
             thread::sleep(Duration::from_secs(1));
 
-            let probe0_to_remove = Box::new(FFIProbe::from(probe0.clone())) as Box<dyn AsyncHealthProbe>;
+            let probe0_to_remove =
+                Box::new(FFIProbe::from(probe0.clone())) as Box<dyn AsyncHealthProbe>;
             hams.alive_remove(&probe0_to_remove);
             println!("Probe0 removed from alive");
 

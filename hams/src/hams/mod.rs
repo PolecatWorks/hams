@@ -19,10 +19,10 @@ use libc::c_void;
 use log::{error, info};
 use tokio::signal::unix::signal;
 
-use tokio::signal::unix::SignalKind;
-use tokio_util::sync::CancellationToken;
 use std::ffi::CStr;
 use std::fmt;
+use tokio::signal::unix::SignalKind;
+use tokio_util::sync::CancellationToken;
 
 pub(crate) struct CallbackFn(pub Box<dyn Fn() + Send>);
 
@@ -130,7 +130,7 @@ impl Hams {
         let user_data_addr = user_data as usize;
 
         let closure = move || {
-             unsafe { cb(user_data_addr as *mut c_void) };
+            unsafe { cb(user_data_addr as *mut c_void) };
         };
 
         *self.shutdown_cb.lock()? = Some(CallbackFn(Box::new(closure)));
@@ -138,7 +138,8 @@ impl Hams {
     }
 
     pub fn register_shutdown_closure<F>(&self, cb: F) -> Result<(), HamsError>
-    where F: Fn() + Send + 'static
+    where
+        F: Fn() + Send + 'static,
     {
         info!("Add shutdown closure to {}", self.name);
         *self.shutdown_cb.lock()? = Some(CallbackFn(Box::new(cb)));
@@ -180,7 +181,8 @@ impl Hams {
     }
 
     pub fn register_prometheus_closure<F>(&self, cb: F) -> Result<(), HamsError>
-    where F: Fn() -> String + Send + 'static
+    where
+        F: Fn() -> String + Send + 'static,
     {
         info!("Add prometheus closure to {}", self.name);
         *self.prometheus_cb.lock()? = Some(PrometheusFn(Box::new(cb)));
@@ -283,6 +285,16 @@ impl Hams {
         self.startup.remove(probe)
     }
 
+    /// Insert probe to preflight checks.
+    pub fn preflight_insert(&mut self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.preflights.insert(probe)
+    }
+
+    /// Insert probe to shutdown checks.
+    pub fn shutdown_insert(&mut self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.shutdowns.insert(probe)
+    }
+
     async fn run_tasks(
         &self,
         tasks_mutex: &Arc<Mutex<Vec<(Arc<dyn AsyncHealthProbe>, TaskConfig)>>>,
@@ -370,6 +382,13 @@ impl Hams {
     async fn start_async(&mut self, ct: CancellationToken) -> Result<(), HamsError> {
         info!("Starting ASYNC");
 
+        // Run preflight checks. These must all pass before we continue.
+        let preflight_results = self.preflights.check(SystemTime::now()).await;
+        if !preflight_results.valid {
+            error!("Preflight checks failed: {:?}", preflight_results);
+            return Err(HamsError::PreflightCheck);
+        }
+
         self.run_tasks(&self.startup_tasks, "Startup").await?;
 
         // Put code here to spawn the service parts (ie hams service)
@@ -416,6 +435,14 @@ impl Hams {
         Hams::call_shutdown_callback(my_shutdown_cb.lock()?.as_ref())?;
 
         self.run_tasks(&self.shutdown_tasks, "Shutdown").await?;
+
+        // Run final shutdown checks.
+        let shutdown_results = self.shutdowns.check(SystemTime::now()).await;
+        if !shutdown_results.valid {
+            error!("Shutdown checks failed: {:?}", shutdown_results);
+            // We don't return error here because we're already shutting down,
+            // but we log it.
+        }
 
         info!("start_async is now complete for HaMS {}", self.name);
         Ok(())
@@ -509,9 +536,8 @@ mod tests {
     fn test_prometheus_closure() {
         let mut hams = Hams::new(HamsConfig::default());
 
-        hams.register_prometheus_closure(|| {
-            "test closure".to_string()
-        }).expect("Registered prometheus closure");
+        hams.register_prometheus_closure(|| "test closure".to_string())
+            .expect("Registered prometheus closure");
 
         let prometheus_cb = hams.prometheus_cb.lock().unwrap();
         let prometheus_cb = prometheus_cb.as_ref().unwrap();
@@ -615,7 +641,8 @@ mod tests {
         hams.register_shutdown_closure(move || {
             let mut s = state_clone.lock().unwrap();
             *s += 1;
-        }).expect("Registered shutdown closure");
+        })
+        .expect("Registered shutdown closure");
 
         Hams::call_shutdown_callback(hams.shutdown_cb.lock().unwrap().as_ref())
             .expect("Called shutdown");
