@@ -22,6 +22,9 @@ pub struct Hams {
     ct: CancellationToken,
 }
 
+unsafe impl Send for Hams {}
+unsafe impl Sync for Hams {}
+
 impl Hams {
     /// Construct the new Hams.
     /// The return of this call will have created an object via FFI to handle and manage
