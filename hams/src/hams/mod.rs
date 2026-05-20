@@ -275,6 +275,11 @@ impl Hams {
         self.ready.remove(probe)
     }
 
+    /// Insert a probe into ready checks using an async-safe lock
+    pub async fn ready_insert_async(&self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
+        self.ready.insert_async(probe).await
+    }
+
     /// Insert probe to startup checks. Use BoxedHealthProbe to allow for FFI
     pub fn startup_insert(&mut self, probe: Box<dyn AsyncHealthProbe + 'static>) -> bool {
         self.startup.insert(probe)
